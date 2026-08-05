@@ -30,18 +30,8 @@ export interface Store {
   setMeta(key: string, value: string): void;
 }
 
-/** Normalize a link target / entity name for matching. */
-export function normalizeKey(s: string): string {
-  return s
-    .normalize('NFKC')
-    .toLowerCase()
-    .trim()
-    .replace(/\.md$/i, '')
-    .replace(/[‘’“”'"`]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
+export { normalizeKey } from '../normalize.js';
+import { normalizeKey } from '../normalize.js';
 
 /** Turn free text into a safe FTS5 MATCH expression (quoted tokens). */
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
