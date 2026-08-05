@@ -55,7 +55,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Hybrid retrieval over the markdown vault: BM25 + knowledge-graph spreading activation (+ dense embeddings when configured). Returns passages with provenance (notePath#anchor), score breakdown, and the entities connecting them to the query. Use for any "what do my notes say about X" question, including multi-hop associations.',
       inputSchema: {
-        query: z.string().min(1).describe('natural-language query'),
+        query: z.string().min(1).max(2000).describe('natural-language query'),
         k: z.number().int().min(1).max(50).optional().describe('max results (default 8)'),
         since: z.string().optional().describe('only notes modified on/after this ISO date'),
       },
@@ -70,7 +70,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Progressive-disclosure primer: vault stats, top entities, recently modified notes, currently-valid facts, and (if topic given) top search hits. Call once at session start to orient; then drill down with lore_search / lore_read_note.',
       inputSchema: {
-        topic: z.string().optional().describe('optional focus topic'),
+        topic: z.string().max(2000).optional().describe('optional focus topic'),
       },
     },
     safe(async ({ topic }) => {
@@ -112,7 +112,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       title: 'Read a note',
       description:
         'Read the raw markdown of a note by vault-relative path (as returned in search results). After reading a note that answered the question, call lore_mark_used to reinforce it.',
-      inputSchema: { path: z.string().min(1).describe('vault-relative path, e.g. projects/x.md') },
+      inputSchema: { path: z.string().min(1).max(1024).describe('vault-relative path, e.g. projects/x.md') },
     },
     safe(({ path }) => readNoteRaw(ctx.root, path)),
   );
@@ -124,9 +124,9 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Record an atomic fact (subject :: predicate :: object) with bitemporal validity. Contradicting facts in the same slot are superseded automatically (never deleted; history stays queryable). The fact is journalled to lore/journal/ in markdown, so the vault remains the source of truth. Use for durable knowledge: decisions, states, preferences, relationships.',
       inputSchema: {
-        subject: z.string().min(1),
-        predicate: z.string().min(1).describe('snake_case relation, e.g. works_at, status, lives_in'),
-        object: z.string().min(1),
+        subject: z.string().min(1).max(2000),
+        predicate: z.string().min(1).max(2000).describe('snake_case relation, e.g. works_at, status, lives_in'),
+        object: z.string().min(1).max(2000),
         validFrom: z.string().optional().describe('ISO date when it became true (default today)'),
         validUntil: z.string().optional().describe('ISO date when it stops being true, if known'),
         confidence: z.number().min(0).max(1).optional(),
@@ -144,8 +144,8 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Close the currently-valid fact in a (subject, predicate) slot without asserting a replacement — e.g. "no longer true". Journalled; history preserved.',
       inputSchema: {
-        subject: z.string().min(1),
-        predicate: z.string().min(1),
+        subject: z.string().min(1).max(2000),
+        predicate: z.string().min(1).max(2000),
         validUntil: z.string().optional().describe('ISO date (default today)'),
       },
     },
@@ -192,8 +192,8 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Append a timestamped line to lore/inbox.md (or another vault note). Use for fleeting observations worth keeping that are not atomic facts. Never overwrites anything.',
       inputSchema: {
-        text: z.string().min(1),
-        to: z.string().optional().describe('target .md path (default lore/inbox.md)'),
+        text: z.string().min(1).max(100_000),
+        to: z.string().max(1024).optional().describe('target .md path (default lore/inbox.md)'),
       },
     },
     safe(({ text: t, to }) => ({ captured: capture(ctx, t, to) })),
@@ -206,8 +206,8 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       description:
         'Reinforce passages that actually contributed to your answer (spaced-repetition signal: used memories decay slower). Call after citing a note.',
       inputSchema: {
-        notePath: z.string().min(1),
-        anchor: z.string().optional().describe('block anchor from search results; omit for whole note'),
+        notePath: z.string().min(1).max(1024),
+        anchor: z.string().max(1024).optional().describe('block anchor from search results; omit for whole note'),
       },
     },
     safe(({ notePath, anchor }) => ({
@@ -247,6 +247,24 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
 export async function startMcpServer(ctx: LoreContext): Promise<void> {
   const server = createLoreMcpServer(ctx);
   const transport = new StdioServerTransport();
+  // Without these the server goes permanently deaf on a malformed or
+  // oversized message, with an empty stderr and exit code 0 — the worst
+  // possible failure mode for something an agent depends on.
+  transport.onerror = (err: Error) => {
+    console.error(`[loreweave mcp] transport error: ${err.message}`);
+    try {
+      ctx.close();
+    } finally {
+      process.exit(1);
+    }
+  };
+  transport.onclose = () => {
+    try {
+      ctx.close();
+    } finally {
+      process.exit(0);
+    }
+  };
   await server.connect(transport);
   // keep process alive; close store on exit
   const shutdown = () => {

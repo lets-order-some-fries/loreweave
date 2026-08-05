@@ -67,9 +67,24 @@ function appendJournalLine(root: string, line: string): string {
  * delete (Zep/Graphiti). Freshness resolution is deterministic: newest
  * valid_from wins; the LLM caller is never asked to judge staleness.
  */
+/** A fact is an atomic proposition, not a document; unbounded fields make
+ *  every downstream pass (journal lines, retrieval, dream) pathological. */
+export const MAX_FACT_FIELD = 2000;
+
 export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFactResult {
   if (!input.subject.trim() || !input.predicate.trim() || !input.object.trim()) {
     throw new Error('subject, predicate, and object are required');
+  }
+  for (const [name, value] of [
+    ['subject', input.subject],
+    ['predicate', input.predicate],
+    ['object', input.object],
+  ] as const) {
+    if (value.length > MAX_FACT_FIELD) {
+      throw new Error(
+        `${name} is ${value.length} chars; facts are atomic propositions (max ${MAX_FACT_FIELD}). Use lore capture for long text.`,
+      );
+    }
   }
   checkDate('validFrom', input.validFrom);
   checkDate('validUntil', input.validUntil);

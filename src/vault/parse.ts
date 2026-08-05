@@ -140,9 +140,30 @@ function splitSections(body: string): RawSection[] {
   return sections;
 }
 
-/** Split long section text into ~MAX_BLOCK_WORDS chunks at paragraph borders. */
+/**
+ * Hard-split a single oversized paragraph at word boundaries. Without this,
+ * MAX_BLOCK_WORDS is only advisory — a pasted log or CSV with no blank lines
+ * becomes one enormous block, and everything downstream (FTS snippets,
+ * shingling, embedding) degrades from fast to unusable. Measured before this
+ * cap: a 1 MB single-paragraph note made `search` take 30 seconds.
+ */
+function splitLongParagraph(p: string): string[] {
+  const words = p.split(/\s+/);
+  if (words.length <= MAX_BLOCK_WORDS) return [p];
+  const out: string[] = [];
+  for (let i = 0; i < words.length; i += MAX_BLOCK_WORDS) {
+    out.push(words.slice(i, i + MAX_BLOCK_WORDS).join(' '));
+  }
+  return out;
+}
+
+/** Split section text into ~MAX_BLOCK_WORDS chunks, preferring paragraph borders. */
 function chunkText(text: string): string[] {
-  const paras = text.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const paras = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .flatMap(splitLongParagraph);
   if (paras.length === 0) return [];
   const chunks: string[] = [];
   let current: string[] = [];
