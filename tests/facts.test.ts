@@ -47,6 +47,20 @@ describe('fact lines', () => {
     expect(parseFactLines(rendered)[0]).toEqual(parsed[0]);
   });
 
+  it('objects containing :: and braces survive round-trip verbatim', () => {
+    const f = {
+      kind: 'fact' as const,
+      subject: 'Config',
+      predicate: 'value',
+      object: 'a::b {weird} :: more',
+      attrs: { valid_from: '2026-01-01' },
+    };
+    const parsed = parseFactLines(renderFactLine(f));
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]!.object).toBe('a::b {weird} :: more');
+    expect(parsed[0]!.attrs.valid_from).toBe('2026-01-01');
+  });
+
   it('ignores malformed lines', () => {
     expect(parseFactLines('- [fact] only-subject')).toHaveLength(0);
     expect(parseFactLines('- [fact] a :: b')).toHaveLength(0);

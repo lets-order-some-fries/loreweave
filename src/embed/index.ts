@@ -93,6 +93,14 @@ function toBlob(v: Float32Array): Buffer {
 }
 
 function fromBlob(b: Buffer): Float32Array {
+  // A Float32Array view requires a 4-byte-aligned offset. SQLite blobs are
+  // currently returned at offset 0, but pooled/sliced Buffers need not be —
+  // copy in that case rather than throwing at retrieval time.
+  if (b.byteOffset % 4 !== 0 || b.byteLength % 4 !== 0) {
+    const copy = Buffer.from(b);
+    const usable = copy.byteLength - (copy.byteLength % 4);
+    return new Float32Array(copy.buffer.slice(copy.byteOffset, copy.byteOffset + usable));
+  }
   return new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4);
 }
 

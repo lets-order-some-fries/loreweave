@@ -40,6 +40,23 @@ describe('cli', () => {
 
     const doc = await run('doctor');
     expect(doc.out).toContain('db integrity: ok');
+    // fixture has no dangling links
+    expect(doc.out).toContain('broken links: 0');
+  });
+
+  it('doctor actually detects dangling wiki-links', async () => {
+    const vault = await makeVault({
+      'a.md': 'Points at [[Nonexistent Page]] and [[Real Note]].\n',
+      'real-note.md': '---\ntitle: Real Note\n---\n\nI exist.\n',
+    });
+    await mkdir(join(vault, '.lore'), { recursive: true });
+    const saved = root;
+    root = vault;
+    await run('index');
+    const doc = await run('doctor');
+    expect(doc.out).toContain('broken links: 1');
+    expect(doc.out).toContain('Nonexistent Page');
+    root = saved;
   });
 
   it('assert → facts → count → invalidate journey', async () => {

@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openContext, type LoreContext } from '../context.js';
 import { LORE_DIR, findVaultRoot } from '../config.js';
+import { normalizeKey } from '../normalize.js';
 import { indexVault } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -333,15 +334,23 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         const db = ctx.store.db;
         const integrity = db.pragma('integrity_check') as { integrity_check: string }[];
         io.out(`db integrity: ${integrity[0]?.integrity_check ?? 'unknown'}`);
-        const broken = db
-          .prepare(
-            `SELECT l.note_path, l.target FROM links l
-             WHERE l.target_norm NOT IN (SELECT key FROM entities)
-             LIMIT 500`,
-          )
-          .all() as { note_path: string; target: string }[];
-        // a link is broken when no note resolves to it — entity keys include
-        // note titles, so unresolved targets are those with no entity at all
+        // A link is broken when no NOTE resolves to its target. (Checking
+        // against `entities` would never fire: every link target becomes an
+        // entity by construction.)
+        const notes = db.prepare(`SELECT path, title FROM notes`).all() as {
+          path: string;
+          title: string;
+        }[];
+        const resolvable = new Set<string>();
+        for (const n of notes) {
+          resolvable.add(normalizeKey(n.title));
+          resolvable.add(normalizeKey(n.path));
+          resolvable.add(normalizeKey(n.path.split('/').pop() ?? n.path));
+        }
+        const allLinks = db
+          .prepare(`SELECT DISTINCT note_path, target, target_norm FROM links WHERE target != ''`)
+          .all() as { note_path: string; target: string; target_norm: string }[];
+        const broken = allLinks.filter((l) => !resolvable.has(l.target_norm));
         if (broken.length) {
           io.out(`broken links: ${broken.length}`);
           for (const b of broken.slice(0, 20)) io.out(`  ${b.note_path} → [[${b.target}]]`);

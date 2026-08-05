@@ -54,13 +54,23 @@ export function parseFactLines(text: string): FactLine[] {
       attrs = parseAttrs(attrMatch[1] ?? '');
       body = body.slice(0, attrMatch.index).trim();
     }
-    const parts = body.split('::').map((p) => p.trim());
+    // Split on the FIRST two '::' only; the object keeps everything after
+    // (verbatim), so objects may legitimately contain '::'.
+    const i1 = body.indexOf('::');
+    if (i1 < 0) continue;
+    const subject = body.slice(0, i1).trim();
+    const rest = body.slice(i1 + 2);
+    const i2 = rest.indexOf('::');
     if (kind === 'fact') {
-      if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) continue;
-      out.push({ kind, subject: parts[0], predicate: parts[1], object: parts.slice(2).join(' :: '), attrs });
+      if (i2 < 0) continue;
+      const predicate = rest.slice(0, i2).trim();
+      const object = rest.slice(i2 + 2).trim();
+      if (!subject || !predicate || !object) continue;
+      out.push({ kind, subject, predicate, object, attrs });
     } else {
-      if (parts.length < 2 || !parts[0] || !parts[1]) continue;
-      out.push({ kind, subject: parts[0], predicate: parts[1], attrs });
+      const predicate = (i2 < 0 ? rest : rest.slice(0, i2)).trim();
+      if (!subject || !predicate) continue;
+      out.push({ kind, subject, predicate, attrs });
     }
   }
   return out;
