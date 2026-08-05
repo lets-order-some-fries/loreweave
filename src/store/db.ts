@@ -50,6 +50,9 @@ export function openStore(dbPath: string): Store {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
+  // Without this, a second process touching the vault (e.g. an MCP server
+  // while the CLI indexes) fails instantly with SQLITE_BUSY instead of waiting.
+  db.pragma('busy_timeout = 5000');
 
   // migrations
   const migrate = db.transaction(() => {

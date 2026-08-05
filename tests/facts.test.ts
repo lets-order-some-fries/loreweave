@@ -61,6 +61,21 @@ describe('fact lines', () => {
     expect(parsed[0]!.attrs.valid_from).toBe('2026-01-01');
   });
 
+  it('newlines and backslashes round-trip losslessly (line-based journal)', () => {
+    const object = 'line one\nline two :: fake\\path\r\nend';
+    const rendered = renderFactLine({
+      kind: 'fact',
+      subject: 'Note',
+      predicate: 'body',
+      object,
+      attrs: { valid_from: '2026-01-01' },
+    });
+    expect(rendered.split('\n')).toHaveLength(1); // stays ONE line
+    const parsed = parseFactLines(rendered);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]!.object).toBe(object);
+  });
+
   it('ignores malformed lines', () => {
     expect(parseFactLines('- [fact] only-subject')).toHaveLength(0);
     expect(parseFactLines('- [fact] a :: b')).toHaveLength(0);

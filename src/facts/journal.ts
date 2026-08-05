@@ -28,6 +28,44 @@ export interface FactLine {
 
 const FACT_RE = /^\s*[-*+]\s*\[(fact|invalidate)\]\s*(.+)$/;
 
+/**
+ * The journal is line-based, so control characters must be escaped or a fact
+ * containing a newline would be silently truncated on replay (data loss).
+ * Escaping is lossless and round-trips through `unescapeField`.
+ */
+export function escapeField(s: string): string {
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
+}
+
+export function unescapeField(s: string): string {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && i + 1 < s.length) {
+      const next = s[i + 1];
+      if (next === 'n') {
+        out += '\n';
+        i++;
+        continue;
+      }
+      if (next === 'r') {
+        out += '\r';
+        i++;
+        continue;
+      }
+      if (next === '\\') {
+        out += '\\';
+        i++;
+        continue;
+      }
+    }
+    out += s[i];
+  }
+  return out;
+}
+
 function parseAttrs(s: string): Record<string, string> {
   const attrs: Record<string, string> = {};
   for (const part of s.split(',')) {
@@ -66,11 +104,17 @@ export function parseFactLines(text: string): FactLine[] {
       const predicate = rest.slice(0, i2).trim();
       const object = rest.slice(i2 + 2).trim();
       if (!subject || !predicate || !object) continue;
-      out.push({ kind, subject, predicate, object, attrs });
+      out.push({
+        kind,
+        subject: unescapeField(subject),
+        predicate: unescapeField(predicate),
+        object: unescapeField(object),
+        attrs,
+      });
     } else {
       const predicate = (i2 < 0 ? rest : rest.slice(0, i2)).trim();
       if (!subject || !predicate) continue;
-      out.push({ kind, subject, predicate, attrs });
+      out.push({ kind, subject: unescapeField(subject), predicate: unescapeField(predicate), attrs });
     }
   }
   return out;
@@ -79,12 +123,12 @@ export function parseFactLines(text: string): FactLine[] {
 /** Render a FactLine back to markdown (round-trip format). */
 export function renderFactLine(f: FactLine): string {
   const attrs = Object.entries(f.attrs)
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([k, v]) => `${k}=${escapeField(String(v))}`)
     .join(', ');
+  const s = escapeField(f.subject);
+  const p = escapeField(f.predicate);
   const body =
-    f.kind === 'fact'
-      ? `${f.subject} :: ${f.predicate} :: ${f.object ?? ''}`
-      : `${f.subject} :: ${f.predicate}`;
+    f.kind === 'fact' ? `${s} :: ${p} :: ${escapeField(f.object ?? '')}` : `${s} :: ${p}`;
   return `- [${f.kind}] ${body}${attrs ? ` {${attrs}}` : ''}`;
 }
 
