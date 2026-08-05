@@ -62,6 +62,7 @@ export function updateImportance(store: Store): void {
   const byKey = new Map<string, string>();
   for (const n of notes) {
     byKey.set(normalizeKey(n.title), n.path);
+    byKey.set(normalizeKey(n.path), n.path);
     const base = n.path.split('/').pop() ?? n.path;
     byKey.set(normalizeKey(base), n.path);
   }

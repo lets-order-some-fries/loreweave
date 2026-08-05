@@ -8,10 +8,64 @@ export function sha1(text: string): string {
   return createHash('sha1').update(text, 'utf8').digest('hex');
 }
 
-/** Extract wiki-links from a text region. */
-function extractLinks(text: string, blockAnchor: string): WikiLink[] {
+/** Blank out fenced and inline code so links inside code are not parsed. */
+function maskCode(text: string): string {
+  return text
+    .replace(/```[\s\S]*?(?:```|$)/g, (m) => ' '.repeat(m.length))
+    .replace(/~~~[\s\S]*?(?:~~~|$)/g, (m) => ' '.repeat(m.length))
+    .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
+}
+
+/** Decode %20-style escapes in markdown link targets; tolerate bad encoding. */
+function decodeTarget(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/**
+ * Extract links from a text region: `[[wiki links]]` AND relative markdown
+ * links to other notes (`[text](../notes/thing.md#heading)`). Most real vaults
+ * outside Obsidian use the markdown form exclusively — ignoring it leaves the
+ * knowledge graph with almost no edges.
+ */
+function extractLinks(rawText: string, blockAnchor: string): WikiLink[] {
   const out: WikiLink[] = [];
-  // [[target]], [[target|alias]], [[target#heading]], [[target#heading|alias]]
+  const text = maskCode(rawText);
+
+  // --- markdown links: [alias](target.md#heading) ---
+  // Only relative links to .md files (or bare relative paths without a
+  // scheme) count as note links; http(s), mailto, images and anchors do not.
+  const mdRe = /(!?)\[([^\]\n]*)\]\(([^()\s]+)(?:\s+"[^"]*")?\)/g;
+  let md: RegExpExecArray | null;
+  while ((md = mdRe.exec(text)) !== null) {
+    if (md[1] === '!') continue; // image
+    const alias = (md[2] ?? '').trim();
+    let href = (md[3] ?? '').trim();
+    if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href)) continue; // scheme → external
+    if (href.startsWith('#')) continue; // in-page anchor
+    let heading: string | undefined;
+    const hash = href.indexOf('#');
+    if (hash >= 0) {
+      heading = decodeTarget(href.slice(hash + 1)).trim() || undefined;
+      href = href.slice(0, hash);
+    }
+    href = decodeTarget(href).replace(/^\.\//, '');
+    if (!href) continue;
+    if (!/\.md$/i.test(href)) continue; // only markdown note targets
+    out.push({
+      raw: md[0] ?? '',
+      target: href,
+      heading,
+      alias: alias || undefined,
+      blockAnchor,
+      style: 'markdown',
+    });
+  }
+
+  // --- wiki links: [[target]], [[target|alias]], [[target#heading]] ---
   const re = /\[\[([^\[\]]+?)\]\]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text)) !== null) {
@@ -32,7 +86,7 @@ function extractLinks(text: string, blockAnchor: string): WikiLink[] {
     }
     const target = rest.trim();
     if (!target && !heading) continue;
-    out.push({ raw, target, heading, alias, blockAnchor });
+    out.push({ raw, target, heading, alias, blockAnchor, style: 'wiki' });
   }
   return out;
 }

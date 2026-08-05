@@ -31,7 +31,7 @@ export interface Store {
 }
 
 export { normalizeKey } from '../normalize.js';
-import { normalizeKey } from '../normalize.js';
+import { linkMatchKey } from '../normalize.js';
 
 /** Turn free text into a safe FTS5 MATCH expression (quoted tokens). */
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
@@ -138,7 +138,7 @@ export function openStore(dbPath: string): Store {
         note.path,
         l.blockAnchor,
         l.target,
-        normalizeKey(l.target),
+        linkMatchKey(note.path, l.target, l.style),
         l.heading ?? null,
         l.alias ?? null,
       );

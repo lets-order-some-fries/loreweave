@@ -18,6 +18,8 @@ export interface WikiLink {
   alias?: string;
   /** Anchor of the block the link occurs in. */
   blockAnchor: string;
+  /** How it was written: `[[wiki]]` or `[md](path.md)`. */
+  style: 'wiki' | 'markdown';
 }
 
 /** A heading-bounded chunk of a note; the retrieval unit. */
