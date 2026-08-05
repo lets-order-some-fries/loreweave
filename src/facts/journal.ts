@@ -165,8 +165,15 @@ export function rebuildFactsFromNotes(store: Store): number {
       for (const f of parseFactLines(r.text)) {
         if (f.kind === 'invalidate') {
           const until = f.attrs.valid_until ?? dateFromPath ?? new Date().toISOString();
+          // Close only the current winner of the slot; older open facts get
+          // closed by the supersession recompute at their successor's date.
+          // (Closing all open facts here would diverge from the live path,
+          // where supersession has already closed the older ones.)
           db.prepare(
-            `UPDATE facts SET valid_until=? WHERE subject=? AND predicate=? AND valid_until IS NULL`,
+            `UPDATE facts SET valid_until=? WHERE id IN (
+               SELECT id FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
+               ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1
+             )`,
           ).run(until, normalizeKey(f.subject), normalizeKey(f.predicate));
           continue;
         }
