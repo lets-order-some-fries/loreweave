@@ -35,21 +35,24 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_blocks_note ON blocks(note_path);
 
+  -- Standalone (not external-content) so the indexed text can include the
+  -- heading breadcrumb: a query matching only a heading must still find the
+  -- section. Duplication is negligible at personal-vault scale.
   CREATE VIRTUAL TABLE blocks_fts USING fts5(
     text,
-    content='blocks',
-    content_rowid='id',
     tokenize='porter unicode61'
   );
   CREATE TRIGGER blocks_ai AFTER INSERT ON blocks BEGIN
-    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.text);
+    INSERT INTO blocks_fts(rowid, text)
+      VALUES (new.id, replace(new.heading, '/', ' ') || ' ' || new.text);
   END;
   CREATE TRIGGER blocks_ad AFTER DELETE ON blocks BEGIN
-    INSERT INTO blocks_fts(blocks_fts, rowid, text) VALUES('delete', old.id, old.text);
+    DELETE FROM blocks_fts WHERE rowid = old.id;
   END;
-  CREATE TRIGGER blocks_au AFTER UPDATE OF text ON blocks BEGIN
-    INSERT INTO blocks_fts(blocks_fts, rowid, text) VALUES('delete', old.id, old.text);
-    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.text);
+  CREATE TRIGGER blocks_au AFTER UPDATE OF text, heading ON blocks BEGIN
+    DELETE FROM blocks_fts WHERE rowid = old.id;
+    INSERT INTO blocks_fts(rowid, text)
+      VALUES (new.id, replace(new.heading, '/', ' ') || ' ' || new.text);
   END;
 
   CREATE TABLE links (
