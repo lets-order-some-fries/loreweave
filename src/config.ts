@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { z } from 'zod';
 
 export const ConfigSchema = z
@@ -84,4 +84,15 @@ export function loadConfig(vaultRoot: string): LoreConfig {
 
 export function dbPath(vaultRoot: string): string {
   return join(vaultRoot, LORE_DIR, 'index.db');
+}
+
+/** Walk up from `start` looking for a .lore directory; fall back to `start`. */
+export function findVaultRoot(start: string): string {
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(join(dir, LORE_DIR))) return dir;
+    const parent = resolve(dir, '..');
+    if (parent === dir) return resolve(start);
+    dir = parent;
+  }
 }
