@@ -11,6 +11,7 @@ import { assertFact, queryFacts } from '../src/facts/model.js';
 import { dream } from '../src/dream/dream.js';
 import { ConfigSchema } from '../src/config.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
 import type { LoreContext } from '../src/context.js';
 import { FIXTURE_VAULT, editFile, makeVault } from './helpers.js';
 
@@ -25,6 +26,7 @@ function ctxFor(root: string, store: ReturnType<typeof openStore>): LoreContext 
     store,
     provider: null,
     graph: () => (cached ??= buildGraph(store, config)),
+    noteLinks: () => buildNoteLinkGraph(store),
     invalidateGraph: () => (cached = null),
     close: () => store.close(),
   };

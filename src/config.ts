@@ -25,9 +25,16 @@ export const ConfigSchema = z
           .object({
             lexical: z.number().default(1.0),
             dense: z.number().default(1.0),
-            graph: z.number().default(0.8),
+            /** Entity-graph PPR: broad but noisy, so weighted below lexical. */
+            graph: z.number().default(0.35),
+            /** Note-level link traversal: high precision, carries multi-hop. */
+            expansion: z.number().default(1.0),
           })
           .default({}),
+        /** How many top lexical notes to expand links from. */
+        expansionSeeds: z.number().int().min(1).max(20).default(5),
+        expansionHops: z.number().int().min(1).max(3).default(1),
+        expansionDecay: z.number().min(0).max(1).default(0.45),
         boosts: z
           .object({
             retrievability: z.number().default(0.15),

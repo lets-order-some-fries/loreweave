@@ -4,6 +4,7 @@ import { normalizeKey } from '../normalize.js';
 import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
+import { expandNotes, seedNotes } from './expand.js';
 
 export interface SearchOptions {
   k?: number;
@@ -112,6 +113,54 @@ export async function search(
     blockScores.slice(0, cand).forEach((h, i) => graphRanks.set(h.blockId, i + 1));
   }
 
+  // 3b) note-level link expansion — walk real links out from the notes
+  // lexical search is most confident about. This is the multi-hop path:
+  // the answer note may share no vocabulary with the query at all.
+  const expandRanks = new Map<number, number>();
+  if (cfg.weights.expansion > 0) {
+    const linkGraph = ctx.noteLinks();
+    const lexicalNotes: string[] = [];
+    const seenNote = new Set<string>();
+    for (const h of lexical) {
+      if (seenNote.has(h.notePath)) continue;
+      seenNote.add(h.notePath);
+      lexicalNotes.push(h.notePath);
+    }
+    const seeds = seedNotes(linkGraph, query, lexicalNotes, cfg.expansionSeeds);
+    if (seeds.length > 0) {
+      const expanded = expandNotes(linkGraph, seeds, {
+        hops: cfg.expansionHops,
+        decay: cfg.expansionDecay,
+      });
+      if (expanded.size > 0) {
+        // score each expanded note's blocks, preferring blocks that at least
+        // mention a query token so we land on the relevant section
+        const notes = [...expanded.entries()].sort((a, b) => b[1] - a[1]).slice(0, cand);
+        const placeholders = notes.map(() => '?').join(',');
+        const blocks = store.db
+          .prepare(
+            `SELECT id, note_path, ord FROM blocks WHERE note_path IN (${placeholders})
+             AND archived = 0 ORDER BY note_path, ord`,
+          )
+          .all(...notes.map((n) => n[0])) as { id: number; note_path: string; ord: number }[];
+        const byNote = new Map<string, number[]>();
+        for (const b of blocks) {
+          const arr = byNote.get(b.note_path);
+          if (arr) arr.push(b.id);
+          else byNote.set(b.note_path, [b.id]);
+        }
+        const scored: { blockId: number; s: number }[] = [];
+        for (const [notePath, s] of notes) {
+          const ids = byNote.get(notePath) ?? [];
+          // first block of a note carries its definition; later blocks decay
+          ids.forEach((id, i) => scored.push({ blockId: id, s: s / (1 + i * 0.5) }));
+        }
+        scored.sort((a, b) => b.s - a.s);
+        scored.slice(0, cand).forEach((h, i) => expandRanks.set(h.blockId, i + 1));
+      }
+    }
+  }
+
   // 4) weighted RRF fusion
   const lists: RankedList[] = [
     { weight: cfg.weights.lexical, ranks: lexicalRanks },
@@ -123,6 +172,21 @@ export async function search(
     if (list.weight <= 0) continue;
     for (const [blockId, rank] of list.ranks) {
       fused.set(blockId, (fused.get(blockId) ?? 0) + list.weight / (cfg.rrfK + rank));
+    }
+  }
+
+  // Link expansion is a RECALL mechanism, not a ranking signal. Treated as a
+  // peer list it wrecks precision — measured 0.489 -> 0.208 MRR, because a
+  // note reached by one link outranked an exact lexical match. So it only
+  // BACKFILLS: notes nothing else found are appended strictly below every
+  // fused result, where they can add recall but never displace a real hit.
+  if (cfg.weights.expansion > 0 && expandRanks.size > 0) {
+    let floor = Infinity;
+    for (const v of fused.values()) if (v < floor) floor = v;
+    if (!Number.isFinite(floor)) floor = 1 / (cfg.rrfK + 1);
+    for (const [blockId, rank] of expandRanks) {
+      if (fused.has(blockId)) continue;
+      fused.set(blockId, floor * cfg.weights.expansion * (1 / (1 + rank)));
     }
   }
   if (fused.size === 0) return [];

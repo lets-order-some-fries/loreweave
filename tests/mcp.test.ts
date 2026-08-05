@@ -6,6 +6,7 @@ import { indexVault } from '../src/index/indexer.js';
 import { createLoreMcpServer } from '../src/mcp/server.js';
 import { ConfigSchema } from '../src/config.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
 import type { LoreContext } from '../src/context.js';
 import { FIXTURE_VAULT, makeVault } from './helpers.js';
 
@@ -35,6 +36,7 @@ beforeAll(async () => {
     store,
     provider: null,
     graph: () => (cached ??= buildGraph(store, config)),
+    noteLinks: () => buildNoteLinkGraph(store),
     invalidateGraph: () => (cached = null),
     close: () => store.close(),
   };

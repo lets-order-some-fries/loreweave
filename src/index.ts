@@ -26,6 +26,12 @@ export {
 export { markUsed, resolveBlockIds, updateImportance } from './dynamics/usage.js';
 export { search, matchQueryEntities, type SearchOptions } from './retrieve/search.js';
 export {
+  buildNoteLinkGraph,
+  expandNotes,
+  type NoteLinkGraph,
+  type ExpansionOptions,
+} from './retrieve/expand.js';
+export {
   assertFact,
   invalidateFact,
   queryFacts,

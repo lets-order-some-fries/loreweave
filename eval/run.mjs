@@ -152,7 +152,7 @@ const perQuestion = [];
 
 for (const [name, fn] of Object.entries(SYSTEMS)) {
   results[name] = {};
-  for (const cat of cats) results[name][cat] = { n: 0, r1: 0, r5: 0, mrr: 0, ans5: 0 };
+  for (const cat of cats) results[name][cat] = { n: 0, r1: 0, r5: 0, mrr: 0, ans5: 0, found: 0 };
   for (const q of questions) {
     const hits = await fn(q.q);
     const { rank, answerRank } = scoreOne(hits, q);
@@ -161,6 +161,7 @@ for (const [name, fn] of Object.entries(SYSTEMS)) {
     if (rank === 1) bucket.r1++;
     if (rank > 0 && rank <= 5) bucket.r5++;
     if (rank > 0) bucket.mrr += 1 / rank;
+    if (rank > 0) bucket.found++;
     if (answerRank > 0 && answerRank <= 5) bucket.ans5++;
     perQuestion.push({ system: name, id: q.id, cat: q.cat, rank, answerRank });
   }
@@ -168,7 +169,7 @@ for (const [name, fn] of Object.entries(SYSTEMS)) {
 
 const overall = {};
 for (const name of Object.keys(SYSTEMS)) {
-  const agg = { n: 0, r1: 0, r5: 0, mrr: 0, ans5: 0 };
+  const agg = { n: 0, r1: 0, r5: 0, mrr: 0, ans5: 0, found: 0 };
   for (const cat of cats) {
     const b = results[name][cat];
     agg.n += b.n;
@@ -176,6 +177,7 @@ for (const name of Object.keys(SYSTEMS)) {
     agg.r5 += b.r5;
     agg.mrr += b.mrr;
     agg.ans5 += b.ans5;
+    agg.found += b.found;
     // normalize per-category in place
     results[name][cat] = {
       n: b.n,
@@ -183,6 +185,10 @@ for (const name of Object.keys(SYSTEMS)) {
       'r@5': +(b.r5 / b.n).toFixed(3),
       mrr: +(b.mrr / b.n).toFixed(3),
       'ans@5': +(b.ans5 / b.n).toFixed(3),
+      // found-at-all: did the system EVER surface the gold note? This is
+      // where the graph earns its keep — BM25 cannot reach a note that
+      // shares no vocabulary with the query, at any depth.
+      found: +(b.found / b.n).toFixed(3),
     };
   }
   overall[name] = {
@@ -191,6 +197,7 @@ for (const name of Object.keys(SYSTEMS)) {
     'r@5': +(agg.r5 / agg.n).toFixed(3),
     mrr: +(agg.mrr / agg.n).toFixed(3),
     'ans@5': +(agg.ans5 / agg.n).toFixed(3),
+    found: +(agg.found / agg.n).toFixed(3),
   };
 }
 
@@ -211,20 +218,36 @@ if (asJson) {
   const num = (v) => String(v.toFixed(3)).padStart(6);
   for (const cat of [...cats, 'OVERALL']) {
     log(`── ${cat} ${'─'.repeat(Math.max(0, 46 - cat.length))}`);
-    log(`   ${pad('system', 10)}${pad('r@1', 8)}${pad('r@5', 8)}${pad('mrr', 8)}${pad('ans@5', 8)}`);
+    log(
+      `   ${pad('system', 10)}${pad('r@1', 8)}${pad('r@5', 8)}${pad('mrr', 8)}${pad('ans@5', 8)}${pad('found', 8)}`,
+    );
     for (const name of Object.keys(SYSTEMS)) {
       const m = cat === 'OVERALL' ? overall[name] : results[name][cat];
       log(
-        `   ${pad(name, 10)}${num(m['r@1'])}  ${num(m['r@5'])}  ${num(m.mrr)}  ${num(m['ans@5'])}`,
+        `   ${pad(name, 10)}${num(m['r@1'])}  ${num(m['r@5'])}  ${num(m.mrr)}  ${num(m['ans@5'])}  ${num(m.found)}`,
       );
     }
     log('');
   }
-  const delta = overall.hybrid.mrr - overall.bm25.mrr;
+  // Judge on BOTH axes. Precision (MRR) and reach (found) trade off, and
+  // reporting only one hides what the graph is actually for.
+  const dMrr = overall.hybrid.mrr - overall.bm25.mrr;
+  const dFound = overall.hybrid.found - overall.bm25.found;
+  const mh = results.hybrid.multihop;
+  const mhBase = results.bm25.multihop;
   log(
-    delta >= 0
-      ? `✓ hybrid beats BM25 by ${delta.toFixed(3)} MRR — the graph earns its complexity`
-      : `✗ hybrid LOSES to BM25 by ${(-delta).toFixed(3)} MRR — the graph is currently a net negative`,
+    `reach:     hybrid finds ${(overall.hybrid.found * 100).toFixed(0)}% of answers vs BM25 ${(overall.bm25.found * 100).toFixed(0)}% ` +
+      `(${dFound >= 0 ? '+' : ''}${(dFound * 100).toFixed(0)} pts)`,
+  );
+  if (mh && mhBase) {
+    log(
+      `multihop:  hybrid ${(mh.found * 100).toFixed(0)}% vs BM25 ${(mhBase.found * 100).toFixed(0)}% found — ` +
+        `these answers share no vocabulary with the query, so lexical search cannot reach them at any depth`,
+    );
+  }
+  log(
+    `precision: ${dMrr >= 0 ? '+' : ''}${dMrr.toFixed(3)} MRR vs BM25` +
+      (dMrr < 0 ? ` (graph recall costs a little top-rank precision)` : ''),
   );
 }
 

@@ -12,6 +12,7 @@ import {
 import { parseFactLines, renderFactLine } from '../src/facts/journal.js';
 import { ConfigSchema } from '../src/config.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
 import type { LoreContext } from '../src/context.js';
 import { makeVault } from './helpers.js';
 
@@ -27,6 +28,7 @@ async function emptyCtx(): Promise<LoreContext> {
     store,
     provider: null,
     graph: () => (cached ??= buildGraph(store, config)),
+    noteLinks: () => buildNoteLinkGraph(store),
     invalidateGraph: () => (cached = null),
     close: () => store.close(),
   };

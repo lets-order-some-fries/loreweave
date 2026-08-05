@@ -6,6 +6,7 @@ import { markUsed, resolveBlockIds } from '../src/dynamics/usage.js';
 import { ConfigSchema } from '../src/config.js';
 import type { LoreContext } from '../src/context.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
 import { FIXTURE_VAULT, makeVault } from './helpers.js';
 
 async function fixtureCtx(): Promise<LoreContext> {
@@ -23,6 +24,7 @@ async function fixtureCtx(): Promise<LoreContext> {
       if (!cached) cached = buildGraph(store, config);
       return cached;
     },
+    noteLinks: () => buildNoteLinkGraph(store),
     invalidateGraph() {
       cached = null;
     },
