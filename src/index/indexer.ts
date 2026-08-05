@@ -5,6 +5,7 @@ import { parseNote, sha1 } from '../vault/parse.js';
 import { scanVault } from '../vault/scan.js';
 import { extractEntities } from '../entities/extract.js';
 import { rebuildFactsFromNotes } from '../facts/journal.js';
+import { updateImportance } from '../dynamics/usage.js';
 
 export interface IndexOptions {
   full?: boolean;
@@ -103,6 +104,7 @@ export async function indexVault(
   if (report.removed > 0 || report.updated > 0) pruneOrphanEntities(store);
   if (report.added > 0 || report.updated > 0 || report.removed > 0) {
     rebuildFactsFromNotes(store);
+    updateImportance(store);
   }
 
   store.setMeta('last_index_at', new Date().toISOString());
