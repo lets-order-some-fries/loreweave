@@ -24,7 +24,7 @@ export {
   daysBetween,
 } from './dynamics/fsrs.js';
 export { markUsed, resolveBlockIds, updateImportance } from './dynamics/usage.js';
-export { search, type SearchOptions } from './retrieve/search.js';
+export { search, matchQueryEntities, type SearchOptions } from './retrieve/search.js';
 export {
   assertFact,
   invalidateFact,

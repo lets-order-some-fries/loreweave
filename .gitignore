@@ -5,3 +5,5 @@ dist/
 .lore/
 coverage/
 *.tsbuildinfo
+eval/vault/
+eval/last-run.json
