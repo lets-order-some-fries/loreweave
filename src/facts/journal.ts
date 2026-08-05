@@ -37,7 +37,10 @@ export function escapeField(s: string): string {
   return s
     .replace(/\\/g, '\\\\')
     .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n');
+    .replace(/\n/g, '\\n')
+    // The field delimiter itself must be escaped, or a subject/predicate
+    // containing '::' re-parses into different fields on replay.
+    .replace(/::/g, '\\:\\:');
 }
 
 export function unescapeField(s: string): string {
@@ -57,6 +60,11 @@ export function unescapeField(s: string): string {
       }
       if (next === '\\') {
         out += '\\';
+        i++;
+        continue;
+      }
+      if (next === ':') {
+        out += ':';
         i++;
         continue;
       }

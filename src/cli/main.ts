@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { openContext, type LoreContext } from '../context.js';
 import { LORE_DIR, findVaultRoot } from '../config.js';
 import { normalizeKey } from '../normalize.js';
+import { parseQueryTime } from '../temporal/dates.js';
 import { indexVault } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -132,7 +133,18 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .action(async (words: string[], opts: { json?: boolean }) => {
       await withCtx(async (ctx) => {
         const q = words.join(' ');
-        const [passages, facts] = [await search(ctx, q, { k: 5 }), queryFacts(ctx.store, {})];
+        // A question about the past must not be answered with today's facts.
+        const when = parseQueryTime(q);
+        const factQuery =
+          when.kind === 'asOf'
+            ? { asOf: when.date }
+            : when.kind === 'history'
+              ? { includeHistory: true }
+              : {};
+        const [passages, facts] = [
+          await search(ctx, q, { k: 5 }),
+          queryFacts(ctx.store, factQuery),
+        ];
         const qTokens = new Set(q.toLowerCase().split(/\W+/).filter(Boolean));
         const relevantFacts = facts
           .filter((f) =>
@@ -147,10 +159,17 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           return;
         }
         if (relevantFacts.length) {
-          io.out('Facts (currently valid):');
+          io.out(
+            when.kind === 'asOf'
+              ? `Facts (as of ${when.date}):`
+              : when.kind === 'history'
+                ? 'Facts (full history):'
+                : 'Facts (currently valid):',
+          );
           for (const f of relevantFacts) {
             const from = f.validFrom ? ` (since ${f.validFrom.slice(0, 10)})` : '';
-            io.out(`  ★ ${f.subjectDisplay} — ${f.predicate} — ${f.object}${from}`);
+            const until = f.validUntil ? ` until ${f.validUntil.slice(0, 10)}` : '';
+            io.out(`  ★ ${f.subjectDisplay} — ${f.predicate} — ${f.object}${from}${until}`);
           }
           io.out('');
         }

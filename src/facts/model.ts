@@ -238,8 +238,12 @@ export function aggregateFacts(
     clauses.push(`predicate = ?`);
     params.push(normalizeKey(q.predicate));
   }
+  // `since`/`until` bound when the fact BECAME true, which is what
+  // "how many trips in 2025" means. (Filtering on valid_until instead is
+  // trivially true for every still-open fact, so a 2025 window would count
+  // a 2024 trip that never ended.)
   if (q.since) {
-    clauses.push(`(valid_until IS NULL OR valid_until >= ?)`);
+    clauses.push(`COALESCE(valid_from, recorded_at) >= ?`);
     params.push(q.since);
   }
   if (q.until) {
