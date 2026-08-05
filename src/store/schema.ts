@@ -1,0 +1,135 @@
+/**
+ * Versioned schema. Each entry runs once, in order, inside a transaction;
+ * meta.schema_version records progress. NEVER edit an existing migration —
+ * append a new one.
+ */
+export const MIGRATIONS: string[] = [
+  // v1 — initial schema
+  `
+  CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+
+  CREATE TABLE notes (
+    path        TEXT PRIMARY KEY,
+    title       TEXT NOT NULL,
+    frontmatter TEXT NOT NULL DEFAULT '{}',
+    tags        TEXT NOT NULL DEFAULT '[]',
+    hash        TEXT NOT NULL,
+    mtime_ms    REAL NOT NULL,
+    indexed_at  TEXT NOT NULL
+  );
+
+  CREATE TABLE blocks (
+    id           INTEGER PRIMARY KEY,
+    note_path    TEXT NOT NULL REFERENCES notes(path) ON DELETE CASCADE,
+    anchor       TEXT NOT NULL,
+    heading      TEXT NOT NULL DEFAULT '',
+    ord          INTEGER NOT NULL,
+    text         TEXT NOT NULL,
+    hash         TEXT NOT NULL,
+    stability    REAL NOT NULL DEFAULT 1.0,
+    last_accessed TEXT,
+    access_count INTEGER NOT NULL DEFAULT 0,
+    importance   REAL NOT NULL DEFAULT 0.3,
+    archived     INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(note_path, anchor)
+  );
+  CREATE INDEX idx_blocks_note ON blocks(note_path);
+
+  CREATE VIRTUAL TABLE blocks_fts USING fts5(
+    text,
+    content='blocks',
+    content_rowid='id',
+    tokenize='porter unicode61'
+  );
+  CREATE TRIGGER blocks_ai AFTER INSERT ON blocks BEGIN
+    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.text);
+  END;
+  CREATE TRIGGER blocks_ad AFTER DELETE ON blocks BEGIN
+    INSERT INTO blocks_fts(blocks_fts, rowid, text) VALUES('delete', old.id, old.text);
+  END;
+  CREATE TRIGGER blocks_au AFTER UPDATE OF text ON blocks BEGIN
+    INSERT INTO blocks_fts(blocks_fts, rowid, text) VALUES('delete', old.id, old.text);
+    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.text);
+  END;
+
+  CREATE TABLE links (
+    id           INTEGER PRIMARY KEY,
+    note_path    TEXT NOT NULL REFERENCES notes(path) ON DELETE CASCADE,
+    block_anchor TEXT NOT NULL,
+    target       TEXT NOT NULL,
+    target_norm  TEXT NOT NULL,
+    heading      TEXT,
+    alias        TEXT
+  );
+  CREATE INDEX idx_links_note ON links(note_path);
+  CREATE INDEX idx_links_target ON links(target_norm);
+
+  CREATE TABLE entities (
+    id      INTEGER PRIMARY KEY,
+    key     TEXT NOT NULL UNIQUE,
+    display TEXT NOT NULL
+  );
+
+  CREATE TABLE mentions (
+    id           INTEGER PRIMARY KEY,
+    entity_id    INTEGER NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+    note_path    TEXT NOT NULL REFERENCES notes(path) ON DELETE CASCADE,
+    block_anchor TEXT NOT NULL,
+    source       TEXT NOT NULL,
+    confidence   REAL NOT NULL
+  );
+  CREATE INDEX idx_mentions_entity ON mentions(entity_id);
+  CREATE INDEX idx_mentions_note ON mentions(note_path);
+
+  CREATE TABLE edges (
+    src_type TEXT NOT NULL,
+    src_id   INTEGER NOT NULL,
+    dst_type TEXT NOT NULL,
+    dst_id   INTEGER NOT NULL,
+    type     TEXT NOT NULL,
+    weight   REAL NOT NULL DEFAULT 1.0,
+    PRIMARY KEY (src_type, src_id, dst_type, dst_id, type)
+  ) WITHOUT ROWID;
+
+  CREATE TABLE facts (
+    id              INTEGER PRIMARY KEY,
+    subject         TEXT NOT NULL,
+    predicate       TEXT NOT NULL,
+    object          TEXT NOT NULL,
+    subject_display TEXT NOT NULL,
+    valid_from      TEXT,
+    valid_until     TEXT,
+    recorded_at     TEXT NOT NULL,
+    superseded_at   TEXT,
+    superseded_by   INTEGER REFERENCES facts(id),
+    source_type     TEXT NOT NULL DEFAULT 'stated',
+    note_path       TEXT,
+    block_anchor    TEXT,
+    confidence      REAL NOT NULL DEFAULT 0.9
+  );
+  CREATE INDEX idx_facts_slot ON facts(subject, predicate);
+
+  CREATE TABLE fact_links (
+    src_fact INTEGER NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    dst_fact INTEGER NOT NULL REFERENCES facts(id) ON DELETE CASCADE,
+    type     TEXT NOT NULL,
+    PRIMARY KEY (src_fact, dst_fact, type)
+  ) WITHOUT ROWID;
+
+  CREATE TABLE embeddings (
+    block_id INTEGER PRIMARY KEY REFERENCES blocks(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    dims     INTEGER NOT NULL,
+    vec      BLOB NOT NULL,
+    hash     TEXT NOT NULL
+  );
+
+  CREATE TABLE access_log (
+    id       INTEGER PRIMARY KEY,
+    at       TEXT NOT NULL,
+    kind     TEXT NOT NULL,
+    query    TEXT,
+    block_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL
+  );
+  `,
+];
