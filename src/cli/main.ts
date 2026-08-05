@@ -299,14 +299,26 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         io.out(
           `state: ${s.notes} notes · ${s.blocks} blocks · ${s.entities} entities · ${s.openFacts}/${s.facts} facts open`,
         );
+        // Report true totals, and say "n/a" where a detector has no inputs
+        // rather than "0", which reads as a clean bill of health.
+        const na = (name: string, n: number) =>
+          r.inactive.includes(name) ? 'n/a' : String(n);
         io.out(
-          `findings: ${r.duplicates.length} duplicates · ${r.contradictions.length} contradictions/changes · ${r.stale.length} stale · ${r.linkSuggestions.length} link suggestions · ${r.orphans.length} orphans`,
+          `findings: ${na('duplicates', r.totals.duplicates)} duplicates · ` +
+            `${na('contradictions', r.totals.contradictions)} contradictions/changes · ` +
+            `${r.inactive.includes('stale-facts') && r.inactive.includes('stale-blocks') ? 'n/a' : r.totals.stale} stale · ` +
+            `${r.totals.linkSuggestions} link suggestions · ${r.totals.orphans} orphans`,
         );
+        if (r.inactive.length) {
+          io.out(`  (n/a = detector has no input yet: ${[...new Set(r.inactive)].join(', ')})`);
+        }
         for (const c of r.contradictions.slice(0, 10)) {
           io.out(`  ⚡ ${c.subject} :: ${c.predicate} — ${c.detail}`);
         }
         for (const l of r.linkSuggestions.slice(0, 5)) {
-          io.out(`  ✦ link? ${l.from} ↔ ${l.to} (${l.sharedEntities.join(', ')})`);
+          io.out(
+            `  ✦ link? ${l.from} ↔ ${l.to} (${l.sharedCount} shared: ${l.sharedEntities.join(', ')})`,
+          );
         }
         if (r.written.length) io.out(`written: ${r.written.join(', ')}`);
         else if (!opts.apply) io.out(`(run with --apply to write the digest + review queue)`);

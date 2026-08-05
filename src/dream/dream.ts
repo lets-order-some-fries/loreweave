@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { LoreContext } from '../context.js';
 import { normalizeKey } from '../normalize.js';
@@ -37,7 +37,12 @@ export interface StaleFinding {
 export interface LinkSuggestion {
   from: string;
   to: string;
+  /** The strongest few shared entities (display only). */
   sharedEntities: string[];
+  /** How many distinct entities actually back this pair (ranking uses this). */
+  sharedCount: number;
+  /** Sum of IDF over the shared entities — rare co-mentions score higher. */
+  score: number;
 }
 
 export interface DreamReport {
@@ -56,10 +61,32 @@ export interface DreamReport {
   linkSuggestions: LinkSuggestion[];
   orphans: string[];
   written: string[];
+  /**
+   * True totals before display truncation, so the CLI never presents a
+   * `.slice(0, 50)` length as if it were the real count.
+   */
+  totals: {
+    duplicates: number;
+    contradictions: number;
+    stale: number;
+    linkSuggestions: number;
+    orphans: number;
+  };
+  /**
+   * Detectors that cannot fire because their inputs do not exist yet (e.g.
+   * no facts asserted). Reported as "n/a", not as a clean bill of health.
+   */
+  inactive: string[];
 }
 
 const SHINGLE = 8;
-const JACCARD_THRESHOLD = 0.85;
+/**
+ * Real prose rarely exceeds ~0.3 Jaccard even when two passages plainly say
+ * the same thing, so the original 0.85 gate reported nothing on real vaults.
+ * Findings are ranked by similarity, so a lower gate surfaces candidates
+ * instead of flooding the report.
+ */
+const JACCARD_THRESHOLD = 0.45;
 
 function shingles(text: string): Set<string> {
   const tokens = normalizeKey(text).split(' ').filter(Boolean);
@@ -138,7 +165,7 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
       });
     }
   }
-  return out.slice(0, 50);
+  return out;
 }
 
 function findContradictions(ctx: LoreContext): ContradictionFinding[] {
@@ -217,13 +244,16 @@ function findStale(ctx: LoreContext): StaleFinding[] {
       });
     }
   }
+  // Gate on recorded_at (when WE learned it), not valid_from. Gating on
+  // valid_from marks a correctly backdated fact stale the instant it is
+  // recorded, which inverts the whole point of the bitemporal model.
   const oldFacts = ctx.store.db
     .prepare(
-      `SELECT subject_display, predicate, object, COALESCE(valid_from, recorded_at) AS start
+      `SELECT subject_display, predicate, object, recorded_at AS start
        FROM facts WHERE valid_until IS NULL AND superseded_by IS NULL
-       AND COALESCE(valid_from, recorded_at) <= ?`,
+       AND recorded_at <= ?`,
     )
-    .all(new Date(Date.now() - 180 * 86_400_000).toISOString().slice(0, 10)) as {
+    .all(new Date(Date.now() - 180 * 86_400_000).toISOString()) as {
     subject_display: string;
     predicate: string;
     object: string;
@@ -236,29 +266,32 @@ function findStale(ctx: LoreContext): StaleFinding[] {
       detail: `open since ${f.start.slice(0, 10)} — still true?`,
     });
   }
-  return out.slice(0, 50);
+  return out;
 }
+
+/** Entities mentioned in more notes than this are hubs: no signal, O(n^2) noise. */
+const HUB_NOTE_CAP = 50;
+const MAX_SUGGESTIONS = 30;
+const MAX_PER_SOURCE = 3;
 
 function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
   const db = ctx.store.db;
-  // note pairs sharing ≥2 high-confidence entities, with no wiki-link between them
-  const rows = db
+  const noteCount = (db.prepare(`SELECT COUNT(*) c FROM notes`).get() as any).c as number;
+  if (noteCount < 2) return [];
+
+  // Document frequency per entity. Entities appearing in very many notes
+  // ("README", "Step") generate quadratically many meaningless pairs and
+  // swamp real evidence, so they are excluded outright.
+  const df = new Map<number, number>();
+  const dfRows = db
     .prepare(
-      `SELECT m1.note_path AS a, m2.note_path AS b, e.key
-       FROM mentions m1
-       JOIN mentions m2 ON m1.entity_id = m2.entity_id AND m1.note_path < m2.note_path
-       JOIN entities e ON e.id = m1.entity_id
-       WHERE m1.confidence >= 0.6 AND m2.confidence >= 0.6`,
+      `SELECT entity_id, COUNT(DISTINCT note_path) AS df FROM mentions
+       WHERE confidence >= 0.6 GROUP BY entity_id HAVING df >= 2 AND df <= ?`,
     )
-    .all() as { a: string; b: string; key: string }[];
-  const shared = new Map<string, Set<string>>();
-  for (const r of rows) {
-    const k = `${r.a} ${r.b}`;
-    const set = shared.get(k);
-    if (set) set.add(r.key);
-    else shared.set(k, new Set([r.key]));
-  }
-  // existing links (either direction) by normalized note identity
+    .iterate(HUB_NOTE_CAP) as Iterable<{ entity_id: number; df: number }>;
+  for (const r of dfRows) df.set(r.entity_id, r.df);
+  if (df.size === 0) return [];
+
   const notes = db.prepare(`SELECT path, title FROM notes`).all() as {
     path: string;
     title: string;
@@ -266,6 +299,7 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
   const keyToPath = new Map<string, string>();
   for (const n of notes) {
     keyToPath.set(normalizeKey(n.title), n.path);
+    keyToPath.set(normalizeKey(n.path), n.path);
     keyToPath.set(normalizeKey(n.path.split('/').pop() ?? n.path), n.path);
   }
   const linked = new Set<string>();
@@ -276,23 +310,73 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
   for (const l of links) {
     const dst = keyToPath.get(l.target_norm);
     if (!dst) continue;
-    linked.add(`${l.note_path} ${dst}`);
-    linked.add(`${dst} ${l.note_path}`);
+    linked.add(`${l.note_path} ${dst}`);
+    linked.add(`${dst} ${l.note_path}`);
   }
-  const out: LinkSuggestion[] = [];
-  for (const [pair, entities] of shared) {
-    if (entities.size < 2) continue;
+
+  // Stream the co-mention join rather than materializing it: on a few-thousand
+  // note vault the full pair list runs to gigabytes.
+  interface Acc {
+    score: number;
+    keys: { key: string; idf: number }[];
+  }
+  const pairs = new Map<string, Acc>();
+  const rows = db
+    .prepare(
+      `SELECT m1.note_path AS a, m2.note_path AS b, e.id AS eid, e.key AS key
+       FROM mentions m1
+       JOIN mentions m2 ON m1.entity_id = m2.entity_id AND m1.note_path < m2.note_path
+       JOIN entities e ON e.id = m1.entity_id
+       WHERE m1.confidence >= 0.6 AND m2.confidence >= 0.6
+       GROUP BY a, b, eid`,
+    )
+    .iterate() as Iterable<{ a: string; b: string; eid: number; key: string }>;
+  for (const r of rows) {
+    const d = df.get(r.eid);
+    if (d === undefined) continue;
+    const pair = `${r.a} ${r.b}`;
     if (linked.has(pair)) continue;
-    const [a, b] = pair.split(' ');
-    // note-title entities of each other don't count as evidence
-    const meaningful = [...entities].filter(
-      (e) => keyToPath.get(e) !== a && keyToPath.get(e) !== b,
-    );
-    if (meaningful.length < 2) continue;
-    out.push({ from: a!, to: b!, sharedEntities: meaningful.slice(0, 6) });
+    // a note's own name is not evidence that it relates to another note
+    const owner = keyToPath.get(r.key);
+    if (owner === r.a || owner === r.b) continue;
+    const idf = Math.log(noteCount / d);
+    if (idf <= 0) continue;
+    const acc = pairs.get(pair);
+    if (acc) {
+      acc.score += idf;
+      acc.keys.push({ key: r.key, idf });
+    } else {
+      pairs.set(pair, { score: idf, keys: [{ key: r.key, idf }] });
+    }
   }
-  out.sort((x, y) => y.sharedEntities.length - x.sharedEntities.length);
-  return out.slice(0, 30);
+
+  const ranked: LinkSuggestion[] = [];
+  for (const [pair, acc] of pairs) {
+    if (acc.keys.length < 2) continue;
+    const sp = pair.indexOf(' ');
+    acc.keys.sort((x, y) => y.idf - x.idf);
+    ranked.push({
+      from: pair.slice(0, sp),
+      to: pair.slice(sp + 1),
+      // rank on ALL the evidence; show only the strongest few
+      sharedEntities: acc.keys.slice(0, 6).map((k) => k.key),
+      sharedCount: acc.keys.length,
+      score: Number(acc.score.toFixed(3)),
+    });
+  }
+  ranked.sort((x, y) => y.score - x.score);
+
+  // Cap per source note so one busy note cannot fill the entire report.
+  const perSource = new Map<string, number>();
+  const out: LinkSuggestion[] = [];
+  for (const s of ranked) {
+    const n = perSource.get(s.from) ?? 0;
+    if (n >= MAX_PER_SOURCE) continue;
+    perSource.set(s.from, n + 1);
+    out.push(s);
+    if (out.length >= MAX_SUGGESTIONS) break;
+  }
+  return out;
 }
 
 function findOrphans(ctx: LoreContext): string[] {
@@ -316,33 +400,53 @@ function findOrphans(ctx: LoreContext): string[] {
     const dst = keyToPath.get(l.target_norm);
     if (dst) hasLink.add(dst);
   }
-  return notes
-    .map((n) => n.path)
-    .filter((p) => !hasLink.has(p) && !p.startsWith('lore/'))
-    .slice(0, 50);
+  return notes.map((n) => n.path).filter((p) => !hasLink.has(p) && !p.startsWith('lore/'));
 }
+
+const DISPLAY_CAP = 50;
 
 export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamReport {
   const db = ctx.store.db;
   const count = (sql: string): number => (db.prepare(sql).get() as any).c as number;
+
+  const duplicates = findDuplicates(ctx);
+  const contradictions = findContradictions(ctx);
+  const stale = findStale(ctx);
+  const linkSuggestions = findLinkSuggestions(ctx);
+  const orphans = findOrphans(ctx);
+
+  const factCount = count(`SELECT COUNT(*) c FROM facts`);
+  const accessEvents = count(`SELECT COUNT(*) c FROM access_log`);
+  const inactive: string[] = [];
+  if (factCount === 0) inactive.push('contradictions', 'stale-facts');
+  if (accessEvents === 0) inactive.push('stale-blocks');
+
   const report: DreamReport = {
     generatedAt: new Date().toISOString(),
     stats: {
       notes: count(`SELECT COUNT(*) c FROM notes`),
       blocks: count(`SELECT COUNT(*) c FROM blocks`),
       entities: count(`SELECT COUNT(*) c FROM entities`),
-      facts: count(`SELECT COUNT(*) c FROM facts`),
+      facts: factCount,
       openFacts: count(
         `SELECT COUNT(*) c FROM facts WHERE valid_until IS NULL AND superseded_by IS NULL`,
       ),
-      accessEvents: count(`SELECT COUNT(*) c FROM access_log`),
+      accessEvents,
     },
-    duplicates: findDuplicates(ctx),
-    contradictions: findContradictions(ctx),
-    stale: findStale(ctx),
-    linkSuggestions: findLinkSuggestions(ctx),
-    orphans: findOrphans(ctx),
+    duplicates: duplicates.slice(0, DISPLAY_CAP),
+    contradictions: contradictions.slice(0, DISPLAY_CAP),
+    stale: stale.slice(0, DISPLAY_CAP),
+    linkSuggestions,
+    orphans: orphans.slice(0, DISPLAY_CAP),
     written: [],
+    totals: {
+      duplicates: duplicates.length,
+      contradictions: contradictions.length,
+      stale: stale.length,
+      linkSuggestions: linkSuggestions.length,
+      orphans: orphans.length,
+    },
+    inactive,
   };
 
   if (opts.apply) {
@@ -355,9 +459,19 @@ export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamRe
       appendFileSync(digestAbs, renderDigest(report), 'utf8');
       report.written.push(digestRel);
     }
+    // The queue is REWRITTEN, not appended: blind appending duplicated every
+    // finding on each run. Items the user already ticked off are carried
+    // forward as done so their work is never lost.
     const queueRel = `lore/review-queue.md`;
     const queueAbs = join(ctx.root, queueRel);
-    appendFileSync(queueAbs, renderReviewQueue(report), 'utf8');
+    const done = new Set<string>();
+    if (existsSync(queueAbs)) {
+      for (const line of readFileSync(queueAbs, 'utf8').split(/\r?\n/)) {
+        const m = line.match(/^- \[x\]\s+(.*)$/i);
+        if (m && m[1]) done.add(m[1].trim());
+      }
+    }
+    writeFileSync(queueAbs, renderReviewQueue(report, done), 'utf8');
     report.written.push(queueRel);
   }
   return report;
@@ -374,37 +488,57 @@ tags: [lore-digest]
 
 ${s.notes} notes · ${s.blocks} blocks · ${s.entities} entities · ${s.openFacts}/${s.facts} facts open · ${s.accessEvents} access events.
 
-- Duplicate passages: ${r.duplicates.length}
-- Contradictions / recent changes: ${r.contradictions.length}
-- Stale items needing review: ${r.stale.length}
-- Suggested missing links: ${r.linkSuggestions.length}
-- Orphan notes: ${r.orphans.length}
+- Duplicate passages: ${r.totals.duplicates}
+- Contradictions / recent changes: ${r.totals.contradictions}
+- Stale items needing review: ${r.totals.stale}
+- Suggested missing links: ${r.totals.linkSuggestions}
+- Orphan notes: ${r.totals.orphans}
 
 See lore/review-queue.md for the actionable list.
 `;
 }
 
-export function renderReviewQueue(r: DreamReport): string {
-  const lines: string[] = [`\n## Review — ${r.generatedAt.slice(0, 10)}\n`];
+/**
+ * Render the review queue. `done` carries forward items the user already
+ * ticked, so regenerating the file never resurrects settled work.
+ */
+export function renderReviewQueue(r: DreamReport, done: ReadonlySet<string> = new Set()): string {
+  const items: string[] = [];
   for (const c of r.contradictions) {
-    lines.push(`- [ ] ${c.kind}: **${c.subject} :: ${c.predicate}** — ${c.detail}`);
+    items.push(`${c.kind}: **${c.subject} :: ${c.predicate}** — ${c.detail}`);
   }
-  for (const s of r.stale) {
-    lines.push(`- [ ] stale ${s.kind}: ${s.ref} — ${s.detail}`);
-  }
+  for (const s of r.stale) items.push(`stale ${s.kind}: ${s.ref} — ${s.detail}`);
   for (const d of r.duplicates) {
-    lines.push(
-      `- [ ] duplicate: ${d.a.notePath}#${d.a.anchor} ≈ ${d.b.notePath}#${d.b.anchor} (J=${d.jaccard})`,
+    items.push(
+      `duplicate: ${d.a.notePath}#${d.a.anchor} ≈ ${d.b.notePath}#${d.b.anchor} (J=${d.jaccard})`,
     );
   }
   for (const l of r.linkSuggestions) {
-    lines.push(
-      `- [ ] link? [[${l.from}]] ↔ [[${l.to}]] (shared: ${l.sharedEntities.join(', ')})`,
+    items.push(
+      `link? [[${l.from}]] ↔ [[${l.to}]] (${l.sharedCount} shared: ${l.sharedEntities.join(', ')})`,
     );
   }
-  for (const o of r.orphans) {
-    lines.push(`- [ ] orphan: [[${o}]] — no links in or out`);
+  for (const o of r.orphans) items.push(`orphan: [[${o}]] — no links in or out`);
+
+  const head = [
+    `---`,
+    `title: Lore Review Queue`,
+    `tags: [lore-review]`,
+    `---`,
+    ``,
+    `# Review queue`,
+    ``,
+    `Regenerated ${r.generatedAt.slice(0, 16).replace('T', ' ')} — ticked items are kept.`,
+    ``,
+  ];
+  const body = items.length
+    ? items.map((i) => `- [${done.has(i) ? 'x' : ' '}] ${i}`)
+    : ['- nothing to review 🎉'];
+  // keep ticked items that no longer appear, so history is not silently lost
+  const shown = new Set(items);
+  const retired = [...done].filter((d) => !shown.has(d));
+  if (retired.length) {
+    body.push('', '## Resolved earlier', ...retired.map((d) => `- [x] ${d}`));
   }
-  if (lines.length === 1) lines.push('- nothing to review 🎉');
-  return lines.join('\n') + '\n';
+  return [...head, ...body].join('\n') + '\n';
 }

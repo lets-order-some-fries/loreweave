@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
@@ -62,9 +62,28 @@ describe('dream', () => {
     ctx.close();
   });
 
-  it('flags stale open facts and fading important blocks', async () => {
+  it('a freshly recorded backdated fact is NOT stale', async () => {
+    const ctx = await ctxWith({});
+    // Backdating is the whole point of valid_from; gating staleness on it
+    // would mark a correct historical record stale the instant you write it.
+    assertFact(ctx, {
+      subject: 'Historic',
+      predicate: 'status',
+      object: 'active',
+      validFrom: '2019-01-01',
+    });
+    const r = dream(ctx);
+    expect(r.stale.some((s) => s.ref.includes('Historic'))).toBe(false);
+    ctx.close();
+  });
+
+  it('flags long-recorded open facts and fading important blocks', async () => {
     const ctx = await ctxWith({});
     assertFact(ctx, { subject: 'Old', predicate: 'status', object: 'active', validFrom: '2025-01-01' });
+    // age the RECORD time (not the validity) past the 180-day review horizon
+    ctx.store.db
+      .prepare(`UPDATE facts SET recorded_at=? WHERE subject='old'`)
+      .run(new Date(Date.now() - 400 * 86_400_000).toISOString());
     // make a block important but long-unaccessed with low stability
     const ids = resolveBlockIds(ctx.store, 'projects/riverbed.md');
     markUsed(ctx.store, [ids[0]!]);
@@ -110,16 +129,54 @@ describe('dream', () => {
     ctx.close();
   });
 
-  it('apply writes only under lore/ and is append-safe', async () => {
+  it('apply writes only under lore/ and the queue is idempotent', async () => {
     const ctx = await ctxWith({});
     const r = dream(ctx, { apply: true });
     expect(r.written.every((w) => w.startsWith('lore/'))).toBe(true);
     const queue = await readFile(join(ctx.root, 'lore/review-queue.md'), 'utf8');
-    expect(queue).toContain('## Review —');
-    // second apply appends another section, doesn't clobber
+    expect(queue).toContain('# Review queue');
+    const countOrphans = (s: string) => s.split('\n').filter((l) => l.includes('orphan:')).length;
+    const first = countOrphans(queue);
+    expect(first).toBeGreaterThan(0);
+
+    // Running again must NOT duplicate findings (the old behaviour appended
+    // the whole report every time).
     dream(ctx, { apply: true });
     const queue2 = await readFile(join(ctx.root, 'lore/review-queue.md'), 'utf8');
-    expect(queue2.length).toBeGreaterThan(queue.length);
+    expect(countOrphans(queue2)).toBe(first);
+    ctx.close();
+  });
+
+  it('ticked review items survive regeneration', async () => {
+    const ctx = await ctxWith({});
+    dream(ctx, { apply: true });
+    const path = join(ctx.root, 'lore/review-queue.md');
+    const original = await readFile(path, 'utf8');
+    // user ticks the first checkbox
+    const ticked = original.replace('- [ ] ', '- [x] ');
+    await writeFile(path, ticked, 'utf8');
+    const tickedLine = ticked.split('\n').find((l) => l.startsWith('- [x] '))!;
+
+    dream(ctx, { apply: true });
+    const after = await readFile(path, 'utf8');
+    expect(after).toContain(tickedLine);
+    ctx.close();
+  });
+
+  it('never indexes its own generated digests or review queue', async () => {
+    const ctx = await ctxWith({});
+    dream(ctx, { apply: true });
+    const before = ctx.store.db.prepare('SELECT COUNT(*) c FROM notes').get() as any;
+    await indexVault(ctx.store, ctx.root);
+    const after = ctx.store.db.prepare('SELECT COUNT(*) c FROM notes').get() as any;
+    expect(after.c).toBe(before.c);
+    const paths = (
+      ctx.store.db.prepare('SELECT path FROM notes').all() as { path: string }[]
+    ).map((r) => r.path);
+    expect(paths.some((p) => p.startsWith('lore/digests/'))).toBe(false);
+    expect(paths.some((p) => p.startsWith('lore/review-queue'))).toBe(false);
+    // journals ARE still indexed — they are the durable fact record
+    expect(paths.some((p) => p.startsWith('lore/journal/'))).toBe(true);
     ctx.close();
   });
 });
