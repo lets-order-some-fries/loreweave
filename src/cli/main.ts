@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openContext, type LoreContext } from '../context.js';
 import { LORE_DIR, findVaultRoot } from '../config.js';
-import { normalizeKey } from '../normalize.js';
+import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
 import { indexVault } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
@@ -190,12 +190,16 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           await search(ctx, q, { k: 5 }),
           queryFacts(ctx.store, factQuery),
         ];
-        const qTokens = new Set(q.toLowerCase().split(/\W+/).filter(Boolean));
+        // Match facts on content words only, and on whole words — substring
+        // matching on short tokens surfaced unrelated facts (a query about
+        // "companies" matched a fact whose object merely contained "s").
+        const qTokens = contentTerms(q).filter((t) => t.length >= 3);
+        const hasTerm = (haystack: string, t: string) =>
+          new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(haystack);
         const relevantFacts = facts
           .filter((f) =>
-            [...qTokens].some(
-              (t) =>
-                f.subject.includes(t) || f.predicate.includes(t) || f.object.toLowerCase().includes(t),
+            qTokens.some(
+              (t) => hasTerm(f.subject, t) || hasTerm(f.predicate, t) || hasTerm(f.object, t),
             ),
           )
           .slice(0, 8);

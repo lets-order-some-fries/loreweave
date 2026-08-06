@@ -154,9 +154,13 @@ export function extractFactsFromNote(
       // - [fact] / - [invalidate] are handled by the journal parser
       if (/^\[(fact|invalidate)\]/i.test(body)) continue;
 
+      // - [ ] / - [x] are task list items, not observations. Without this a
+      // PR template checklist ("- [x] Bug fix") became the fact
+      // `note :: x :: Bug fix`.
+      if (/^\[[ xX]?\]/.test(body)) continue;
       // - [key] value   (Basic Memory observation)
-      const obs = body.match(/^\[([^\]]{1,40})\]\s+(.+)$/);
-      if (obs) {
+      const obs = body.match(/^\[([^\]]{2,40})\]\s+(.+)$/);
+      if (obs && /[\p{L}]{2}/u.test(obs[1]!)) {
         push(obs[1]!, obs[2]!, b.anchor, 0.85);
         continue;
       }
