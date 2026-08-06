@@ -60,7 +60,8 @@ export function matchQueryEntities(
  * miss. Markdown is line-structured, so score lines by how many DISTINCT
  * query terms they carry and show the best one with its neighbours.
  */
-export function bestSnippet(text: string, terms: string[], budget = 260): string {
+export function bestSnippet(text: string, terms: string[], rawBudget = 260): string {
+  const budget = Math.max(40, rawBudget);
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return '';
   if (terms.length === 0) return lines.join(' ').slice(0, budget).trim();

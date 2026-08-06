@@ -1,6 +1,13 @@
 /** Loreweave public API. */
 export * from './types.js';
-export { normalizeKey } from './normalize.js';
+export {
+  normalizeKey,
+  singularizeKey,
+  contentTerms,
+  resolveRelative,
+  linkMatchKey,
+  STOPWORDS,
+} from './normalize.js';
 export { ConfigSchema, loadConfig, dbPath, LORE_DIR, type LoreConfig } from './config.js';
 export { openStore, type Store, type LexicalHit } from './store/db.js';
 export { parseNote, sha1 } from './vault/parse.js';
@@ -24,7 +31,7 @@ export {
   daysBetween,
 } from './dynamics/fsrs.js';
 export { markUsed, resolveBlockIds, updateImportance } from './dynamics/usage.js';
-export { search, matchQueryEntities, type SearchOptions } from './retrieve/search.js';
+export { search, matchQueryEntities, bestSnippet, type SearchOptions } from './retrieve/search.js';
 export {
   buildNoteLinkGraph,
   expandNotes,

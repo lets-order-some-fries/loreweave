@@ -30,11 +30,18 @@ export interface DateRange {
 export function parseDateExpression(text: string): DateRange | null {
   const s = text.trim().toLowerCase();
 
-  // 2026-08-05
+  // 2026-08-05 — validated: an impossible date (2026-13-01, 2026-02-31)
+  // would otherwise be stored as content time and sort nonsensically.
   let m = s.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (m) {
-    const d = `${m[1]}-${m[2]}-${m[3]}`;
-    return { from: d, to: d };
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const day = Number(m[3]);
+    if (mo >= 1 && mo <= 12 && day >= 1 && day <= lastDay(y, mo)) {
+      const d = `${m[1]}-${m[2]}-${m[3]}`;
+      return { from: d, to: d };
+    }
+    return null;
   }
   // 2026-08
   m = s.match(/\b(\d{4})-(\d{2})\b/);
@@ -137,9 +144,12 @@ export function extractDates(text: string, frontmatter: Record<string, unknown> 
   const found: string[] = [];
   const iso = text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g);
   for (const m of iso) {
+    const y = Number(m[1]);
     const mo = Number(m[2]);
     const day = Number(m[3]);
-    if (mo >= 1 && mo <= 12 && day >= 1 && day <= 31) found.push(`${m[1]}-${m[2]}-${m[3]}`);
+    if (mo >= 1 && mo <= 12 && day >= 1 && day <= lastDay(y, mo)) {
+      found.push(`${m[1]}-${m[2]}-${m[3]}`);
+    }
     if (found.length > 200) break;
   }
   if (found.length === 0) return null;

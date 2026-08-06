@@ -36,20 +36,30 @@ export function linkMatchKey(
 }
 
 /**
- * Singularize the final word of an entity key so "PR"/"PRs" and
- * "Test"/"Tests" are one graph node rather than two. Deliberately shallow:
- * only the unambiguous English plural endings, and never on short words
- * where the 's' is likely part of the name.
+ * Singularize the final word of an entity key so "Widget"/"Widgets" are one
+ * graph node rather than two.
+ *
+ * Deliberately conservative: a wrong merge corrupts an entity permanently,
+ * while a missed merge only leaves two nodes. English cannot be singularized
+ * correctly without a dictionary, so this only fires where the evidence is
+ * strong.
  */
 export function singularizeKey(key: string): string {
   const parts = key.split(' ');
   const last = parts[parts.length - 1];
-  if (!last || last.length < 4) return key;
+  // Short words are almost never worth the risk: "lens" -> "len",
+  // "cats" -> "cat" is not worth mangling four-letter names for.
+  if (!last || last.length < 5) return key;
   let singular = last;
   if (/[^aeiou]ies$/.test(last)) singular = `${last.slice(0, -3)}y`;
   else if (/(ches|shes|sses|xes|zes)$/.test(last)) singular = last.slice(0, -2);
-  else if (/[^su]s$/.test(last)) singular = last.slice(0, -1);
-  if (singular === last || singular.length < 2) return key;
+  // Only a consonant (never a vowel, never another s) may precede the plural
+  // 's'. Without this, ordinary names ending in a vowel + s were mangled:
+  // atlas -> atla, chris -> chri, basis -> basi, osiris -> osiri.
+  else if (/[bcdfghjklmnpqrtvwxyz]s$/.test(last) || /es$/.test(last)) {
+    singular = last.slice(0, -1);
+  }
+  if (singular === last || singular.length < 3) return key;
   parts[parts.length - 1] = singular;
   return parts.join(' ');
 }
