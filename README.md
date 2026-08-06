@@ -55,6 +55,27 @@ knowledge-graph spreading activation. Add embeddings when you want them:
 Everything degrades gracefully — no embedding provider means lexical + graph retrieval,
 still fully functional.
 
+## Measured, not asserted
+
+Loreweave ships its own benchmark — `npm run eval` — over a purpose-built
+100-note vault where multi-hop answers deliberately share **no vocabulary**
+with the query. 40 gold questions across lookup / multi-hop / temporal /
+aggregate, scored against two baselines:
+
+| system | finds the answer | MRR |
+|---|---|---|
+| **hybrid** (shipped) | **95%** | 0.489 |
+| BM25 only | 75% | 0.493 |
+| graph only | 88% | 0.222 |
+
+On multi-hop specifically: **hybrid 80%, BM25 0%**. Lexical search cannot
+reach a note that shares no words with your query — at any depth. That gap is
+the entire reason the graph exists, and it costs 0.004 MRR of top-rank
+precision to get it.
+
+Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on
+regression, and CI enforces it.
+
 ## What makes it different
 
 **1. Knowledge that has a timeline.** Facts are bitemporal: when they were true in the
@@ -117,7 +138,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 | Command | What it does |
 |---|---|
 | `lore init` | create `.lore/` with a default config |
-| `lore index [--full] [--no-nlp]` | incremental sync of vault → index |
+| `lore index [--full] [--no-nlp] [--rebuild-similar]` | incremental sync of vault → index |
 | `lore search <q> [-k] [--since] [--json]` | hybrid retrieval with provenance |
 | `lore ask <q>` | extractive answer: current facts + top passages (no LLM needed) |
 | `lore facts [--subject] [--predicate] [--as-of] [--history]` | query the fact store |
@@ -229,7 +250,8 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 81 tests
+npm test          # 108 tests
+npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
 ```
