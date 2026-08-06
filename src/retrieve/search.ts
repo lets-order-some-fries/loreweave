@@ -282,7 +282,6 @@ export async function search(
   const lists: RankedList[] = [
     { weight: cfg.weights.lexical, ranks: lexicalRanks },
     { weight: ctx.provider ? cfg.weights.dense : 0, ranks: denseRanks },
-    { weight: cfg.weights.graph, ranks: graphRanks },
   ];
   const fused = new Map<number, number>();
   for (const list of lists) {
@@ -308,6 +307,14 @@ export async function search(
   const linkedOnly = new Set<number>();
   if (cfg.weights.expansion > 0 && expandRanks.size > 0) {
     for (const [blockId] of expandRanks) {
+      if (!lexicalRanks.has(blockId)) linkedOnly.add(blockId);
+      if (!fused.has(blockId)) fused.set(blockId, 0);
+    }
+  }
+  // Entity-PPR is recall too: measured, it adds ~10 points of reach but as a
+  // peer ranking list it displaced good lexical hits.
+  if (cfg.weights.graph > 0 && graphRanks.size > 0) {
+    for (const [blockId] of graphRanks) {
       if (!lexicalRanks.has(blockId)) linkedOnly.add(blockId);
       if (!fused.has(blockId)) fused.set(blockId, 0);
     }
@@ -413,11 +420,17 @@ export async function search(
   const primary = results.filter((r) => !isExpansion(r)).sort((a, b) => b.score - a.score);
   const linked = results
     .filter(isExpansion)
-    .sort(
-      (a, b) =>
-        (expandRanks.get(byBlock.get(`${a.notePath} ${a.anchor}`) ?? -1) ?? 1e9) -
-        (expandRanks.get(byBlock.get(`${b.notePath} ${b.anchor}`) ?? -1) ?? 1e9),
-    );
+    .sort((a, b) => {
+      // link-reached notes first (high precision), then PPR-only ones
+      const rank = (r: SearchResult) => {
+        const id = byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1;
+        const e = expandRanks.get(id);
+        if (e !== undefined) return e;
+        const g = graphRanks.get(id);
+        return g !== undefined ? 1000 + g : 1e9;
+      };
+      return rank(a) - rank(b);
+    });
   const merged: SearchResult[] = primary.slice(0, cfg.expansionPromoteAfter);
   let pi = cfg.expansionPromoteAfter;
   let li = 0;

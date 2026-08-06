@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3328,
-        "indexMs": 219,
+        "indexMs": 216,
         "warnings": 0
       },
       "overall": {
@@ -16,9 +16,9 @@
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.75,
-          "mrr": 0.538,
+          "mrr": 0.54,
           "ans@5": 0.5,
-          "found": 0.95
+          "found": 0.975
         },
         "bm25": {
           "n": 40,
@@ -51,15 +51,15 @@
             "n": 10,
             "r@1": 0,
             "r@5": 0.3,
-            "mrr": 0.106,
+            "mrr": 0.114,
             "ans@5": 0.1,
-            "found": 0.8
+            "found": 0.9
           },
           "temporal": {
             "n": 10,
             "r@1": 0.5,
             "r@5": 0.9,
-            "mrr": 0.639,
+            "mrr": 0.641,
             "ans@5": 0.5,
             "found": 1
           },
@@ -150,15 +150,15 @@
         "links": 25,
         "facts": 63,
         "edges": 131,
-        "indexMs": 33,
+        "indexMs": 30,
         "warnings": 0
       },
       "overall": {
         "hybrid": {
           "n": 24,
-          "r@1": 0.375,
-          "r@5": 0.833,
-          "mrr": 0.575,
+          "r@1": 0.417,
+          "r@5": 0.875,
+          "mrr": 0.643,
           "ans@5": 0.75,
           "found": 0.958
         },
@@ -193,23 +193,23 @@
             "n": 6,
             "r@1": 0,
             "r@5": 1,
-            "mrr": 0.333,
+            "mrr": 0.5,
             "ans@5": 1,
             "found": 1
           },
           "temporal": {
             "n": 5,
             "r@1": 0.6,
-            "r@5": 0.8,
-            "mrr": 0.722,
+            "r@5": 1,
+            "mrr": 0.74,
             "ans@5": 0.6,
             "found": 1
           },
           "aggregate": {
             "n": 5,
-            "r@1": 0.2,
+            "r@1": 0.4,
             "r@5": 0.6,
-            "mrr": 0.407,
+            "mrr": 0.512,
             "ans@5": 0.6,
             "found": 0.8
           }
@@ -324,7 +324,7 @@
       "id": "S5",
       "cat": "simple",
       "rank": 3,
-      "answerRank": 14
+      "answerRank": 18
     },
     {
       "corpus": "kestrel",
@@ -348,7 +348,7 @@
       "id": "S8",
       "cat": "simple",
       "rank": 2,
-      "answerRank": 18
+      "answerRank": 0
     },
     {
       "corpus": "kestrel",
@@ -395,8 +395,8 @@
       "system": "hybrid",
       "id": "M4",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 15,
+      "answerRank": 25
     },
     {
       "corpus": "kestrel",
@@ -420,7 +420,7 @@
       "id": "M7",
       "cat": "multihop",
       "rank": 13,
-      "answerRank": 30
+      "answerRank": 29
     },
     {
       "corpus": "kestrel",
@@ -443,8 +443,8 @@
       "system": "hybrid",
       "id": "M10",
       "cat": "multihop",
-      "rank": 27,
-      "answerRank": 42
+      "rank": 19,
+      "answerRank": 25
     },
     {
       "corpus": "kestrel",
@@ -452,7 +452,7 @@
       "id": "T1",
       "cat": "temporal",
       "rank": 5,
-      "answerRank": 27
+      "answerRank": 36
     },
     {
       "corpus": "kestrel",
@@ -460,15 +460,15 @@
       "id": "T2",
       "cat": "temporal",
       "rank": 2,
-      "answerRank": 22
+      "answerRank": 32
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "T3",
       "cat": "temporal",
-      "rank": 9,
-      "answerRank": 20
+      "rank": 8,
+      "answerRank": 0
     },
     {
       "corpus": "kestrel",
@@ -484,7 +484,7 @@
       "id": "T5",
       "cat": "temporal",
       "rank": 4,
-      "answerRank": 17
+      "answerRank": 36
     },
     {
       "corpus": "kestrel",
@@ -555,8 +555,8 @@
       "system": "hybrid",
       "id": "A4",
       "cat": "aggregate",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 20,
+      "answerRank": 20
     },
     {
       "corpus": "kestrel",
@@ -564,7 +564,7 @@
       "id": "A5",
       "cat": "aggregate",
       "rank": 6,
-      "answerRank": 19
+      "answerRank": 30
     },
     {
       "corpus": "kestrel",
@@ -1315,48 +1315,48 @@
       "system": "hybrid",
       "id": "N-M1",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
       "system": "hybrid",
       "id": "N-M2",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
       "system": "hybrid",
       "id": "N-M3",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
       "system": "hybrid",
       "id": "N-M4",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
       "system": "hybrid",
       "id": "N-M5",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
       "system": "hybrid",
       "id": "N-M6",
       "cat": "multihop",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "corpus": "northwind",
@@ -1371,7 +1371,7 @@
       "system": "hybrid",
       "id": "N-T2",
       "cat": "temporal",
-      "rank": 9,
+      "rank": 5,
       "answerRank": 24
     },
     {
@@ -1427,7 +1427,7 @@
       "system": "hybrid",
       "id": "N-A4",
       "cat": "aggregate",
-      "rank": 30,
+      "rank": 16,
       "answerRank": 0
     },
     {
@@ -1435,8 +1435,8 @@
       "system": "hybrid",
       "id": "N-A5",
       "cat": "aggregate",
-      "rank": 2,
-      "answerRank": 2
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "corpus": "northwind",

@@ -69,14 +69,14 @@ vocabulary** with the query and are reachable only by following links.
 
 | corpus | system | finds the answer | in top 5 | MRR |
 |---|---|---|---|---|
-| kestrel (40 q) | **hybrid** | **95%** | **75%** | **0.538** |
+| kestrel (40 q) | **hybrid** | **98%** | **75%** | **0.540** |
 | | BM25 | 75% | 65% | 0.532 |
-| northwind (24 q) | **hybrid** | **96%** | **83%** | **0.575** |
+| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.643** |
 | | BM25 | 63% | 58% | 0.521 |
 
 Multi-hop is where the graph earns its keep: **BM25 finds 0% on both corpora**
 — it cannot reach a note that shares no words with your query, at any depth —
-while hybrid finds 80% and 100%. On the second corpus every multi-hop answer
+while hybrid finds 90% and 100%. On the second corpus every multi-hop answer
 lands in the top 5.
 
 The same shipped config wins on both, and wins by more on the corpus it was
