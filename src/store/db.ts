@@ -31,7 +31,7 @@ export interface Store {
 }
 
 export { normalizeKey } from '../normalize.js';
-import { linkMatchKey } from '../normalize.js';
+import { contentTerms, linkMatchKey } from '../normalize.js';
 import { extractDates, parseDateExpression } from '../temporal/dates.js';
 
 /** A dated filename (2026-08-05-standup.md, journal/2026-08-05.md) dates the note. */
@@ -43,11 +43,9 @@ function filenameDate(path: string): { from: string; to: string } | null {
 
 /** Turn free text into a safe FTS5 MATCH expression (quoted tokens). */
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
-  const tokens = text
-    .normalize('NFKC')
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter((t) => t.length > 0)
-    .slice(0, 32);
+  // Content words only: with AND semantics, one stray "what" in the question
+  // is enough to miss the block that literally answers it.
+  const tokens = contentTerms(text).slice(0, 32);
   if (tokens.length === 0) return null;
   return tokens.map((t) => `"${t}"`).join(joiner);
 }

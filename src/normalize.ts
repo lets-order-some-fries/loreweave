@@ -66,3 +66,36 @@ export function normalizeKey(s: string): string {
     .trim()
     .replace(/\s+/g, ' ');
 }
+
+/**
+ * Function words that carry no retrieval signal. Natural-language questions
+ * are the primary interface (an MCP agent asks "what are my target roles",
+ * not "target roles"), and these words both dilute the lexical match and
+ * make coverage under-report: a block containing the exact answer scored
+ * 2/5 = "40% of terms — weak" purely for lacking "what are my".
+ */
+export const STOPWORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'am',
+  'do', 'does', 'did', 'doing', 'have', 'has', 'had', 'having', 'will',
+  'would', 'shall', 'should', 'can', 'could', 'may', 'might', 'must',
+  'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why', 'how',
+  'i', 'me', 'my', 'mine', 'we', 'us', 'our', 'ours', 'you', 'your', 'yours',
+  'he', 'him', 'his', 'she', 'her', 'hers', 'it', 'its', 'they', 'them',
+  'their', 'theirs', 'this', 'that', 'these', 'those',
+  'of', 'in', 'on', 'at', 'to', 'for', 'with', 'from', 'by', 'about', 'as',
+  'into', 'over', 'under', 'again', 'further', 'then', 'once', 'here',
+  'there', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other',
+  'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than',
+  'too', 'very', 'just', 'and', 'or', 'but', 'if', 'because', 'while',
+  'tell', 'show', 'find', 'give', 'get', 'know', 'want', 'need', 'please',
+]);
+
+/**
+ * Content words of a query. Falls back to the full token list when a query is
+ * nothing but function words, so a search never silently becomes empty.
+ */
+export function contentTerms(query: string): string[] {
+  const tokens = normalizeKey(query).split(' ').filter(Boolean);
+  const kept = tokens.filter((t) => !STOPWORDS.has(t));
+  return kept.length > 0 ? kept : tokens;
+}

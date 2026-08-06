@@ -64,8 +64,8 @@ aggregate, scored against two baselines:
 
 | system | finds the answer | right note in top 5 | MRR |
 |---|---|---|---|
-| **hybrid** (shipped) | **95%** | **75%** | **0.495** |
-| BM25 only | 75% | 68% | 0.493 |
+| **hybrid** (shipped) | **95%** | **75%** | **0.538** |
+| BM25 only | 75% | 65% | 0.532 |
 | graph only | 88% | 43% | 0.222 |
 
 On multi-hop specifically: **hybrid finds 80%, BM25 finds 0%**. Lexical search
@@ -285,7 +285,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 112 tests
+npm test          # 114 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

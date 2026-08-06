@@ -1,6 +1,6 @@
 import type { LoreContext } from '../context.js';
 import type { SearchResult } from '../types.js';
-import { normalizeKey } from '../normalize.js';
+import { contentTerms, normalizeKey } from '../normalize.js';
 import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
@@ -271,7 +271,7 @@ export async function search(
   // the block. Unlike a fused rank (near-constant without access history) or
   // raw BM25 (unbounded, corpus-dependent), this is directly interpretable:
   // 0 means the block matched no query term at all.
-  const qTerms = [...new Set(normalizeKey(query).split(' ').filter((t) => t.length > 1))];
+  const qTerms = [...new Set(contentTerms(query))];
   const lexSnippets = new Map(lexical.map((h) => [h.blockId, h.snippet]));
 
   const results: SearchResult[] = [];

@@ -4,25 +4,25 @@
     "blocks": 474,
     "entities": 206,
     "links": 449,
-    "facts": 33,
+    "facts": 126,
     "edges": 3328,
-    "indexMs": 259,
+    "indexMs": 225,
     "warnings": 0
   },
   "overall": {
     "hybrid": {
       "n": 40,
-      "r@1": 0.35,
+      "r@1": 0.4,
       "r@5": 0.75,
-      "mrr": 0.495,
-      "ans@5": 0.45,
+      "mrr": 0.538,
+      "ans@5": 0.5,
       "found": 0.95
     },
     "bm25": {
       "n": 40,
-      "r@1": 0.375,
-      "r@5": 0.675,
-      "mrr": 0.493,
+      "r@1": 0.425,
+      "r@5": 0.65,
+      "mrr": 0.532,
       "ans@5": 0.55,
       "found": 0.75
     },
@@ -39,9 +39,9 @@
     "hybrid": {
       "simple": {
         "n": 10,
-        "r@1": 0.4,
+        "r@1": 0.5,
         "r@5": 1,
-        "mrr": 0.608,
+        "mrr": 0.683,
         "ans@5": 0.6,
         "found": 1
       },
@@ -56,26 +56,26 @@
       "temporal": {
         "n": 10,
         "r@1": 0.5,
-        "r@5": 1,
-        "mrr": 0.653,
+        "r@5": 0.9,
+        "mrr": 0.639,
         "ans@5": 0.5,
         "found": 1
       },
       "aggregate": {
         "n": 10,
-        "r@1": 0.5,
-        "r@5": 0.7,
-        "mrr": 0.611,
-        "ans@5": 0.6,
+        "r@1": 0.6,
+        "r@5": 0.8,
+        "mrr": 0.722,
+        "ans@5": 0.8,
         "found": 1
       }
     },
     "bm25": {
       "simple": {
         "n": 10,
-        "r@1": 0.4,
+        "r@1": 0.5,
         "r@5": 1,
-        "mrr": 0.633,
+        "mrr": 0.7,
         "ans@5": 0.8,
         "found": 1
       },
@@ -90,16 +90,16 @@
       "temporal": {
         "n": 10,
         "r@1": 0.5,
-        "r@5": 0.9,
-        "mrr": 0.662,
+        "r@5": 0.8,
+        "mrr": 0.651,
         "ans@5": 0.6,
         "found": 1
       },
       "aggregate": {
         "n": 10,
-        "r@1": 0.6,
+        "r@1": 0.7,
         "r@5": 0.8,
-        "mrr": 0.676,
+        "mrr": 0.776,
         "ans@5": 0.8,
         "found": 1
       }
@@ -165,8 +165,8 @@
       "system": "hybrid",
       "id": "S4",
       "cat": "simple",
-      "rank": 4,
-      "answerRank": 4
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "system": "hybrid",
@@ -194,7 +194,7 @@
       "id": "S8",
       "cat": "simple",
       "rank": 2,
-      "answerRank": 19
+      "answerRank": 18
     },
     {
       "system": "hybrid",
@@ -292,13 +292,13 @@
       "id": "T2",
       "cat": "temporal",
       "rank": 2,
-      "answerRank": 18
+      "answerRank": 22
     },
     {
       "system": "hybrid",
       "id": "T3",
       "cat": "temporal",
-      "rank": 4,
+      "rank": 9,
       "answerRank": 20
     },
     {
@@ -306,14 +306,14 @@
       "id": "T4",
       "cat": "temporal",
       "rank": 1,
-      "answerRank": 2
+      "answerRank": 4
     },
     {
       "system": "hybrid",
       "id": "T5",
       "cat": "temporal",
       "rank": 4,
-      "answerRank": 15
+      "answerRank": 17
     },
     {
       "system": "hybrid",
@@ -368,8 +368,8 @@
       "system": "hybrid",
       "id": "A3",
       "cat": "aggregate",
-      "rank": 4,
-      "answerRank": 6
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "system": "hybrid",
@@ -403,8 +403,8 @@
       "system": "hybrid",
       "id": "A8",
       "cat": "aggregate",
-      "rank": 7,
-      "answerRank": 8
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "system": "hybrid",
@@ -445,8 +445,8 @@
       "system": "bm25",
       "id": "S4",
       "cat": "simple",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "system": "bm25",
@@ -474,7 +474,7 @@
       "id": "S8",
       "cat": "simple",
       "rank": 2,
-      "answerRank": 31
+      "answerRank": 29
     },
     {
       "system": "bm25",
@@ -572,28 +572,28 @@
       "id": "T2",
       "cat": "temporal",
       "rank": 2,
-      "answerRank": 12
+      "answerRank": 17
     },
     {
       "system": "bm25",
       "id": "T3",
       "cat": "temporal",
-      "rank": 4,
-      "answerRank": 35
+      "rank": 7,
+      "answerRank": 34
     },
     {
       "system": "bm25",
       "id": "T4",
       "cat": "temporal",
       "rank": 1,
-      "answerRank": 2
+      "answerRank": 5
     },
     {
       "system": "bm25",
       "id": "T5",
       "cat": "temporal",
       "rank": 5,
-      "answerRank": 10
+      "answerRank": 19
     },
     {
       "system": "bm25",
@@ -648,8 +648,8 @@
       "system": "bm25",
       "id": "A3",
       "cat": "aggregate",
-      "rank": 4,
-      "answerRank": 4
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "system": "bm25",
@@ -663,7 +663,7 @@
       "id": "A5",
       "cat": "aggregate",
       "rank": 6,
-      "answerRank": 18
+      "answerRank": 16
     },
     {
       "system": "bm25",
@@ -683,8 +683,8 @@
       "system": "bm25",
       "id": "A8",
       "cat": "aggregate",
-      "rank": 4,
-      "answerRank": 4
+      "rank": 2,
+      "answerRank": 2
     },
     {
       "system": "bm25",

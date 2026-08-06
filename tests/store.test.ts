@@ -98,7 +98,22 @@ describe('store', () => {
     expect(normalizeKey('Café—Notes')).toBe('café notes');
   });
 
-  it('ftsQuery quotes tokens', () => {
-    expect(ftsQuery("what's a NEAR(1 query?", ' ')).toBe('"what" "s" "a" "NEAR" "1" "query"');
+  it('ftsQuery quotes tokens and drops function words', () => {
+    // "a" is a stopword; quoting neutralises NEAR( so it cannot be read as an
+    // FTS5 operator.
+    expect(ftsQuery("what's a NEAR(1 query?", ' ')).toBe('"whats" "near" "1" "query"');
+  });
+
+  it('ftsQuery never returns nothing for an all-stopword query', () => {
+    // dropping every token would turn a valid search into silence
+    expect(ftsQuery('what is the', ' ')).toBe('"what" "is" "the"');
+  });
+
+  it('question words no longer starve an AND match', () => {
+    const s = memStore();
+    s.upsertNote(parseNote('a.md', 'Target roles: AI Engineer and ML Engineer.\n', 1));
+    // AND semantics over the raw question would require "what"/"are"/"my"
+    expect(s.searchLexical('what are my target roles', 5)).toHaveLength(1);
+    s.close();
   });
 });
