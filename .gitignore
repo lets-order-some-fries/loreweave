@@ -8,3 +8,4 @@ coverage/
 eval/vault/
 eval/last-run.json
 *.tgz
+eval/vault2/

@@ -1,146 +1,293 @@
 {
-  "corpus": {
-    "notes": 103,
-    "blocks": 474,
-    "entities": 206,
-    "links": 449,
-    "facts": 126,
-    "edges": 3328,
-    "indexMs": 225,
-    "warnings": 0
-  },
-  "overall": {
-    "hybrid": {
-      "n": 40,
-      "r@1": 0.4,
-      "r@5": 0.75,
-      "mrr": 0.538,
-      "ans@5": 0.5,
-      "found": 0.95
-    },
-    "bm25": {
-      "n": 40,
-      "r@1": 0.425,
-      "r@5": 0.65,
-      "mrr": 0.532,
-      "ans@5": 0.55,
-      "found": 0.75
-    },
-    "graph": {
-      "n": 40,
-      "r@1": 0.075,
-      "r@5": 0.425,
-      "mrr": 0.222,
-      "ans@5": 0.25,
-      "found": 0.875
-    }
-  },
-  "byCategory": {
-    "hybrid": {
-      "simple": {
-        "n": 10,
-        "r@1": 0.5,
-        "r@5": 1,
-        "mrr": 0.683,
-        "ans@5": 0.6,
-        "found": 1
+  "corpora": {
+    "kestrel": {
+      "corpus": {
+        "notes": 103,
+        "blocks": 474,
+        "entities": 206,
+        "links": 449,
+        "facts": 126,
+        "edges": 3328,
+        "indexMs": 219,
+        "warnings": 0
       },
-      "multihop": {
-        "n": 10,
-        "r@1": 0,
-        "r@5": 0.3,
-        "mrr": 0.106,
-        "ans@5": 0.1,
-        "found": 0.8
+      "overall": {
+        "hybrid": {
+          "n": 40,
+          "r@1": 0.4,
+          "r@5": 0.75,
+          "mrr": 0.538,
+          "ans@5": 0.5,
+          "found": 0.95
+        },
+        "bm25": {
+          "n": 40,
+          "r@1": 0.425,
+          "r@5": 0.65,
+          "mrr": 0.532,
+          "ans@5": 0.55,
+          "found": 0.75
+        },
+        "graph": {
+          "n": 40,
+          "r@1": 0.075,
+          "r@5": 0.425,
+          "mrr": 0.222,
+          "ans@5": 0.25,
+          "found": 0.875
+        }
       },
-      "temporal": {
-        "n": 10,
-        "r@1": 0.5,
-        "r@5": 0.9,
-        "mrr": 0.639,
-        "ans@5": 0.5,
-        "found": 1
-      },
-      "aggregate": {
-        "n": 10,
-        "r@1": 0.6,
-        "r@5": 0.8,
-        "mrr": 0.722,
-        "ans@5": 0.8,
-        "found": 1
+      "byCategory": {
+        "hybrid": {
+          "simple": {
+            "n": 10,
+            "r@1": 0.5,
+            "r@5": 1,
+            "mrr": 0.683,
+            "ans@5": 0.6,
+            "found": 1
+          },
+          "multihop": {
+            "n": 10,
+            "r@1": 0,
+            "r@5": 0.3,
+            "mrr": 0.106,
+            "ans@5": 0.1,
+            "found": 0.8
+          },
+          "temporal": {
+            "n": 10,
+            "r@1": 0.5,
+            "r@5": 0.9,
+            "mrr": 0.639,
+            "ans@5": 0.5,
+            "found": 1
+          },
+          "aggregate": {
+            "n": 10,
+            "r@1": 0.6,
+            "r@5": 0.8,
+            "mrr": 0.722,
+            "ans@5": 0.8,
+            "found": 1
+          }
+        },
+        "bm25": {
+          "simple": {
+            "n": 10,
+            "r@1": 0.5,
+            "r@5": 1,
+            "mrr": 0.7,
+            "ans@5": 0.8,
+            "found": 1
+          },
+          "multihop": {
+            "n": 10,
+            "r@1": 0,
+            "r@5": 0,
+            "mrr": 0,
+            "ans@5": 0,
+            "found": 0
+          },
+          "temporal": {
+            "n": 10,
+            "r@1": 0.5,
+            "r@5": 0.8,
+            "mrr": 0.651,
+            "ans@5": 0.6,
+            "found": 1
+          },
+          "aggregate": {
+            "n": 10,
+            "r@1": 0.7,
+            "r@5": 0.8,
+            "mrr": 0.776,
+            "ans@5": 0.8,
+            "found": 1
+          }
+        },
+        "graph": {
+          "simple": {
+            "n": 10,
+            "r@1": 0.1,
+            "r@5": 0.7,
+            "mrr": 0.297,
+            "ans@5": 0.2,
+            "found": 0.9
+          },
+          "multihop": {
+            "n": 10,
+            "r@1": 0,
+            "r@5": 0,
+            "mrr": 0.045,
+            "ans@5": 0,
+            "found": 0.8
+          },
+          "temporal": {
+            "n": 10,
+            "r@1": 0.1,
+            "r@5": 0.6,
+            "mrr": 0.286,
+            "ans@5": 0.4,
+            "found": 1
+          },
+          "aggregate": {
+            "n": 10,
+            "r@1": 0.1,
+            "r@5": 0.4,
+            "mrr": 0.259,
+            "ans@5": 0.4,
+            "found": 0.8
+          }
+        }
       }
     },
-    "bm25": {
-      "simple": {
-        "n": 10,
-        "r@1": 0.5,
-        "r@5": 1,
-        "mrr": 0.7,
-        "ans@5": 0.8,
-        "found": 1
+    "northwind": {
+      "corpus": {
+        "notes": 31,
+        "blocks": 57,
+        "entities": 39,
+        "links": 25,
+        "facts": 63,
+        "edges": 131,
+        "indexMs": 33,
+        "warnings": 0
       },
-      "multihop": {
-        "n": 10,
-        "r@1": 0,
-        "r@5": 0,
-        "mrr": 0,
-        "ans@5": 0,
-        "found": 0
+      "overall": {
+        "hybrid": {
+          "n": 24,
+          "r@1": 0.375,
+          "r@5": 0.833,
+          "mrr": 0.575,
+          "ans@5": 0.75,
+          "found": 0.958
+        },
+        "bm25": {
+          "n": 24,
+          "r@1": 0.458,
+          "r@5": 0.583,
+          "mrr": 0.521,
+          "ans@5": 0.542,
+          "found": 0.625
+        },
+        "graph": {
+          "n": 24,
+          "r@1": 0,
+          "r@5": 0.208,
+          "mrr": 0.087,
+          "ans@5": 0.167,
+          "found": 0.25
+        }
       },
-      "temporal": {
-        "n": 10,
-        "r@1": 0.5,
-        "r@5": 0.8,
-        "mrr": 0.651,
-        "ans@5": 0.6,
-        "found": 1
-      },
-      "aggregate": {
-        "n": 10,
-        "r@1": 0.7,
-        "r@5": 0.8,
-        "mrr": 0.776,
-        "ans@5": 0.8,
-        "found": 1
-      }
-    },
-    "graph": {
-      "simple": {
-        "n": 10,
-        "r@1": 0.1,
-        "r@5": 0.7,
-        "mrr": 0.297,
-        "ans@5": 0.2,
-        "found": 0.9
-      },
-      "multihop": {
-        "n": 10,
-        "r@1": 0,
-        "r@5": 0,
-        "mrr": 0.045,
-        "ans@5": 0,
-        "found": 0.8
-      },
-      "temporal": {
-        "n": 10,
-        "r@1": 0.1,
-        "r@5": 0.6,
-        "mrr": 0.286,
-        "ans@5": 0.4,
-        "found": 1
-      },
-      "aggregate": {
-        "n": 10,
-        "r@1": 0.1,
-        "r@5": 0.4,
-        "mrr": 0.259,
-        "ans@5": 0.4,
-        "found": 0.8
+      "byCategory": {
+        "hybrid": {
+          "simple": {
+            "n": 8,
+            "r@1": 0.625,
+            "r@5": 0.875,
+            "mrr": 0.771,
+            "ans@5": 0.75,
+            "found": 1
+          },
+          "multihop": {
+            "n": 6,
+            "r@1": 0,
+            "r@5": 1,
+            "mrr": 0.333,
+            "ans@5": 1,
+            "found": 1
+          },
+          "temporal": {
+            "n": 5,
+            "r@1": 0.6,
+            "r@5": 0.8,
+            "mrr": 0.722,
+            "ans@5": 0.6,
+            "found": 1
+          },
+          "aggregate": {
+            "n": 5,
+            "r@1": 0.2,
+            "r@5": 0.6,
+            "mrr": 0.407,
+            "ans@5": 0.6,
+            "found": 0.8
+          }
+        },
+        "bm25": {
+          "simple": {
+            "n": 8,
+            "r@1": 0.75,
+            "r@5": 0.875,
+            "mrr": 0.813,
+            "ans@5": 0.75,
+            "found": 1
+          },
+          "multihop": {
+            "n": 6,
+            "r@1": 0,
+            "r@5": 0,
+            "mrr": 0,
+            "ans@5": 0,
+            "found": 0
+          },
+          "temporal": {
+            "n": 5,
+            "r@1": 0.6,
+            "r@5": 0.8,
+            "mrr": 0.7,
+            "ans@5": 0.8,
+            "found": 0.8
+          },
+          "aggregate": {
+            "n": 5,
+            "r@1": 0.4,
+            "r@5": 0.6,
+            "mrr": 0.5,
+            "ans@5": 0.6,
+            "found": 0.6
+          }
+        },
+        "graph": {
+          "simple": {
+            "n": 8,
+            "r@1": 0,
+            "r@5": 0.375,
+            "mrr": 0.167,
+            "ans@5": 0.375,
+            "found": 0.5
+          },
+          "multihop": {
+            "n": 6,
+            "r@1": 0,
+            "r@5": 0,
+            "mrr": 0,
+            "ans@5": 0,
+            "found": 0
+          },
+          "temporal": {
+            "n": 5,
+            "r@1": 0,
+            "r@5": 0,
+            "mrr": 0,
+            "ans@5": 0,
+            "found": 0
+          },
+          "aggregate": {
+            "n": 5,
+            "r@1": 0,
+            "r@5": 0.4,
+            "mrr": 0.15,
+            "ans@5": 0.2,
+            "found": 0.4
+          }
+        }
       }
     }
   },
   "perQuestion": [
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S1",
       "cat": "simple",
@@ -148,6 +295,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S2",
       "cat": "simple",
@@ -155,6 +303,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S3",
       "cat": "simple",
@@ -162,6 +311,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S4",
       "cat": "simple",
@@ -169,6 +319,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S5",
       "cat": "simple",
@@ -176,6 +327,7 @@
       "answerRank": 14
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S6",
       "cat": "simple",
@@ -183,6 +335,7 @@
       "answerRank": 6
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S7",
       "cat": "simple",
@@ -190,6 +343,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S8",
       "cat": "simple",
@@ -197,6 +351,7 @@
       "answerRank": 18
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S9",
       "cat": "simple",
@@ -204,6 +359,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "S10",
       "cat": "simple",
@@ -211,6 +367,7 @@
       "answerRank": 6
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M1",
       "cat": "multihop",
@@ -218,6 +375,7 @@
       "answerRank": 7
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M2",
       "cat": "multihop",
@@ -225,6 +383,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M3",
       "cat": "multihop",
@@ -232,6 +391,7 @@
       "answerRank": 7
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M4",
       "cat": "multihop",
@@ -239,6 +399,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M5",
       "cat": "multihop",
@@ -246,6 +407,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M6",
       "cat": "multihop",
@@ -253,6 +415,7 @@
       "answerRank": 44
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M7",
       "cat": "multihop",
@@ -260,6 +423,7 @@
       "answerRank": 30
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M8",
       "cat": "multihop",
@@ -267,6 +431,7 @@
       "answerRank": 11
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M9",
       "cat": "multihop",
@@ -274,6 +439,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "M10",
       "cat": "multihop",
@@ -281,6 +447,7 @@
       "answerRank": 42
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T1",
       "cat": "temporal",
@@ -288,6 +455,7 @@
       "answerRank": 27
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T2",
       "cat": "temporal",
@@ -295,6 +463,7 @@
       "answerRank": 22
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T3",
       "cat": "temporal",
@@ -302,6 +471,7 @@
       "answerRank": 20
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T4",
       "cat": "temporal",
@@ -309,6 +479,7 @@
       "answerRank": 4
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T5",
       "cat": "temporal",
@@ -316,6 +487,7 @@
       "answerRank": 17
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T6",
       "cat": "temporal",
@@ -323,6 +495,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T7",
       "cat": "temporal",
@@ -330,6 +503,7 @@
       "answerRank": 8
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T8",
       "cat": "temporal",
@@ -337,6 +511,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T9",
       "cat": "temporal",
@@ -344,6 +519,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "T10",
       "cat": "temporal",
@@ -351,6 +527,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A1",
       "cat": "aggregate",
@@ -358,6 +535,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A2",
       "cat": "aggregate",
@@ -365,6 +543,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A3",
       "cat": "aggregate",
@@ -372,6 +551,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A4",
       "cat": "aggregate",
@@ -379,6 +559,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A5",
       "cat": "aggregate",
@@ -386,6 +567,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A6",
       "cat": "aggregate",
@@ -393,6 +575,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A7",
       "cat": "aggregate",
@@ -400,6 +583,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A8",
       "cat": "aggregate",
@@ -407,6 +591,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A9",
       "cat": "aggregate",
@@ -414,6 +599,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "hybrid",
       "id": "A10",
       "cat": "aggregate",
@@ -421,6 +607,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S1",
       "cat": "simple",
@@ -428,6 +615,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S2",
       "cat": "simple",
@@ -435,6 +623,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S3",
       "cat": "simple",
@@ -442,6 +631,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S4",
       "cat": "simple",
@@ -449,6 +639,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S5",
       "cat": "simple",
@@ -456,6 +647,7 @@
       "answerRank": 10
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S6",
       "cat": "simple",
@@ -463,6 +655,7 @@
       "answerRank": 4
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S7",
       "cat": "simple",
@@ -470,6 +663,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S8",
       "cat": "simple",
@@ -477,6 +671,7 @@
       "answerRank": 29
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S9",
       "cat": "simple",
@@ -484,6 +679,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "S10",
       "cat": "simple",
@@ -491,6 +687,7 @@
       "answerRank": 4
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M1",
       "cat": "multihop",
@@ -498,6 +695,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M2",
       "cat": "multihop",
@@ -505,6 +703,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M3",
       "cat": "multihop",
@@ -512,6 +711,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M4",
       "cat": "multihop",
@@ -519,6 +719,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M5",
       "cat": "multihop",
@@ -526,6 +727,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M6",
       "cat": "multihop",
@@ -533,6 +735,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M7",
       "cat": "multihop",
@@ -540,6 +743,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M8",
       "cat": "multihop",
@@ -547,6 +751,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M9",
       "cat": "multihop",
@@ -554,6 +759,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "M10",
       "cat": "multihop",
@@ -561,6 +767,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T1",
       "cat": "temporal",
@@ -568,6 +775,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T2",
       "cat": "temporal",
@@ -575,6 +783,7 @@
       "answerRank": 17
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T3",
       "cat": "temporal",
@@ -582,6 +791,7 @@
       "answerRank": 34
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T4",
       "cat": "temporal",
@@ -589,6 +799,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T5",
       "cat": "temporal",
@@ -596,6 +807,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T6",
       "cat": "temporal",
@@ -603,6 +815,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T7",
       "cat": "temporal",
@@ -610,6 +823,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T8",
       "cat": "temporal",
@@ -617,6 +831,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T9",
       "cat": "temporal",
@@ -624,6 +839,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "T10",
       "cat": "temporal",
@@ -631,6 +847,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A1",
       "cat": "aggregate",
@@ -638,6 +855,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A2",
       "cat": "aggregate",
@@ -645,6 +863,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A3",
       "cat": "aggregate",
@@ -652,6 +871,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A4",
       "cat": "aggregate",
@@ -659,6 +879,7 @@
       "answerRank": 11
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A5",
       "cat": "aggregate",
@@ -666,6 +887,7 @@
       "answerRank": 16
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A6",
       "cat": "aggregate",
@@ -673,6 +895,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A7",
       "cat": "aggregate",
@@ -680,6 +903,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A8",
       "cat": "aggregate",
@@ -687,6 +911,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A9",
       "cat": "aggregate",
@@ -694,6 +919,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "bm25",
       "id": "A10",
       "cat": "aggregate",
@@ -701,6 +927,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S1",
       "cat": "simple",
@@ -708,6 +935,7 @@
       "answerRank": 7
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S2",
       "cat": "simple",
@@ -715,6 +943,7 @@
       "answerRank": 6
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S3",
       "cat": "simple",
@@ -722,6 +951,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S4",
       "cat": "simple",
@@ -729,6 +959,7 @@
       "answerRank": 8
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S5",
       "cat": "simple",
@@ -736,6 +967,7 @@
       "answerRank": 7
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S6",
       "cat": "simple",
@@ -743,6 +975,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S7",
       "cat": "simple",
@@ -750,6 +983,7 @@
       "answerRank": 12
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S8",
       "cat": "simple",
@@ -757,6 +991,7 @@
       "answerRank": 6
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S9",
       "cat": "simple",
@@ -764,6 +999,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "S10",
       "cat": "simple",
@@ -771,6 +1007,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M1",
       "cat": "multihop",
@@ -778,6 +1015,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M2",
       "cat": "multihop",
@@ -785,6 +1023,7 @@
       "answerRank": 25
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M3",
       "cat": "multihop",
@@ -792,6 +1031,7 @@
       "answerRank": 35
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M4",
       "cat": "multihop",
@@ -799,6 +1039,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M5",
       "cat": "multihop",
@@ -806,6 +1047,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M6",
       "cat": "multihop",
@@ -813,6 +1055,7 @@
       "answerRank": 28
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M7",
       "cat": "multihop",
@@ -820,6 +1063,7 @@
       "answerRank": 35
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M8",
       "cat": "multihop",
@@ -827,6 +1071,7 @@
       "answerRank": 30
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M9",
       "cat": "multihop",
@@ -834,6 +1079,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "M10",
       "cat": "multihop",
@@ -841,6 +1087,7 @@
       "answerRank": 19
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T1",
       "cat": "temporal",
@@ -848,6 +1095,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T2",
       "cat": "temporal",
@@ -855,6 +1103,7 @@
       "answerRank": 7
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T3",
       "cat": "temporal",
@@ -862,6 +1111,7 @@
       "answerRank": 15
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T4",
       "cat": "temporal",
@@ -869,6 +1119,7 @@
       "answerRank": 3
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T5",
       "cat": "temporal",
@@ -876,6 +1127,7 @@
       "answerRank": 9
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T6",
       "cat": "temporal",
@@ -883,6 +1135,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T7",
       "cat": "temporal",
@@ -890,6 +1143,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T8",
       "cat": "temporal",
@@ -897,6 +1151,7 @@
       "answerRank": 10
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T9",
       "cat": "temporal",
@@ -904,6 +1159,7 @@
       "answerRank": 8
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "T10",
       "cat": "temporal",
@@ -911,6 +1167,7 @@
       "answerRank": 16
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A1",
       "cat": "aggregate",
@@ -918,6 +1175,7 @@
       "answerRank": 9
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A2",
       "cat": "aggregate",
@@ -925,6 +1183,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A3",
       "cat": "aggregate",
@@ -932,6 +1191,7 @@
       "answerRank": 13
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A4",
       "cat": "aggregate",
@@ -939,6 +1199,7 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A5",
       "cat": "aggregate",
@@ -946,6 +1207,7 @@
       "answerRank": 10
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A6",
       "cat": "aggregate",
@@ -953,6 +1215,7 @@
       "answerRank": 5
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A7",
       "cat": "aggregate",
@@ -960,6 +1223,7 @@
       "answerRank": 1
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A8",
       "cat": "aggregate",
@@ -967,6 +1231,7 @@
       "answerRank": 0
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A9",
       "cat": "aggregate",
@@ -974,11 +1239,588 @@
       "answerRank": 2
     },
     {
+      "corpus": "kestrel",
       "system": "graph",
       "id": "A10",
       "cat": "aggregate",
       "rank": 0,
       "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S1",
+      "cat": "simple",
+      "rank": 6,
+      "answerRank": 6
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S2",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S3",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S4",
+      "cat": "simple",
+      "rank": 2,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S5",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S6",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S7",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-S8",
+      "cat": "simple",
+      "rank": 2,
+      "answerRank": 8
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M1",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M2",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M3",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M4",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M5",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-M6",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-T1",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-T2",
+      "cat": "temporal",
+      "rank": 9,
+      "answerRank": 24
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-T3",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-T4",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-T5",
+      "cat": "temporal",
+      "rank": 2,
+      "answerRank": 6
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-A1",
+      "cat": "aggregate",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-A2",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-A3",
+      "cat": "aggregate",
+      "rank": 2,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-A4",
+      "cat": "aggregate",
+      "rank": 30,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "hybrid",
+      "id": "N-A5",
+      "cat": "aggregate",
+      "rank": 2,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S1",
+      "cat": "simple",
+      "rank": 6,
+      "answerRank": 6
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S2",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S3",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S4",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S5",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S6",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S7",
+      "cat": "simple",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-S8",
+      "cat": "simple",
+      "rank": 3,
+      "answerRank": 6
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M1",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M2",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M3",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M4",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M5",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-M6",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-T1",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-T2",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-T3",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-T4",
+      "cat": "temporal",
+      "rank": 1,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-T5",
+      "cat": "temporal",
+      "rank": 2,
+      "answerRank": 4
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-A1",
+      "cat": "aggregate",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-A2",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-A3",
+      "cat": "aggregate",
+      "rank": 2,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-A4",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "bm25",
+      "id": "N-A5",
+      "cat": "aggregate",
+      "rank": 1,
+      "answerRank": 1
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S1",
+      "cat": "simple",
+      "rank": 6,
+      "answerRank": 6
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S2",
+      "cat": "simple",
+      "rank": 2,
+      "answerRank": 2
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S3",
+      "cat": "simple",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S4",
+      "cat": "simple",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S5",
+      "cat": "simple",
+      "rank": 3,
+      "answerRank": 4
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S6",
+      "cat": "simple",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S7",
+      "cat": "simple",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-S8",
+      "cat": "simple",
+      "rank": 3,
+      "answerRank": 4
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M1",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M2",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M3",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M4",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M5",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-M6",
+      "cat": "multihop",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-T1",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-T2",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-T3",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-T4",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-T5",
+      "cat": "temporal",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-A1",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-A2",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-A3",
+      "cat": "aggregate",
+      "rank": 4,
+      "answerRank": 7
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-A4",
+      "cat": "aggregate",
+      "rank": 0,
+      "answerRank": 0
+    },
+    {
+      "corpus": "northwind",
+      "system": "graph",
+      "id": "N-A5",
+      "cat": "aggregate",
+      "rank": 2,
+      "answerRank": 2
     }
   ]
 }

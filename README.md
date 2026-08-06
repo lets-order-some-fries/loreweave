@@ -57,29 +57,36 @@ still fully functional.
 
 ## Measured, not asserted
 
-Loreweave ships its own benchmark — `npm run eval` — over a purpose-built
-100-note vault where multi-hop answers deliberately share **no vocabulary**
-with the query. 40 gold questions across lookup / multi-hop / temporal /
-aggregate, scored against two baselines:
+Loreweave ships its own benchmark — `npm run eval` — over **two** purpose-built
+vaults, scored against a BM25 baseline and a graph-only baseline.
 
-| system | finds the answer | right note in top 5 | MRR |
-|---|---|---|---|
-| **hybrid** (shipped) | **95%** | **75%** | **0.538** |
-| BM25 only | 75% | 65% | 0.532 |
-| graph only | 88% | 43% | 0.222 |
+The second corpus exists to catch overfitting. It is deliberately unlike the
+first in every dimension the config could have been tuned to: markdown links
+instead of `[[wiki links]]`, deep folder nesting, filenames unrelated to
+titles, and real engineering note shapes (ADRs, incidents, runbooks, meeting
+notes) rather than uniform entity pages. In both, multi-hop answers share **no
+vocabulary** with the query and are reachable only by following links.
 
-On multi-hop specifically: **hybrid finds 80%, BM25 finds 0%**. Lexical search
-cannot reach a note that shares no words with your query — at any depth. That
-gap is the entire reason the graph exists.
+| corpus | system | finds the answer | in top 5 | MRR |
+|---|---|---|---|---|
+| kestrel (40 q) | **hybrid** | **95%** | **75%** | **0.538** |
+| | BM25 | 75% | 65% | 0.532 |
+| northwind (24 q) | **hybrid** | **96%** | **83%** | **0.575** |
+| | BM25 | 63% | 58% | 0.521 |
 
-The honest caveat: hybrid scores lower on `ans@5` (0.45 vs 0.55) — the metric
-for "did the returned *block* literally contain the answer string". Promoting
-linked notes into the top 5 costs some block-level precision to buy note-level
-reach. If your vault is small and lexical search already finds everything, set
-`retrieval.weights.expansion: 0` and you get pure BM25 behaviour.
+Multi-hop is where the graph earns its keep: **BM25 finds 0% on both corpora**
+— it cannot reach a note that shares no words with your query, at any depth —
+while hybrid finds 80% and 100%. On the second corpus every multi-hop answer
+lands in the top 5.
 
-Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on
-regression, and CI enforces it on every push.
+The same shipped config wins on both, and wins by more on the corpus it was
+never tuned against. The honest caveat is `ans@5` on kestrel (0.50 vs BM25's
+0.55): promoting linked notes into the top 5 costs a little block-level
+precision to buy note-level reach. Set `retrieval.weights.expansion: 0` for
+pure BM25 behaviour.
+
+Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on any
+regression across either corpus, and CI enforces it on every push.
 
 ## What makes it different
 
