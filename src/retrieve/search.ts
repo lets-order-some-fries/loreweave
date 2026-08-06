@@ -143,21 +143,54 @@ export async function search(
         const placeholders = notes.map(() => '?').join(',');
         const blocks = store.db
           .prepare(
-            `SELECT id, note_path, ord FROM blocks WHERE note_path IN (${placeholders})
+            `SELECT id, note_path, ord, text FROM blocks WHERE note_path IN (${placeholders})
              AND archived = 0 ORDER BY note_path, ord`,
           )
-          .all(...notes.map((n) => n[0])) as { id: number; note_path: string; ord: number }[];
+          .all(...notes.map((n) => n[0])) as {
+          id: number;
+          note_path: string;
+          ord: number;
+          text: string;
+        }[];
         const byNote = new Map<string, number[]>();
+        const blockText = new Map<number, string>();
         for (const b of blocks) {
           const arr = byNote.get(b.note_path);
           if (arr) arr.push(b.id);
           else byNote.set(b.note_path, [b.id]);
+          blockText.set(b.id, normalizeKey(b.text));
         }
+        // Query terms NOT consumed by the entity name that seeded the walk —
+        // "Coldspar Traverse hardware" leaves "hardware".
+        const seedTokens = new Set(
+          seeds.flatMap((sd) => normalizeKey(sd.notePath.split('/').pop() ?? '').split(' ')),
+        );
+        const residual = normalizeKey(query)
+          .split(' ')
+          .filter((t) => t.length > 2 && !seedTokens.has(t));
+        // One entry per NOTE, not per block. Expansion answers "which notes
+        // are linked to what you asked about"; emitting every block of each
+        // note just fills the ranking with the same handful of notes and
+        // pushes the real answer out of view.
         const scored: { blockId: number; s: number }[] = [];
         for (const [notePath, s] of notes) {
           const ids = byNote.get(notePath) ?? [];
-          // first block of a note carries its definition; later blocks decay
-          ids.forEach((id, i) => scored.push({ blockId: id, s: s / (1 + i * 0.5) }));
+          // Prefer the block that best covers the query terms the named
+          // entity did not consume ("Coldspar Traverse *hardware*"); fall
+          // back to the note's opening block, which carries its definition.
+          let bestId = ids[0];
+          if (residual.length > 0 && ids.length > 1) {
+            let bestCov = -1;
+            for (const id of ids) {
+              const t = blockText.get(id) ?? '';
+              const cov = residual.filter((r) => t.includes(r)).length;
+              if (cov > bestCov) {
+                bestCov = cov;
+                bestId = id;
+              }
+            }
+          }
+          if (bestId !== undefined) scored.push({ blockId: bestId, s });
         }
         scored.sort((a, b) => b.s - a.s);
         scored.slice(0, cand).forEach((h, i) => expandRanks.set(h.blockId, i + 1));
@@ -184,13 +217,19 @@ export async function search(
   // note reached by one link outranked an exact lexical match. So it only
   // BACKFILLS: notes nothing else found are appended strictly below every
   // fused result, where they can add recall but never displace a real hit.
+  // ...but appended at the very bottom they land at rank 10-40, which nobody
+  // reads — "found" but useless. They are kept in a separate list and spliced
+  // into the final ordering by POSITION below (scoring them just under the
+  // top hit does not work: dozens of other fused entries sit in between).
+  // Promotion applies to any link-reached note that is NOT itself a lexical
+  // hit — including ones PPR already surfaced but buried at rank 20-40.
+  // (Gating on "not already in the fused set" silently excluded exactly the
+  // notes this is for, since PPR reaches the same neighbours.)
+  const linkedOnly = new Set<number>();
   if (cfg.weights.expansion > 0 && expandRanks.size > 0) {
-    let floor = Infinity;
-    for (const v of fused.values()) if (v < floor) floor = v;
-    if (!Number.isFinite(floor)) floor = 1 / (cfg.rrfK + 1);
-    for (const [blockId, rank] of expandRanks) {
-      if (fused.has(blockId)) continue;
-      fused.set(blockId, floor * cfg.weights.expansion * (1 / (1 + rank)));
+    for (const [blockId] of expandRanks) {
+      if (!lexicalRanks.has(blockId)) linkedOnly.add(blockId);
+      if (!fused.has(blockId)) fused.set(blockId, 0);
     }
   }
   if (fused.size === 0) return [];
@@ -276,8 +315,29 @@ export async function search(
       via: [...new Set(via)],
     });
   }
-  results.sort((a, b) => b.score - a.score);
-  const top = results.slice(0, k);
+  // Split, then interleave. The first `expansionPromoteAfter` slots stay pure
+  // lexical/graph so a confident match is never displaced; after that,
+  // linked-but-unmatched notes alternate in, so a reachable answer appears on
+  // page one instead of at rank 30.
+  const byBlock = new Map(rows.map((r) => [`${r.note_path} ${r.anchor}`, r.id]));
+  const isExpansion = (r: SearchResult) =>
+    linkedOnly.has(byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1);
+  const primary = results.filter((r) => !isExpansion(r)).sort((a, b) => b.score - a.score);
+  const linked = results
+    .filter(isExpansion)
+    .sort(
+      (a, b) =>
+        (expandRanks.get(byBlock.get(`${a.notePath} ${a.anchor}`) ?? -1) ?? 1e9) -
+        (expandRanks.get(byBlock.get(`${b.notePath} ${b.anchor}`) ?? -1) ?? 1e9),
+    );
+  const merged: SearchResult[] = primary.slice(0, cfg.expansionPromoteAfter);
+  let pi = cfg.expansionPromoteAfter;
+  let li = 0;
+  while (pi < primary.length || li < linked.length) {
+    if (li < linked.length) merged.push(linked[li++]!);
+    if (pi < primary.length) merged.push(primary[pi++]!);
+  }
+  const top = merged.slice(0, k);
 
   if (!opts.noLog) {
     const idByAnchor = new Map(rows.map((r) => [`${r.note_path} ${r.anchor}`, r.id]));

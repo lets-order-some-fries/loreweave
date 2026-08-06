@@ -62,19 +62,24 @@ Loreweave ships its own benchmark — `npm run eval` — over a purpose-built
 with the query. 40 gold questions across lookup / multi-hop / temporal /
 aggregate, scored against two baselines:
 
-| system | finds the answer | MRR |
-|---|---|---|
-| **hybrid** (shipped) | **95%** | 0.489 |
-| BM25 only | 75% | 0.493 |
-| graph only | 88% | 0.222 |
+| system | finds the answer | right note in top 5 | MRR |
+|---|---|---|---|
+| **hybrid** (shipped) | **95%** | **75%** | **0.495** |
+| BM25 only | 75% | 68% | 0.493 |
+| graph only | 88% | 43% | 0.222 |
 
-On multi-hop specifically: **hybrid 80%, BM25 0%**. Lexical search cannot
-reach a note that shares no words with your query — at any depth. That gap is
-the entire reason the graph exists, and it costs 0.004 MRR of top-rank
-precision to get it.
+On multi-hop specifically: **hybrid finds 80%, BM25 finds 0%**. Lexical search
+cannot reach a note that shares no words with your query — at any depth. That
+gap is the entire reason the graph exists.
+
+The honest caveat: hybrid scores lower on `ans@5` (0.45 vs 0.55) — the metric
+for "did the returned *block* literally contain the answer string". Promoting
+linked notes into the top 5 costs some block-level precision to buy note-level
+reach. If your vault is small and lexical search already finds everything, set
+`retrieval.weights.expansion: 0` and you get pure BM25 behaviour.
 
 Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on
-regression, and CI enforces it.
+regression, and CI enforces it on every push.
 
 ## What makes it different
 

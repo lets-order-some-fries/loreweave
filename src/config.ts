@@ -35,6 +35,8 @@ export const ConfigSchema = z
         expansionSeeds: z.number().int().min(1).max(20).default(5),
         expansionHops: z.number().int().min(1).max(3).default(1),
         expansionDecay: z.number().min(0).max(1).default(0.45),
+        /** Expansion results slot in after this many fused results. */
+        expansionPromoteAfter: z.number().int().min(0).max(50).default(2),
         boosts: z
           .object({
             retrievability: z.number().default(0.15),
