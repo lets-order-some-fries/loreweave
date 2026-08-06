@@ -15,6 +15,8 @@ import { dream } from '../dream/dream.js';
 import { capture, readNoteRaw } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { findVaultRoot } from '../config.js';
+import { extractFactsFromNote } from '../facts/extract.js';
+import { normalizeKey } from '../normalize.js';
 
 function text(data: unknown): { content: { type: 'text'; text: string }[] } {
   return {
@@ -224,6 +226,80 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       inputSchema: { apply: z.boolean().optional() },
     },
     safe(({ apply }) => dream(ctx, { apply })),
+  );
+
+
+  server.registerTool(
+    'lore_propose_facts',
+    {
+      title: 'Propose facts from a note',
+      description:
+        'Returns candidate facts mined from a note\'s structure that are NOT yet in the fact store, for you to adjudicate. The engine only auto-accepts unambiguous field syntax (frontmatter, `key:: value`, `- [key] value`); prose formatting like `- **Owner:** Priya` is precise on entity notes and noisy on report notes, so it is surfaced here instead of assumed. Review these and call lore_assert_fact for the ones that are genuinely durable facts. This keeps judgement with you and out of the index.',
+      inputSchema: {
+        notePath: z.string().max(1024).optional().describe('limit to one note; omit to sample the vault'),
+        limit: z.number().int().min(1).max(200).optional(),
+      },
+    },
+    safe(({ notePath, limit }) => {
+      const rows = (
+        notePath
+          ? ctx.store.db
+              .prepare(`SELECT path, title, frontmatter, mtime_ms FROM notes WHERE path=?`)
+              .all(notePath)
+          : ctx.store.db
+              .prepare(`SELECT path, title, frontmatter, mtime_ms FROM notes ORDER BY mtime_ms DESC LIMIT 50`)
+              .all()
+      ) as { path: string; title: string; frontmatter: string; mtime_ms: number }[];
+      if (notePath && rows.length === 0) throw new Error(`no such note: ${notePath}`);
+      const blocksFor = ctx.store.db.prepare(
+        `SELECT anchor, heading, ord, text, hash FROM blocks WHERE note_path=? ORDER BY ord`,
+      );
+      const existing = new Set(
+        (
+          ctx.store.db.prepare(`SELECT subject, predicate, object FROM facts`).all() as {
+            subject: string;
+            predicate: string;
+            object: string;
+          }[]
+        ).map((r) => `${r.subject}|${r.predicate}|${r.object.toLowerCase()}`),
+      );
+      const out: unknown[] = [];
+      const cap = limit ?? 50;
+      for (const n of rows) {
+        let fm: Record<string, unknown> = {};
+        try {
+          fm = JSON.parse(n.frontmatter) as Record<string, unknown>;
+        } catch {
+          /* ignore */
+        }
+        const note = {
+          path: n.path,
+          title: n.title,
+          frontmatter: fm,
+          tags: [],
+          links: [],
+          blocks: blocksFor.all(n.path),
+          hash: '',
+          mtimeMs: n.mtime_ms,
+          size: 0,
+          warnings: [],
+        } as never;
+        for (const f of extractFactsFromNote(note, 'all')) {
+          const key = `${normalizeKey(f.subject)}|${normalizeKey(f.predicate)}|${f.object.toLowerCase()}`;
+          if (existing.has(key)) continue;
+          out.push({
+            subject: f.subject,
+            predicate: f.predicate,
+            object: f.object,
+            source: `${n.path}${f.blockAnchor ? '#' + f.blockAnchor : ''}`,
+            confidence: f.confidence,
+          });
+          if (out.length >= cap) break;
+        }
+        if (out.length >= cap) break;
+      }
+      return { candidates: out, note: 'not yet asserted — call lore_assert_fact for the real ones' };
+    }),
   );
 
   server.registerTool(

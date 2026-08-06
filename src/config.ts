@@ -61,6 +61,16 @@ export const ConfigSchema = z
         similarTopK: z.number().int().min(1).max(50).default(5),
       })
       .default({}),
+    facts: z
+      .object({
+        /**
+         * explicit: frontmatter + `key:: value` + `- [key] value` (default).
+         * all: also mine `- **Key:** value` / `- Key: value` prose formatting.
+         * off: only `- [fact]` lines you or an agent wrote.
+         */
+        extract: z.enum(['explicit', 'all', 'off']).default('explicit'),
+      })
+      .default({}),
     nlp: z.boolean().default(true),
     ignore: z.array(z.string()).default([]),
   })

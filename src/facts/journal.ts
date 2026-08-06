@@ -10,7 +10,9 @@
  * rows deterministically, so the index stays a pure cache of the vault.
  */
 import type { Store } from '../store/db.js';
+import type { Note } from '../types.js';
 import { normalizeKey } from '../normalize.js';
+import { extractFactsFromNote, type ExtractionMode } from './extract.js';
 
 export const JOURNAL_DIR = 'lore/journal';
 
@@ -200,7 +202,7 @@ export function recomputeSupersessions(store: Store): void {
  * Wipe and replay all fact rows from fact lines found in vault blocks.
  * Journal notes replay first (chronological by path), then other notes by path.
  */
-export function rebuildFactsFromNotes(store: Store): number {
+export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'explicit'): number {
   const db = store.db;
   let count = 0;
   const tx = db.transaction(() => {
@@ -267,6 +269,84 @@ export function rebuildFactsFromNotes(store: Store): number {
     }
   });
   tx();
+  count += extractStructuredFacts(store, mode);
   recomputeSupersessions(store);
+  return count;
+}
+
+/**
+ * Second pass: mine facts from ordinary note structure (frontmatter, inline
+ * fields, bold-label lists). These are `extracted`, never `stated`, and never
+ * overwrite an explicit assertion for the same slot — an explicit
+ * `- [fact]` line always wins.
+ */
+export function extractStructuredFacts(
+  store: Store,
+  mode: ExtractionMode = 'explicit',
+): number {
+  if (mode === 'off') return 0;
+  const db = store.db;
+  let count = 0;
+  const notes = db
+    .prepare(`SELECT path, title, frontmatter, mtime_ms FROM notes ORDER BY path`)
+    .all() as { path: string; title: string; frontmatter: string; mtime_ms: number }[];
+  const blocksFor = db.prepare(
+    `SELECT anchor, heading, ord, text, hash FROM blocks WHERE note_path=? ORDER BY ord`,
+  );
+  const stated = new Set(
+    (
+      db
+        .prepare(`SELECT DISTINCT subject, predicate FROM facts WHERE source_type='stated'`)
+        .all() as { subject: string; predicate: string }[]
+    ).map((r) => `${r.subject}|${r.predicate}`),
+  );
+  const ins = db.prepare(
+    `INSERT INTO facts(subject, predicate, object, subject_display, valid_from, valid_until,
+                       recorded_at, source_type, note_path, block_anchor, confidence)
+     VALUES (?,?,?,?,?,NULL,?,'extracted',?,?,?)`,
+  );
+  const tx = db.transaction(() => {
+    for (const n of notes) {
+      if (isJournalPath(n.path)) continue; // already replayed verbatim
+      let fm: Record<string, unknown> = {};
+      try {
+        fm = JSON.parse(n.frontmatter) as Record<string, unknown>;
+      } catch {
+        /* malformed frontmatter is already reported by the parser */
+      }
+      const note: Note = {
+        path: n.path,
+        title: n.title,
+        frontmatter: fm,
+        tags: [],
+        links: [],
+        blocks: blocksFor.all(n.path) as Note['blocks'],
+        hash: '',
+        mtimeMs: n.mtime_ms,
+        size: 0,
+        warnings: [],
+      };
+      const recordedAt = new Date(n.mtime_ms).toISOString();
+      for (const f of extractFactsFromNote(note, mode)) {
+        const subject = normalizeKey(f.subject);
+        const predicate = normalizeKey(f.predicate);
+        if (!subject || !predicate) continue;
+        if (stated.has(`${subject}|${predicate}`)) continue; // explicit wins
+        ins.run(
+          subject,
+          predicate,
+          f.object,
+          f.subject,
+          f.validFrom ?? null,
+          recordedAt,
+          n.path,
+          f.blockAnchor || null,
+          f.confidence,
+        );
+        count++;
+      }
+    }
+  });
+  tx();
   return count;
 }

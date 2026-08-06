@@ -9,6 +9,8 @@ import { updateImportance } from '../dynamics/usage.js';
 
 export interface IndexOptions {
   full?: boolean;
+  /** Which fact syntaxes to mine (see config.facts.extract). */
+  factExtract?: 'explicit' | 'all' | 'off';
   /** Disable wink-nlp proper-noun extraction (faster; links/tags only). */
   nlp?: boolean;
   ignore?: string[];
@@ -120,7 +122,7 @@ export async function indexVault(
   }
   if (report.removed > 0 || report.updated > 0) pruneOrphanEntities(store);
   if (report.added > 0 || report.updated > 0 || report.removed > 0) {
-    rebuildFactsFromNotes(store);
+    rebuildFactsFromNotes(store, opts.factExtract ?? 'explicit');
     updateImportance(store);
   }
 

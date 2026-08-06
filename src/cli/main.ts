@@ -81,6 +81,9 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           JSON.stringify(
             {
               embedding: { provider: 'none', model: 'nomic-embed-text', url: 'http://localhost:11434' },
+              // explicit: mine frontmatter + `key:: value` + `- [key] value`
+              // all: also mine `- **Key:** value` prose formatting (noisier)
+              facts: { extract: 'explicit' },
               nlp: true,
             },
             null,
@@ -101,7 +104,11 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .option('--rebuild-similar', 'rebuild embedding similarity edges (all-pairs; slow)')
     .action(async (opts: { full?: boolean; nlp?: boolean; rebuildSimilar?: boolean }) => {
       await withCtx(async (ctx) => {
-        const r = await indexVault(ctx.store, ctx.root, { full: opts.full, nlp: opts.nlp });
+        const r = await indexVault(ctx.store, ctx.root, {
+          full: opts.full,
+          nlp: opts.nlp,
+          factExtract: ctx.config.facts.extract,
+        });
         ctx.invalidateGraph();
         io.out(
           `indexed: +${r.added} ~${r.updated} -${r.removed} =${r.unchanged} (${r.durationMs}ms)`,

@@ -59,10 +59,28 @@ describe('mcp server', () => {
       'lore_index',
       'lore_invalidate_fact',
       'lore_mark_used',
+      'lore_propose_facts',
       'lore_query_facts',
       'lore_read_note',
       'lore_search',
     ]);
+  });
+
+  it('propose_facts surfaces prose candidates without asserting them', async () => {
+    const before = parseText(
+      await client.callTool({ name: 'lore_query_facts', arguments: { includeHistory: true } }),
+    ).length;
+    const res = parseText(
+      await client.callTool({ name: 'lore_propose_facts', arguments: { limit: 20 } }),
+    );
+    expect(Array.isArray(res.candidates)).toBe(true);
+    // proposing must not write anything
+    const after = parseText(
+      await client.callTool({ name: 'lore_query_facts', arguments: { includeHistory: true } }),
+    ).length;
+    expect(after).toBe(before);
+    // every candidate carries provenance back to its source
+    for (const c of res.candidates) expect(c.source).toMatch(/\.md/);
   });
 
   it('search finds fixture content', async () => {

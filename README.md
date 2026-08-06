@@ -134,7 +134,22 @@ $ lore count --predicate trip_to --since 2025-01-01 --until 2025-12-31
     1  Kenya
 ```
 
-**6. Built for agents.** An MCP server exposes 11 typed tools so Claude Code, Cursor, or
+**6. Facts come from your notes, not from a form.** The fact store used to be
+empty on any real vault — nobody hand-writes `- [fact] X :: y :: z`. It now
+mines the conventions vaults already use:
+
+```yaml
+status: shipped              # frontmatter
+- owner:: Priya              # Dataview inline field
+- [location] Hyderabad       # Basic Memory observation
+```
+
+Only unambiguous field syntax is accepted automatically. Prose formatting like
+`- **Owner:** Priya` is precise on entity notes and noisy on report notes, so
+it is opt-in (`facts.extract: "all"`) — or an agent can review candidates via
+`lore_propose_facts` and assert the real ones. Judgement stays out of the index.
+
+**7. Built for agents.** An MCP server exposes 12 typed tools so Claude Code, Cursor, or
 any MCP client can use your vault as durable memory — with a session context pack,
 fact assertion, point-in-time queries, and a reinforcement signal.
 
@@ -173,7 +188,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 
 Tools: `lore_search`, `lore_context_pack`, `lore_read_note`, `lore_assert_fact`,
 `lore_invalidate_fact`, `lore_query_facts`, `lore_aggregate_facts`, `lore_capture`,
-`lore_mark_used`, `lore_dream_report`, `lore_index`.
+`lore_mark_used`, `lore_propose_facts`, `lore_dream_report`, `lore_index`.
 
 Facts asserted through MCP are written back to `lore/journal/YYYY-MM-DD.md` as readable
 markdown lines, so an agent's memory is something you can open, read, edit, and
@@ -255,7 +270,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 108 tests
+npm test          # 109 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
