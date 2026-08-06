@@ -98,7 +98,8 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description('sync the vault into the index (incremental)')
     .option('--full', 'reparse everything')
     .option('--no-nlp', 'skip NLP entity extraction')
-    .action(async (opts: { full?: boolean; nlp?: boolean }) => {
+    .option('--rebuild-similar', 'rebuild embedding similarity edges (all-pairs; slow)')
+    .action(async (opts: { full?: boolean; nlp?: boolean; rebuildSimilar?: boolean }) => {
       await withCtx(async (ctx) => {
         const r = await indexVault(ctx.store, ctx.root, { full: opts.full, nlp: opts.nlp });
         ctx.invalidateGraph();
@@ -108,12 +109,18 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         for (const w of r.warnings) io.err(`warn: ${w}`);
         if (ctx.provider) {
           const n = await embedMissingBlocks(ctx.store, ctx.provider, ctx.config.embedding.batchSize);
-          if (n > 0) {
+          if (n > 0) io.out(`embedded ${n} blocks`);
+          // Similarity edges are an all-pairs rebuild — measured ~1.07µs per
+          // comparison, i.e. hours on a 20k-block vault. Editing one note must
+          // never trigger that, so it is opt-in (or run from `lore dream`).
+          if (opts.rebuildSimilar) {
             const e = buildSimilarEdges(ctx.store, {
               threshold: ctx.config.graph.similarThreshold,
               topK: ctx.config.graph.similarTopK,
             });
-            io.out(`embedded ${n} blocks · ${e} similarity edges`);
+            io.out(`rebuilt ${e} similarity edges`);
+          } else if (n > 0) {
+            io.out(`(similarity edges not refreshed — run: lore index --rebuild-similar)`);
           }
         }
       });

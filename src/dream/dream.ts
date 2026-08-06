@@ -88,21 +88,46 @@ const SHINGLE = 8;
  */
 const JACCARD_THRESHOLD = 0.45;
 
-function shingles(text: string): Set<string> {
-  const tokens = normalizeKey(text).split(' ').filter(Boolean);
-  const out = new Set<string>();
-  for (let i = 0; i + SHINGLE <= tokens.length; i++) {
-    out.add(tokens.slice(i, i + SHINGLE).join(' '));
+/**
+ * MinHash signature over 8-token shingles.
+ *
+ * The previous implementation held every distinct shingle as a string in a
+ * Set: on a 20k-note vault that is ~19.6M entries, which exceeds V8's Map/Set
+ * capacity and threw RangeError before it could even OOM. A fixed-width
+ * signature makes memory O(notes x K) regardless of note length, and Jaccard
+ * is estimated by counting equal positions.
+ */
+const SIG_LEN = 64;
+
+function hashToken(str: string, seed: number): number {
+  // FNV-1a, seeded — cheap and well distributed enough for MinHash.
+  let h = (2166136261 ^ seed) >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
   }
-  return out;
+  return h >>> 0;
 }
 
-function jaccard(a: Set<string>, b: Set<string>): number {
-  if (a.size === 0 || b.size === 0) return 0;
-  let inter = 0;
-  const [small, large] = a.size < b.size ? [a, b] : [b, a];
-  for (const s of small) if (large.has(s)) inter++;
-  return inter / (a.size + b.size - inter);
+function signature(text: string): Int32Array | null {
+  const tokens = normalizeKey(text).split(' ').filter(Boolean);
+  if (tokens.length < SHINGLE) return null;
+  const sig = new Int32Array(SIG_LEN).fill(0x7fffffff);
+  for (let i = 0; i + SHINGLE <= tokens.length; i++) {
+    const gram = tokens.slice(i, i + SHINGLE).join(' ');
+    for (let k = 0; k < SIG_LEN; k++) {
+      const h = hashToken(gram, k) & 0x7fffffff;
+      if (h < sig[k]!) sig[k] = h;
+    }
+  }
+  return sig;
+}
+
+/** Estimated Jaccard: fraction of signature positions that agree. */
+function sigSimilarity(a: Int32Array, b: Int32Array): number {
+  let same = 0;
+  for (let i = 0; i < SIG_LEN; i++) if (a[i] === b[i]) same++;
+  return same / SIG_LEN;
 }
 
 function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
@@ -110,9 +135,10 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
     .prepare(`SELECT id, note_path, anchor, text, hash FROM blocks WHERE archived=0`)
     .all() as { id: number; note_path: string; anchor: string; text: string; hash: string }[];
   const out: DuplicateFinding[] = [];
-  const seen = new Set<string>();
+  const emitted = new Set<string>();
+  const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
 
-  // exact duplicates by hash (cross-note only)
+  // exact duplicates by content hash (cross-note only)
   const byHash = new Map<string, typeof rows>();
   for (const r of rows) {
     const arr = byHash.get(r.hash);
@@ -127,37 +153,46 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
         b: { notePath: group[i]!.note_path, anchor: group[i]!.anchor },
         jaccard: 1,
       });
-      seen.add(`${group[0]!.id}-${group[i]!.id}`);
+      emitted.add(pairKey(group[0]!.id, group[i]!.id));
     }
   }
 
-  // near-duplicates via shared-shingle buckets (avoids full O(n²))
-  const sh = rows.map((r) => ({ r, s: shingles(r.text) }));
-  const bucket = new Map<string, number[]>();
-  sh.forEach((e, i) => {
-    for (const g of e.s) {
-      const arr = bucket.get(g);
-      if (arr) arr.push(i);
-      else bucket.set(g, [i]);
+  // near-duplicates via LSH banding over MinHash signatures
+  const sigs: { r: (typeof rows)[number]; sig: Int32Array }[] = [];
+  for (const r of rows) {
+    const sig = signature(r.text);
+    if (sig) sigs.push({ r, sig });
+  }
+  const BANDS = 16;
+  const ROWS_PER_BAND = SIG_LEN / BANDS;
+  const buckets = new Map<string, number[]>();
+  sigs.forEach((e, idx) => {
+    for (let b = 0; b < BANDS; b++) {
+      let key = `${b}:`;
+      for (let k = 0; k < ROWS_PER_BAND; k++) key += `${e.sig[b * ROWS_PER_BAND + k]},`;
+      const arr = buckets.get(key);
+      if (arr) arr.push(idx);
+      else buckets.set(key, [idx]);
     }
   });
-  const candidatePairs = new Set<string>();
-  for (const arr of bucket.values()) {
-    if (arr.length < 2 || arr.length > 20) continue;
+  const candidates = new Set<string>();
+  for (const arr of buckets.values()) {
+    if (arr.length < 2) continue;
+    // A bucket shared by very many blocks is boilerplate, not a duplicate pair
+    if (arr.length > 40) continue;
     for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        candidatePairs.add(`${arr[i]}:${arr[j]}`);
-      }
+      for (let j = i + 1; j < arr.length; j++) candidates.add(`${arr[i]}:${arr[j]}`);
     }
   }
-  for (const pair of candidatePairs) {
+  for (const pair of candidates) {
     const [iStr, jStr] = pair.split(':');
-    const A = sh[Number(iStr)]!;
-    const B = sh[Number(jStr)]!;
+    const A = sigs[Number(iStr)]!;
+    const B = sigs[Number(jStr)]!;
     if (A.r.note_path === B.r.note_path) continue;
-    if (seen.has(`${A.r.id}-${B.r.id}`) || seen.has(`${B.r.id}-${A.r.id}`)) continue;
-    const J = jaccard(A.s, B.s);
+    if (emitted.has(pairKey(A.r.id, B.r.id))) continue;
+    const J = sigSimilarity(A.sig, B.sig);
     if (J >= JACCARD_THRESHOLD && J < 1) {
+      emitted.add(pairKey(A.r.id, B.r.id));
       out.push({
         a: { notePath: A.r.note_path, anchor: A.r.anchor },
         b: { notePath: B.r.note_path, anchor: B.r.anchor },
@@ -165,6 +200,7 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
       });
     }
   }
+  out.sort((x, y) => y.jaccard - x.jaccard);
   return out;
 }
 

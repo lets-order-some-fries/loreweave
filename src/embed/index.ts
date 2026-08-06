@@ -169,13 +169,33 @@ export function denseTopK(store: Store, qvec: Float32Array, k: number): DenseHit
  */
 export function buildSimilarEdges(
   store: Store,
-  { threshold = 0.8, topK = 5 }: { threshold?: number; topK?: number } = {},
+  {
+    threshold = 0.8,
+    topK = 5,
+    maxBlocks = 20000,
+  }: { threshold?: number; topK?: number; maxBlocks?: number } = {},
 ): number {
   const rows = store.db.prepare(`SELECT block_id, vec FROM embeddings`).all() as {
     block_id: number;
     vec: Buffer;
   }[];
-  const vecs = rows.map((r) => ({ id: r.block_id, v: fromBlob(r.vec) }));
+  if (rows.length > maxBlocks) {
+    throw new Error(
+      `refusing all-pairs similarity over ${rows.length} blocks (limit ${maxBlocks}); ` +
+        `it is O(n^2) and would take hours. Raise graph.similarMaxBlocks only if you mean it.`,
+    );
+  }
+  // Pre-normalize once so the inner loop is a plain dot product rather than
+  // three accumulations per pair.
+  const vecs = rows.map((r) => {
+    const v = fromBlob(r.vec);
+    let n = 0;
+    for (let i = 0; i < v.length; i++) n += v[i]! * v[i]!;
+    n = Math.sqrt(n) || 1;
+    const unit = new Float32Array(v.length);
+    for (let i = 0; i < v.length; i++) unit[i] = v[i]! / n;
+    return { id: r.block_id, v: unit };
+  });
   const del = store.db.prepare(`DELETE FROM edges WHERE type='SIMILAR'`);
   const ins = store.db.prepare(
     `INSERT OR REPLACE INTO edges(src_type, src_id, dst_type, dst_id, type, weight)
@@ -186,10 +206,12 @@ export function buildSimilarEdges(
     del.run();
     for (let i = 0; i < vecs.length; i++) {
       const sims: { j: number; s: number }[] = [];
-      for (let j = 0; j < vecs.length; j++) {
-        if (i === j) continue;
-        const s = cosine(vecs[i]!.v, vecs[j]!.v);
-        if (s >= threshold) sims.push({ j, s });
+      const vi = vecs[i]!.v;
+      for (let j = i + 1; j < vecs.length; j++) {
+        const vj = vecs[j]!.v;
+        let dot = 0;
+        for (let d = 0; d < vi.length; d++) dot += vi[d]! * vj[d]!;
+        if (dot >= threshold) sims.push({ j, s: dot });
       }
       sims.sort((a, b) => b.s - a.s);
       for (const { j, s } of sims.slice(0, topK)) {
