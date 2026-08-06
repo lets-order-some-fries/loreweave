@@ -52,6 +52,8 @@ export interface Note {
   /** sha1 over the raw file content. */
   hash: string;
   mtimeMs: number;
+  /** Byte size of the raw file. */
+  size: number;
   /** Non-fatal parse warnings (bad frontmatter etc.). */
   warnings: string[];
 }
@@ -63,6 +65,8 @@ export interface VaultFile {
   /** Absolute path on disk. */
   absPath: string;
   mtimeMs: number;
+  /** Byte size — mtime alone misses content-preserving copies. */
+  size: number;
 }
 
 /** An entity mention inside a block. */
@@ -114,8 +118,14 @@ export interface SearchResult {
   anchor: string;
   heading: string;
   snippet: string;
-  /** Final fused score (higher is better). */
+  /** Final fused score (higher is better). Rank-fusion artifact — compare
+   *  results to each other, not across queries. */
   score: number;
+  /** Raw BM25 of the best lexical match (higher is better, 0 = none). */
+  lexicalScore: number;
+  /** Fraction of the query's terms that literally appear here, 0..1. The
+   *  honest "is this actually about what I asked" signal. */
+  coverage: number;
   /** Score components for explainability. */
   parts: {
     lexical: number;

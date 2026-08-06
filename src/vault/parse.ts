@@ -186,7 +186,7 @@ function chunkText(text: string): string[] {
  * Parse one markdown file into a Note. Never throws on malformed input:
  * frontmatter errors degrade to empty frontmatter + a warning.
  */
-export function parseNote(path: string, raw: string, mtimeMs: number): Note {
+export function parseNote(path: string, raw: string, mtimeMs: number, size?: number): Note {
   const warnings: string[] = [];
   let fm: Record<string, unknown> = {};
   let body = raw;
@@ -256,6 +256,7 @@ export function parseNote(path: string, raw: string, mtimeMs: number): Note {
     blocks,
     hash: sha1(raw),
     mtimeMs,
+    size: size ?? Buffer.byteLength(raw, 'utf8'),
     warnings,
   };
 }

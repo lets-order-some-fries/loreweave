@@ -43,6 +43,39 @@ Today I did things. 12345 numbers only.
     expect(mentions.every((m) => m.source !== 'nlp')).toBe(true);
   });
 
+  it('sentence-initial imperatives are not entities', () => {
+    // Measured on a real docs corpus, these WERE the top "entities":
+    // Use(58), Good(20), Example(19), Core(16) — all outranking real ones.
+    const raw = `Use the runner carefully. Good practice is to check first.
+Example output follows. Core behaviour is unchanged.`;
+    const keys = extractEntities(parseNote('m.md', raw, 1)).map((m) => m.key);
+    for (const junk of ['use', 'good', 'example', 'core']) {
+      expect(keys).not.toContain(junk);
+    }
+  });
+
+  it('acronyms survive even as single sentence-initial tokens', () => {
+    const raw = `TDD is the practice. API access is required.`;
+    const keys = extractEntities(parseNote('m.md', raw, 1)).map((m) => m.key);
+    expect(keys).toContain('tdd');
+    expect(keys).toContain('api');
+  });
+
+  it('multi-word names survive at sentence start', () => {
+    const raw = `Grace Hopper wrote the compiler. Gemini CLI shipped later.`;
+    const keys = extractEntities(parseNote('m.md', raw, 1)).map((m) => m.key);
+    expect(keys).toContain('grace hopper');
+    expect(keys).toContain('gemini cli');
+  });
+
+  it('singular and plural mentions collapse to one entity', () => {
+    const raw = `The team reviewed several Widgets today. A single Widget failed.`;
+    const keys = extractEntities(parseNote('m.md', raw, 1))
+      .filter((m) => m.source === 'nlp')
+      .map((m) => m.key);
+    expect(keys.filter((k) => k.startsWith('widget'))).not.toContain('widgets');
+  });
+
   it('proper noun runs are extracted from prose', () => {
     const raw = `The report was reviewed by Grace Hopper and later archived in New York.`;
     const n = parseNote('m.md', raw, 1);

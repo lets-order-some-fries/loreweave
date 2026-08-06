@@ -22,7 +22,7 @@ export interface Store {
   upsertNote(note: Note): Map<string, number>;
   deleteNote(path: string): void;
   /** path → {hash, mtimeMs} for the incremental diff. */
-  listNotes(): Map<string, { hash: string; mtimeMs: number }>;
+  listNotes(): Map<string, { hash: string; mtimeMs: number; size: number }>;
   /** FTS5 search; AND semantics with OR fallback. Excludes archived blocks unless includeArchived. */
   searchLexical(query: string, k: number, includeArchived?: boolean): LexicalHit[];
   logAccess(kind: 'retrieved' | 'used', blockId: number | null, query?: string): void;
@@ -74,10 +74,11 @@ export function openStore(dbPath: string): Store {
 
   const stmts = {
     insNote: db.prepare(
-      `INSERT INTO notes(path,title,frontmatter,tags,hash,mtime_ms,indexed_at)
-       VALUES (?,?,?,?,?,?,?)
+      `INSERT INTO notes(path,title,frontmatter,tags,hash,mtime_ms,size,indexed_at)
+       VALUES (?,?,?,?,?,?,?,?)
        ON CONFLICT(path) DO UPDATE SET title=excluded.title, frontmatter=excluded.frontmatter,
-         tags=excluded.tags, hash=excluded.hash, mtime_ms=excluded.mtime_ms, indexed_at=excluded.indexed_at`,
+         tags=excluded.tags, hash=excluded.hash, mtime_ms=excluded.mtime_ms,
+         size=excluded.size, indexed_at=excluded.indexed_at`,
     ),
     delBlocks: db.prepare(`DELETE FROM blocks WHERE note_path=?`),
     delLinks: db.prepare(`DELETE FROM links WHERE note_path=?`),
@@ -88,7 +89,7 @@ export function openStore(dbPath: string): Store {
       `INSERT INTO links(note_path,block_anchor,target,target_norm,heading,alias) VALUES (?,?,?,?,?,?)`,
     ),
     delNote: db.prepare(`DELETE FROM notes WHERE path=?`),
-    listNotes: db.prepare(`SELECT path, hash, mtime_ms FROM notes`),
+    listNotes: db.prepare(`SELECT path, hash, mtime_ms, size FROM notes`),
     getMeta: db.prepare(`SELECT value FROM meta WHERE key=?`),
     setMeta: db.prepare(
       `INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
@@ -104,6 +105,7 @@ export function openStore(dbPath: string): Store {
       JSON.stringify(note.tags),
       note.hash,
       note.mtimeMs,
+      note.size,
       new Date().toISOString(),
     );
     // preserve dynamics for unchanged blocks: capture old state by hash
@@ -186,9 +188,14 @@ export function openStore(dbPath: string): Store {
       stmts.delNote.run(p);
     },
     listNotes: () => {
-      const m = new Map<string, { hash: string; mtimeMs: number }>();
-      for (const r of stmts.listNotes.all() as { path: string; hash: string; mtime_ms: number }[]) {
-        m.set(r.path, { hash: r.hash, mtimeMs: r.mtime_ms });
+      const m = new Map<string, { hash: string; mtimeMs: number; size: number }>();
+      for (const r of stmts.listNotes.all() as {
+        path: string;
+        hash: string;
+        mtime_ms: number;
+        size: number;
+      }[]) {
+        m.set(r.path, { hash: r.hash, mtimeMs: r.mtime_ms, size: r.size });
       }
       return m;
     },

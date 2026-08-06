@@ -2,11 +2,11 @@
   "corpus": {
     "notes": 103,
     "blocks": 474,
-    "entities": 212,
+    "entities": 206,
     "links": 449,
     "facts": 33,
-    "edges": 3478,
-    "indexMs": 163,
+    "edges": 3328,
+    "indexMs": 378,
     "warnings": 0
   },
   "overall": {
@@ -30,8 +30,8 @@
       "n": 40,
       "r@1": 0.075,
       "r@5": 0.425,
-      "mrr": 0.227,
-      "ans@5": 0.275,
+      "mrr": 0.222,
+      "ans@5": 0.25,
       "found": 0.875
     }
   },
@@ -49,7 +49,7 @@
         "n": 10,
         "r@1": 0,
         "r@5": 0,
-        "mrr": 0.039,
+        "mrr": 0.037,
         "ans@5": 0,
         "found": 0.8
       },
@@ -109,15 +109,15 @@
         "n": 10,
         "r@1": 0.1,
         "r@5": 0.7,
-        "mrr": 0.302,
-        "ans@5": 0.3,
+        "mrr": 0.297,
+        "ans@5": 0.2,
         "found": 0.9
       },
       "multihop": {
         "n": 10,
         "r@1": 0,
         "r@5": 0,
-        "mrr": 0.049,
+        "mrr": 0.045,
         "ans@5": 0,
         "found": 0.8
       },
@@ -125,7 +125,7 @@
         "n": 10,
         "r@1": 0.1,
         "r@5": 0.6,
-        "mrr": 0.294,
+        "mrr": 0.286,
         "ans@5": 0.4,
         "found": 1
       },
@@ -133,7 +133,7 @@
         "n": 10,
         "r@1": 0.1,
         "r@5": 0.4,
-        "mrr": 0.261,
+        "mrr": 0.259,
         "ans@5": 0.4,
         "found": 0.8
       }
@@ -242,7 +242,7 @@
       "system": "hybrid",
       "id": "M5",
       "cat": "multihop",
-      "rank": 10,
+      "rank": 12,
       "answerRank": 0
     },
     {
@@ -712,13 +712,13 @@
       "id": "S2",
       "cat": "simple",
       "rank": 2,
-      "answerRank": 5
+      "answerRank": 6
     },
     {
       "system": "graph",
       "id": "S3",
       "cat": "simple",
-      "rank": 4,
+      "rank": 5,
       "answerRank": 0
     },
     {
@@ -788,8 +788,8 @@
       "system": "graph",
       "id": "M3",
       "cat": "multihop",
-      "rank": 25,
-      "answerRank": 36
+      "rank": 24,
+      "answerRank": 35
     },
     {
       "system": "graph",
@@ -802,15 +802,15 @@
       "system": "graph",
       "id": "M5",
       "cat": "multihop",
-      "rank": 13,
+      "rank": 36,
       "answerRank": 0
     },
     {
       "system": "graph",
       "id": "M6",
       "cat": "multihop",
-      "rank": 22,
-      "answerRank": 31
+      "rank": 19,
+      "answerRank": 28
     },
     {
       "system": "graph",
@@ -886,7 +886,7 @@
       "system": "graph",
       "id": "T7",
       "cat": "temporal",
-      "rank": 3,
+      "rank": 4,
       "answerRank": 5
     },
     {
@@ -921,7 +921,7 @@
       "system": "graph",
       "id": "A2",
       "cat": "aggregate",
-      "rank": 19,
+      "rank": 28,
       "answerRank": 0
     },
     {

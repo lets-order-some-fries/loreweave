@@ -135,4 +135,9 @@ export const MIGRATIONS: string[] = [
     block_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL
   );
   `,
+  // v2 — file size, so a content change that preserves mtime (cp -p, rsync -a,
+  // tar -x, snapshot restore) is still detected.
+  `
+  ALTER TABLE notes ADD COLUMN size INTEGER NOT NULL DEFAULT -1;
+  `,
 ];

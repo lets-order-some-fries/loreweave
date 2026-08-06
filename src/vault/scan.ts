@@ -45,9 +45,10 @@ export async function scanVault(root: string, ignore: string[] = []): Promise<Va
         try {
           const s = await stat(abs);
           out.push({
-            path: rel ? `${rel}/${name}` : name,
+            path: relPath,
             absPath: abs,
             mtimeMs: s.mtimeMs,
+            size: s.size,
           });
         } catch {
           // raced deletion: skip

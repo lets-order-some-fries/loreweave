@@ -20,15 +20,25 @@ import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
 import { exportGraph } from './export.js';
 
+/** Label absolute match strength so a bullseye and a miss don't look alike. */
+function strength(r: { coverage: number; lexicalScore: number }): string {
+  if (r.coverage >= 0.99) return 'all terms';
+  if (r.coverage >= 0.6) return `${Math.round(r.coverage * 100)}% of terms`;
+  if (r.coverage > 0) return `${Math.round(r.coverage * 100)}% of terms — weak`;
+  return r.lexicalScore > 0 ? 'partial' : 'linked only';
+}
+
 function fmtResult(r: {
   notePath: string;
   anchor: string;
   score: number;
+  lexicalScore: number;
+  coverage: number;
   snippet: string;
   via: string[];
 }): string {
   const via = r.via.length ? `  ⟨via ${r.via.join(', ')}⟩` : '';
-  return `• ${r.notePath}#${r.anchor}  (${r.score.toFixed(4)})${via}\n  ${r.snippet}`;
+  return `• ${r.notePath}#${r.anchor}  [${strength(r)}]${via}\n  ${r.snippet}`;
 }
 
 export function buildProgram(io: { out: (s: string) => void; err: (s: string) => void }): Command {
@@ -119,9 +129,19 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .action(async (words: string[], opts: { k?: number; since?: string; json?: boolean }) => {
       await withCtx(async (ctx) => {
         const res = await search(ctx, words.join(' '), { k: opts.k, since: opts.since });
-        if (opts.json) io.out(JSON.stringify(res, null, 2));
-        else if (res.length === 0) io.out('no results');
-        else io.out(res.map(fmtResult).join('\n'));
+        if (opts.json) {
+          io.out(JSON.stringify(res, null, 2));
+        } else if (res.length === 0) {
+          io.out('no results');
+        } else {
+          const best = Math.max(...res.map((r) => r.coverage));
+          if (best <= 0) {
+            io.out('no term matched — showing linked neighbours only:');
+          } else if (best < 0.6) {
+            io.out(`no strong match — best covers ${Math.round(best * 100)}% of your terms:`);
+          }
+          io.out(res.map(fmtResult).join('\n'));
+        }
       });
     });
 

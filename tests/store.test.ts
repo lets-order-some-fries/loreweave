@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { openStore, normalizeKey, ftsQuery } from '../src/store/db.js';
+import { MIGRATIONS } from '../src/store/schema.js';
 import { parseNote } from '../src/vault/parse.js';
 
 function memStore() {
@@ -7,10 +11,25 @@ function memStore() {
 }
 
 describe('store', () => {
-  it('applies migrations idempotently (reopen safe)', () => {
+  it('applies all migrations and records the version', () => {
     const s = memStore();
-    expect(s.getMeta('schema_version')).toBe('1');
+    // version tracks MIGRATIONS.length so adding one cannot silently no-op
+    expect(Number(s.getMeta('schema_version'))).toBe(MIGRATIONS.length);
     s.close();
+  });
+
+  it('migrations are idempotent across reopen (on-disk)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'lw-mig-'));
+    const file = join(dir, 'index.db');
+    const a = openStore(file);
+    a.upsertNote(parseNote('a.md', 'content here\n', 1));
+    const version = a.getMeta('schema_version');
+    a.close();
+    // reopening must not re-run migrations or lose data
+    const b = openStore(file);
+    expect(b.getMeta('schema_version')).toBe(version);
+    expect(b.searchLexical('content', 5)).toHaveLength(1);
+    b.close();
   });
 
   it('upsert → fts search → delete lifecycle', () => {

@@ -66,7 +66,11 @@ export async function search(
   // 1) lexical
   const lexical = store.searchLexical(query, cand, opts.includeArchived);
   const lexicalRanks = new Map<number, number>();
-  lexical.forEach((h, i) => lexicalRanks.set(h.blockId, i + 1));
+  const lexScores = new Map<number, number>();
+  lexical.forEach((h, i) => {
+    lexicalRanks.set(h.blockId, i + 1);
+    lexScores.set(h.blockId, h.score);
+  });
 
   // 2) dense
   let denseRanks = new Map<number, number>();
@@ -215,6 +219,11 @@ export async function search(
   }[];
   const now = new Date();
   const sinceMs = opts.since ? Date.parse(opts.since) : null;
+  // Coverage = fraction of the query's distinct terms that actually appear in
+  // the block. Unlike a fused rank (near-constant without access history) or
+  // raw BM25 (unbounded, corpus-dependent), this is directly interpretable:
+  // 0 means the block matched no query term at all.
+  const qTerms = [...new Set(normalizeKey(query).split(' ').filter((t) => t.length > 1))];
   const lexSnippets = new Map(lexical.map((h) => [h.blockId, h.snippet]));
 
   const results: SearchResult[] = [];
@@ -244,6 +253,19 @@ export async function search(
       heading: r.heading,
       snippet: lexSnippets.get(r.id) ?? r.text.slice(0, 240).replace(/\s+/g, ' ').trim(),
       score,
+      // Raw BM25 for the caller to judge absolute match strength. The fused
+      // score is a rank-fusion artifact: with no access history it is nearly
+      // constant, so a nonsense query and a bullseye both scored ~0.0328 and
+      // looked identical.
+      lexicalScore: lexScores.get(r.id) ?? 0,
+      coverage: qTerms.length
+        ? Number(
+            (
+              qTerms.filter((t) => normalizeKey(r.text + ' ' + r.heading).includes(t)).length /
+              qTerms.length
+            ).toFixed(3),
+          )
+        : 0,
       parts: {
         lexical: lexicalRanks.has(r.id) ? 1 / (cfg.rrfK + lexicalRanks.get(r.id)!) : 0,
         dense: denseRanks.has(r.id) ? 1 / (cfg.rrfK + denseRanks.get(r.id)!) : 0,

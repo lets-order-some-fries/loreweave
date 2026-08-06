@@ -35,6 +35,25 @@ export function linkMatchKey(
   return normalizeKey(resolved.split('/').pop() ?? resolved);
 }
 
+/**
+ * Singularize the final word of an entity key so "PR"/"PRs" and
+ * "Test"/"Tests" are one graph node rather than two. Deliberately shallow:
+ * only the unambiguous English plural endings, and never on short words
+ * where the 's' is likely part of the name.
+ */
+export function singularizeKey(key: string): string {
+  const parts = key.split(' ');
+  const last = parts[parts.length - 1];
+  if (!last || last.length < 4) return key;
+  let singular = last;
+  if (/[^aeiou]ies$/.test(last)) singular = `${last.slice(0, -3)}y`;
+  else if (/(ches|shes|sses|xes|zes)$/.test(last)) singular = last.slice(0, -2);
+  else if (/[^su]s$/.test(last)) singular = last.slice(0, -1);
+  if (singular === last || singular.length < 2) return key;
+  parts[parts.length - 1] = singular;
+  return parts.join(' ');
+}
+
 /** Normalize a link target / entity name / fact subject for matching. */
 export function normalizeKey(s: string): string {
   return s
