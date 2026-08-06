@@ -32,6 +32,14 @@ export interface Store {
 
 export { normalizeKey } from '../normalize.js';
 import { linkMatchKey } from '../normalize.js';
+import { extractDates, parseDateExpression } from '../temporal/dates.js';
+
+/** A dated filename (2026-08-05-standup.md, journal/2026-08-05.md) dates the note. */
+function filenameDate(path: string): { from: string; to: string } | null {
+  const base = path.split('/').pop() ?? path;
+  const m = base.match(/(\d{4}-\d{2}-\d{2})/);
+  return m ? parseDateExpression(m[1]!) : null;
+}
 
 /** Turn free text into a safe FTS5 MATCH expression (quoted tokens). */
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
@@ -83,7 +91,8 @@ export function openStore(dbPath: string): Store {
     delBlocks: db.prepare(`DELETE FROM blocks WHERE note_path=?`),
     delLinks: db.prepare(`DELETE FROM links WHERE note_path=?`),
     insBlock: db.prepare(
-      `INSERT INTO blocks(note_path,anchor,heading,ord,text,hash) VALUES (?,?,?,?,?,?)`,
+      `INSERT INTO blocks(note_path,anchor,heading,ord,text,hash,event_from,event_to)
+       VALUES (?,?,?,?,?,?,?,?)`,
     ),
     insLink: db.prepare(
       `INSERT INTO links(note_path,block_anchor,target,target_norm,heading,alias) VALUES (?,?,?,?,?,?)`,
@@ -124,8 +133,20 @@ export function openStore(dbPath: string): Store {
     stmts.delBlocks.run(note.path);
     stmts.delLinks.run(note.path);
     const ids = new Map<string, number>();
+    // Content dates: the block's own, else the note's (frontmatter/filename).
+    const noteDates = extractDates('', note.frontmatter) ?? filenameDate(note.path);
     for (const b of note.blocks) {
-      const info = stmts.insBlock.run(note.path, b.anchor, b.heading, b.order, b.text, b.hash);
+      const d = extractDates(b.text, note.frontmatter) ?? noteDates;
+      const info = stmts.insBlock.run(
+        note.path,
+        b.anchor,
+        b.heading,
+        b.order,
+        b.text,
+        b.hash,
+        d?.from ?? null,
+        d?.to ?? null,
+      );
       const id = Number(info.lastInsertRowid);
       ids.set(b.anchor, id);
       const prev = oldByHash.get(b.hash);

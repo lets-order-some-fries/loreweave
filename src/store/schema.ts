@@ -140,4 +140,12 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE notes ADD COLUMN size INTEGER NOT NULL DEFAULT -1;
   `,
+  // v3 — content time: when a block is ABOUT, distinct from when the file was
+  // last touched. `--since` previously filtered on mtime, so it answered
+  // "recently edited" when the user asked "what happened in March".
+  `
+  ALTER TABLE blocks ADD COLUMN event_from TEXT;
+  ALTER TABLE blocks ADD COLUMN event_to TEXT;
+  CREATE INDEX idx_blocks_event ON blocks(event_from, event_to);
+  `,
 ];

@@ -149,7 +149,21 @@ Only unambiguous field syntax is accepted automatically. Prose formatting like
 it is opt-in (`facts.extract: "all"`) — or an agent can review candidates via
 `lore_propose_facts` and assert the real ones. Judgement stays out of the index.
 
-**7. Built for agents.** An MCP server exposes 12 typed tools so Claude Code, Cursor, or
+**7. Time means when it happened, not when you saved the file.** `--since` and
+`--until` filter on *content* time — taken from frontmatter dates, dated
+filenames (`2025-03-14-standup.md`), or dates in the text — falling back to
+file mtime only when a note carries no date of its own:
+
+```bash
+$ lore search ledger --since 2025-01-01 --until 2025-12-31
+• 2025-03-14-standup.md#Standup@0  [all terms]
+```
+
+Both files were written seconds ago, so an mtime filter could not tell them
+apart. `lore watch` keeps the index current so you never have to remember to
+reindex.
+
+**8. Built for agents.** An MCP server exposes 12 typed tools so Claude Code, Cursor, or
 any MCP client can use your vault as durable memory — with a session context pack,
 fact assertion, point-in-time queries, and a reinforcement signal.
 
@@ -159,7 +173,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 |---|---|
 | `lore init` | create `.lore/` with a default config |
 | `lore index [--full] [--no-nlp] [--rebuild-similar]` | incremental sync of vault → index |
-| `lore search <q> [-k] [--since] [--json]` | hybrid retrieval with provenance |
+| `lore search <q> [-k] [--since] [--until] [--json]` | hybrid retrieval with provenance |
 | `lore ask <q>` | extractive answer: current facts + top passages (no LLM needed) |
 | `lore facts [--subject] [--predicate] [--as-of] [--history]` | query the fact store |
 | `lore assert <s> <p> <o…> [--valid-from]` | record a fact (journalled, supersedes) |
@@ -167,6 +181,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 | `lore count [--predicate] [--group-by] [--since]` | aggregate over fact history |
 | `lore capture <text…>` | append a timestamped line to `lore/inbox.md` |
 | `lore dream [--apply]` | consolidation pass + optional digest/review queue |
+| `lore watch` | reindex automatically as the vault changes |
 | `lore mark-used <note> [anchor]` | reinforce a passage that proved useful |
 | `lore graph export --format json\|graphml\|dot` | export the graph |
 | `lore doctor` / `lore stats` | health check / vault statistics |
@@ -270,7 +285,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 109 tests
+npm test          # 112 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

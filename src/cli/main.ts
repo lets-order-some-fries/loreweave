@@ -19,6 +19,7 @@ import { capture } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
 import { exportGraph } from './export.js';
+import { watchVault } from '../watch.js';
 
 /** Label absolute match strength so a bullseye and a miss don't look alike. */
 function strength(r: { coverage: number; lexicalScore: number }): string {
@@ -138,11 +139,20 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description('hybrid search (BM25 + graph + dense when configured)')
     .argument('<query...>')
     .option('-k, --k <n>', 'results', (v) => parseInt(v, 10))
-    .option('--since <date>', 'only notes modified on/after ISO date')
+    .option('--since <date>', 'only content dated on/after ISO date')
+    .option('--until <date>', 'only content dated on/before ISO date')
     .option('--json', 'JSON output')
-    .action(async (words: string[], opts: { k?: number; since?: string; json?: boolean }) => {
+    .action(
+      async (
+        words: string[],
+        opts: { k?: number; since?: string; until?: string; json?: boolean },
+      ) => {
       await withCtx(async (ctx) => {
-        const res = await search(ctx, words.join(' '), { k: opts.k, since: opts.since });
+        const res = await search(ctx, words.join(' '), {
+          k: opts.k,
+          since: opts.since,
+          until: opts.until,
+        });
         if (opts.json) {
           io.out(JSON.stringify(res, null, 2));
         } else if (res.length === 0) {
@@ -157,7 +167,8 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           io.out(res.map(fmtResult).join('\n'));
         }
       });
-    });
+    },
+    );
 
   program
     .command('ask')
@@ -472,6 +483,37 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           io.out(text);
         }
       });
+    });
+
+  program
+    .command('watch')
+    .description('reindex automatically as the vault changes (Ctrl-C to stop)')
+    .option('--debounce <ms>', 'quiet period before reindexing', (v) => parseInt(v, 10))
+    .action(async (opts: { debounce?: number }) => {
+      const ctx = openContext(vaultRoot());
+      const first = await indexVault(ctx.store, ctx.root, {
+        factExtract: ctx.config.facts.extract,
+        nlp: ctx.config.nlp,
+      });
+      ctx.invalidateGraph();
+      io.out(`watching ${ctx.root} (indexed ${first.added + first.updated} notes) — Ctrl-C to stop`);
+      const w = watchVault(ctx, {
+        debounceMs: opts.debounce,
+        onReindex: (r) =>
+          io.out(
+            `${new Date().toISOString().slice(11, 19)}  +${r.added} ~${r.updated} -${r.removed} (${r.durationMs}ms)`,
+          ),
+        onError: (e) => io.err(`watch error: ${e.message}`),
+      });
+      const stop = () => {
+        w.close();
+        ctx.close();
+        process.exit(0);
+      };
+      process.on('SIGINT', stop);
+      process.on('SIGTERM', stop);
+      // hold the event loop open
+      await new Promise<void>(() => {});
     });
 
   program

@@ -8,8 +8,16 @@ import { expandNotes, seedNotes } from './expand.js';
 
 export interface SearchOptions {
   k?: number;
-  /** Only notes modified on/after this ISO date. */
+  /**
+   * Only content dated on/after this ISO date. Uses the block's CONTENT time
+   * (frontmatter date, dated filename, or dates in the text) — falling back to
+   * file mtime only when the content carries no date of its own. Filtering on
+   * mtime alone answered "recently edited" when the user asked "what happened
+   * in March".
+   */
   since?: string;
+  /** Only content dated on/before this ISO date. */
+  until?: string;
   /** Include archived blocks. */
   includeArchived?: boolean;
   /** Skip access logging (for internal/dream calls). */
@@ -240,7 +248,7 @@ export async function search(
   const rows = ctx.store.db
     .prepare(
       `SELECT b.id, b.note_path, b.anchor, b.heading, b.text, b.stability, b.last_accessed,
-              b.importance, b.archived, n.mtime_ms
+              b.importance, b.archived, b.event_from, b.event_to, n.mtime_ms
        FROM blocks b JOIN notes n ON n.path = b.note_path
        WHERE b.id IN (${placeholders})`,
     )
@@ -254,10 +262,11 @@ export async function search(
     last_accessed: string | null;
     importance: number;
     archived: number;
+    event_from: string | null;
+    event_to: string | null;
     mtime_ms: number;
   }[];
   const now = new Date();
-  const sinceMs = opts.since ? Date.parse(opts.since) : null;
   // Coverage = fraction of the query's distinct terms that actually appear in
   // the block. Unlike a fused rank (near-constant without access history) or
   // raw BM25 (unbounded, corpus-dependent), this is directly interpretable:
@@ -268,7 +277,13 @@ export async function search(
   const results: SearchResult[] = [];
   for (const r of rows) {
     if (!opts.includeArchived && r.archived) continue;
-    if (sinceMs !== null && !Number.isNaN(sinceMs) && r.mtime_ms < sinceMs) continue;
+    // Prefer content time; fall back to file mtime when the note is undated.
+    if (opts.since || opts.until) {
+      const from = r.event_from ?? new Date(r.mtime_ms).toISOString().slice(0, 10);
+      const to = r.event_to ?? from;
+      if (opts.since && to < opts.since) continue;
+      if (opts.until && from > opts.until) continue;
+    }
     const days = daysBetween(r.last_accessed, now);
     const R = r.last_accessed ? retrievability(days, r.stability) : 0.5;
     const base = fused.get(r.id)!;

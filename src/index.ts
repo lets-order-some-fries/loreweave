@@ -52,3 +52,11 @@ export {
 export { dream, renderDigest, renderReviewQueue, type DreamReport } from './dream/dream.js';
 export { capture, readNoteRaw, safeVaultPath } from './capture.js';
 export { openContext, type LoreContext } from './context.js';
+export { watchVault, type Watcher, type WatchOptions } from './watch.js';
+export { isDerivedNote } from './vault/scan.js';
+export {
+  extractFactsFromNote,
+  type ExtractedFact,
+  type ExtractionMode,
+} from './facts/extract.js';
+export { parseQueryTime, parseDateExpression, extractDates } from './temporal/dates.js';
