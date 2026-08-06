@@ -49,6 +49,77 @@ export function matchQueryEntities(
   return found;
 }
 
+
+/**
+ * Pick the part of a block that actually answers the query.
+ *
+ * FTS5's snippet() centres on whichever term it happens to hit first. On a
+ * bulleted note that meant a block whose last line read
+ * "Companies to AVOID: Axtria, Analytic Edge" was shown as
+ * "...applying now (currently employed)" — the correct result looking like a
+ * miss. Markdown is line-structured, so score lines by how many DISTINCT
+ * query terms they carry and show the best one with its neighbours.
+ */
+export function bestSnippet(text: string, terms: string[], budget = 260): string {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return '';
+  if (terms.length === 0) return lines.join(' ').slice(0, budget).trim();
+
+  const score = (line: string): number => {
+    const l = normalizeKey(line);
+    let n = 0;
+    for (const t of terms) if (l.includes(t)) n++;
+    return n;
+  };
+  let bestIdx = 0;
+  let bestScore = -1;
+  lines.forEach((l, i) => {
+    const sc = score(l);
+    // ties go to the earlier line: it is usually the more general statement
+    if (sc > bestScore) {
+      bestScore = sc;
+      bestIdx = i;
+    }
+  });
+  if (bestScore <= 0) return lines.join(' ').slice(0, budget).trim();
+
+  // The matching line is the answer: include it whole, then spend whatever
+  // budget is left on surrounding context. Growing outward first pushed the
+  // key line to the end where it got truncated mid-word.
+  const best = lines[bestIdx]!.trim();
+  const clip = (t: string) => (t.length > budget ? t.slice(0, budget).trimEnd() + ' …' : t);
+  if (best.length >= budget) return clip(best.replace(/\s+/g, ' '));
+
+  const after: string[] = [];
+  const before: string[] = [];
+  let used = best.length;
+  let lo = bestIdx;
+  let hi = bestIdx;
+  while (used < budget) {
+    let grew = false;
+    if (hi < lines.length - 1) {
+      const next = lines[hi + 1]!.trim();
+      if (used + next.length + 1 <= budget) {
+        after.push(next);
+        used += next.length + 1;
+        hi++;
+        grew = true;
+      }
+    }
+    if (lo > 0) {
+      const prev = lines[lo - 1]!.trim();
+      if (used + prev.length + 1 <= budget) {
+        before.unshift(prev);
+        used += prev.length + 1;
+        lo--;
+        grew = true;
+      }
+    }
+    if (!grew) break;
+  }
+  return [...before, best, ...after].join(' ').replace(/\s+/g, ' ').trim();
+}
+
 interface RankedList {
   weight: number;
   /** blockId → rank (1-based) */
@@ -305,7 +376,8 @@ export async function search(
       notePath: r.note_path,
       anchor: r.anchor,
       heading: r.heading,
-      snippet: lexSnippets.get(r.id) ?? r.text.slice(0, 240).replace(/\s+/g, ' ').trim(),
+      // Show the line that matched, not wherever FTS5 happened to point.
+      snippet: bestSnippet(r.text, qTerms) || (lexSnippets.get(r.id) ?? ''),
       score,
       // Raw BM25 for the caller to judge absolute match strength. The fused
       // score is a rank-fusion artifact: with no access history it is nearly
