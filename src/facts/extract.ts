@@ -84,7 +84,19 @@ function cleanValue(v: string): string {
     .replace(/[,;]$/, '');
 }
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/**
+ * Accept a date OR a datetime and return the date part.
+ *
+ * gray-matter parses `date: 2026-01-15` into a Date, which JSON storage
+ * serialises to "2026-01-15T00:00:00.000Z". A date-only regex silently
+ * rejected that, so every extracted fact lost its valid_from and `--as-of`
+ * could not see it.
+ */
+function asIsoDate(v: string | null): string | null {
+  if (!v) return null;
+  const m = v.match(/^(\d{4}-\d{2}-\d{2})(?:[T ]|$)/);
+  return m ? m[1]! : null;
+}
 
 function scalar(v: unknown): string | null {
   if (typeof v === 'string') return v.trim() || null;
@@ -119,9 +131,9 @@ export function extractFactsFromNote(
 
   // A date in frontmatter dates the whole note's assertions.
   let validFrom: string | undefined;
-  for (const k of ['date', 'valid_from', 'created']) {
-    const v = scalar(note.frontmatter[k]);
-    if (v && ISO_DATE.test(v)) {
+  for (const k of ['valid_from', 'date', 'created']) {
+    const v = asIsoDate(scalar(note.frontmatter[k]));
+    if (v) {
       validFrom = v;
       break;
     }
