@@ -95,6 +95,7 @@ $ lore assert "Ledger Format" status final --valid-from 2026-08-01
 
 $ lore facts --subject "Ledger Format"
 Ledger Format :: status :: final  (2026-08-01 → now)
+    asserted · lore/journal/2026-08-01.md
 
 $ lore facts --subject "Ledger Format" --as-of 2026-03-01
 Ledger Format :: status :: draft  (2026-01-01 → 2026-08-01)  [superseded]
@@ -286,7 +287,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 148 tests
+npm test          # 150 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

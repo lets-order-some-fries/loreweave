@@ -80,6 +80,31 @@ describe('cli', () => {
     expect(hist.out).toContain('published');
   });
 
+  it('facts show where they came from', async () => {
+    await run('index');
+    await run('assert', 'Ledger', 'status', 'shipped', '--valid-from', '2026-08-01');
+    const f = await run('facts', '--subject', 'Ledger');
+    // a fact with no visible source cannot be checked
+    expect(f.out).toContain('Ledger :: status :: shipped');
+    expect(f.out).toMatch(/asserted · lore\/journal\//);
+  });
+
+  it('history distinguishes asserted facts from ones read out of notes', async () => {
+    const vault = await makeVault({
+      'l.md': '---\ntitle: Widget\nstatus: draft\ndate: 2026-01-15\n---\n\n# Widget\n\nBody.\n',
+    });
+    await mkdir(join(vault, '.lore'), { recursive: true });
+    const saved = root;
+    root = vault;
+    await run('index');
+    await run('assert', 'Widget', 'status', 'shipped', '--valid-from', '2026-08-01');
+    const h = await run('facts', '--subject', 'Widget', '--history');
+    expect(h.out).toContain('from note · l.md');
+    expect(h.out).toMatch(/asserted · lore\/journal\//);
+    expect(h.out).toContain('[superseded]');
+    root = saved;
+  });
+
   it('ask surfaces facts + passages', async () => {
     await run('index');
     const r = await run('ask', 'riverbed', 'protocol', 'status');

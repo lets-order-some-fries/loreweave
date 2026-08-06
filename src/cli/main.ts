@@ -30,6 +30,24 @@ function strength(r: { coverage: number; lexicalScore: number }): string {
   return r.lexicalScore > 0 ? 'partial' : 'linked only';
 }
 
+/** How a fact came to exist, in one readable line. */
+function provenance(f: {
+  sourceType: string;
+  notePath: string | null;
+  blockAnchor: string | null;
+  confidence: number;
+}): string {
+  const origin =
+    f.sourceType === 'stated'
+      ? 'asserted'
+      : f.sourceType === 'inferred'
+        ? 'inferred'
+        : 'from note';
+  const where = f.notePath ? `${f.notePath}${f.blockAnchor ? `#${f.blockAnchor}` : ''}` : 'unknown';
+  const conf = f.confidence < 0.85 ? `  ~${Math.round(f.confidence * 100)}% confidence` : '';
+  return `${origin} · ${where}${conf}`;
+}
+
 function fmtResult(r: {
   notePath: string;
   anchor: string;
@@ -265,6 +283,10 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           const window = `${f.validFrom?.slice(0, 10) ?? '…'} → ${f.validUntil?.slice(0, 10) ?? 'now'}`;
           const sup = f.supersededBy ? '  [superseded]' : '';
           io.out(`${f.subjectDisplay} :: ${f.predicate} :: ${f.object}  (${window})${sup}`);
+          // A fact with no visible source cannot be checked, and "where did
+          // this come from" is the first thing anyone asks of a fact an
+          // engine produced rather than a human typed.
+          io.out(`    ${provenance(f)}`);
         }
       });
     });
