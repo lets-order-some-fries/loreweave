@@ -3,7 +3,8 @@ import { Command } from 'commander';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openContext, type LoreContext } from '../context.js';
-import { LORE_DIR, findVaultRoot } from '../config.js';
+import { verifyOrReset } from '../store/db.js';
+import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
 import { indexVault } from '../index/indexer.js';
@@ -410,10 +411,13 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .command('doctor')
     .description('vault health: broken links, integrity, coverage')
     .action(async () => {
+      // Deep check first: if the index is damaged it is reset here, then the
+      // rest of the report runs against a clean (empty) index.
+      const healed = verifyOrReset(dbPath(vaultRoot()), (m) => io.err(`[loreweave] ${m}`));
       await withCtx((ctx) => {
         const db = ctx.store.db;
         const integrity = db.pragma('integrity_check') as { integrity_check: string }[];
-        io.out(`db integrity: ${integrity[0]?.integrity_check ?? 'unknown'}`);
+        io.out(`db integrity: ${healed ? 'was corrupt — index reset' : (integrity[0]?.integrity_check ?? 'unknown')}`);
         // A link is broken when no NOTE resolves to its target. (Checking
         // against `entities` would never fire: every link target becomes an
         // entity by construction.)

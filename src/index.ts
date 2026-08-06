@@ -9,7 +9,7 @@ export {
   STOPWORDS,
 } from './normalize.js';
 export { ConfigSchema, loadConfig, dbPath, LORE_DIR, type LoreConfig } from './config.js';
-export { openStore, type Store, type LexicalHit } from './store/db.js';
+export { openStore, verifyOrReset, type Store, type LexicalHit } from './store/db.js';
 export { parseNote, sha1 } from './vault/parse.js';
 export { scanVault } from './vault/scan.js';
 export { indexVault, type IndexOptions } from './index/indexer.js';

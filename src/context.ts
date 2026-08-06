@@ -20,7 +20,9 @@ export interface LoreContext {
 
 export function openContext(root: string, overrides?: { dbFile?: string }): LoreContext {
   const config = loadConfig(root);
-  const store = openStore(overrides?.dbFile ?? dbPath(root));
+  const store = openStore(overrides?.dbFile ?? dbPath(root), {
+    onHeal: (msg) => console.error(`[loreweave] ${msg}`),
+  });
   let provider: EmbeddingProvider | null = null;
   let providerError: string | null = null;
   try {

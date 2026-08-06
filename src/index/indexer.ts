@@ -9,6 +9,8 @@ import { updateImportance } from '../dynamics/usage.js';
 
 export interface IndexOptions {
   full?: boolean;
+  /** Retries when another process holds the write lock (default 5). */
+  lockRetries?: number;
   /** Which fact syntaxes to mine (see config.facts.extract). */
   factExtract?: 'explicit' | 'all' | 'off';
   /** Disable wink-nlp proper-noun extraction (faster; links/tags only). */
@@ -46,11 +48,61 @@ export function pruneOrphanEntities(store: Store): number {
   return res.changes;
 }
 
+/** Is the process that claimed the index still alive? */
+function isRunning(marker: string): boolean {
+  const pid = Number(marker);
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  if (pid === process.pid) return true;
+  try {
+    process.kill(pid, 0); // signal 0 only tests existence
+    return true;
+  } catch (err) {
+    // EPERM means it exists but belongs to another user — still alive
+    return (err as { code?: string }).code === 'EPERM';
+  }
+}
+
+function isBusy(err: unknown): boolean {
+  const m = (err as Error)?.message ?? '';
+  const code = (err as { code?: string })?.code ?? '';
+  return /database is locked|database table is locked/i.test(m) || /SQLITE_BUSY/i.test(code);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 /**
- * Incrementally sync the vault into the store.
- * Diff by mtime first (cheap), then content hash (authoritative).
+ * Incrementally sync the vault into the store, retrying if another process
+ * holds the write lock.
+ *
+ * `lore watch` makes concurrent indexing normal rather than exotic: the
+ * watcher and a manual `lore index` will collide. SQLite's busy_timeout does
+ * not cover a write-write conflict in WAL mode, which surfaced as a bare
+ * "error: database is locked" and a non-zero exit.
  */
 export async function indexVault(
+  store: Store,
+  root: string,
+  opts: IndexOptions = {},
+): Promise<IndexReport> {
+  const attempts = opts.lockRetries ?? 5;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await indexVaultOnce(store, root, opts);
+    } catch (err) {
+      if (!isBusy(err) || attempt >= attempts) {
+        if (isBusy(err)) {
+          throw new Error(
+            'another loreweave process is indexing this vault (is `lore watch` running?) — try again in a moment',
+          );
+        }
+        throw err;
+      }
+      await sleep(120 * 2 ** attempt + Math.floor(attempt * 37)); // backoff
+    }
+  }
+}
+
+async function indexVaultOnce(
   store: Store,
   root: string,
   opts: IndexOptions = {},
@@ -62,10 +114,15 @@ export async function indexVault(
   // An index is many transactions, so a crash mid-run leaves derived state
   // (facts, mentions, importance) half-built with no way to notice: a later
   // incremental run sees matching mtimes and reports "+0 ~0 -0" forever.
-  // A marker written before and cleared after makes recovery automatic.
-  const interrupted = store.getMeta('index_in_progress') === '1';
+  //
+  // The marker records the PID that set it. A bare "1" could not distinguish
+  // "a previous run crashed" from "another run is happening right now", so
+  // two concurrent indexes each declared the other crashed and forced a
+  // needless full rebuild.
+  const marker = store.getMeta('index_in_progress');
+  const interrupted = marker !== null && marker !== '0' && !isRunning(marker);
   const full = opts.full || interrupted;
-  store.setMeta('index_in_progress', '1');
+  store.setMeta('index_in_progress', String(process.pid));
 
   const known = store.listNotes();
   const report: IndexReport = {
@@ -127,7 +184,10 @@ export async function indexVault(
   }
 
   store.setMeta('last_index_at', new Date().toISOString());
-  store.setMeta('index_in_progress', '0');
+  // Only clear our own marker: a concurrent run may have replaced it.
+  if (store.getMeta('index_in_progress') === String(process.pid)) {
+    store.setMeta('index_in_progress', '0');
+  }
   if (interrupted) {
     report.warnings.push(
       'previous index did not finish; performed a full rebuild to restore consistency',

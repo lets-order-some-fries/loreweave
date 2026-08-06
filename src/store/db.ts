@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Note } from '../types.js';
 import { MIGRATIONS } from './schema.js';
@@ -50,15 +50,100 @@ export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
   return tokens.map((t) => `"${t}"`).join(joiner);
 }
 
-export function openStore(dbPath: string): Store {
+/** Block the thread briefly; openStore is synchronous by design. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** True for the SQLite errors that mean "this file is not a usable index". */
+function isCorruption(err: unknown): boolean {
+  const m = (err as Error)?.message ?? '';
+  return (
+    /malformed|not a database|file is encrypted|database disk image/i.test(m) ||
+    /SQLITE_CORRUPT|SQLITE_NOTADB/i.test((err as { code?: string })?.code ?? '')
+  );
+}
+
+/**
+ * Deep integrity check + repair. Deliberate, not automatic: it reads the
+ * entire file. Returns true if the index was reset.
+ */
+export function verifyOrReset(dbPath: string, onHeal?: (m: string) => void): boolean {
+  if (dbPath === ':memory:') return false;
+  let corrupt = false;
+  try {
+    const probe = new Database(dbPath, { readonly: true });
+    try {
+      const res = probe.pragma('quick_check') as { quick_check: string }[];
+      corrupt = res[0]?.quick_check !== 'ok';
+    } finally {
+      probe.close();
+    }
+  } catch (err) {
+    if (!isCorruption(err)) return false; // locked/missing is not corruption
+    corrupt = true;
+  }
+  if (!corrupt) return false;
+  rmSync(dbPath, { force: true });
+  rmSync(`${dbPath}-wal`, { force: true });
+  rmSync(`${dbPath}-shm`, { force: true });
+  onHeal?.(`index was corrupt and has been reset — re-run 'lore index' to rebuild`);
+  return true;
+}
+
+export interface OpenStoreOptions {
+  /**
+   * Rebuild from scratch if the index file is corrupt. On by default: the
+   * index is a derived cache and the vault is the source of truth, so a
+   * damaged cache should heal rather than brick every command.
+   */
+  healCorruption?: boolean;
+  onHeal?: (message: string) => void;
+}
+
+export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
   if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true });
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
+  const heal = opts.healCorruption !== false && dbPath !== ':memory:';
+
+  let db: Database.Database;
+  try {
+    db = new Database(dbPath);
+    // Opening is lazy; force a read so corruption surfaces here rather than
+    // as a raw SQLite error in the middle of an unrelated command.
+    db.prepare('SELECT count(*) FROM sqlite_master').get();
+  } catch (err) {
+    if (!heal || !isCorruption(err)) throw err;
+    rmSync(dbPath, { force: true });
+    rmSync(`${dbPath}-wal`, { force: true });
+    rmSync(`${dbPath}-shm`, { force: true });
+    opts.onHeal?.(`index was corrupt and has been reset — re-run 'lore index' to rebuild`);
+    db = new Database(dbPath);
+  }
+  // busy_timeout must be set first: `journal_mode = WAL` needs a brief
+  // exclusive lock, so setting the timeout afterwards left the one pragma
+  // most likely to collide with no timeout at all.
+  db.pragma('busy_timeout = 10000');
+  // Even with a timeout, switching journal mode returns SQLITE_BUSY
+  // immediately when another connection is initialising the same new file —
+  // busy_timeout does not cover that case. Retry briefly instead of failing
+  // the whole command, which is what `lore watch` + a manual index hit.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      db.pragma('journal_mode = WAL');
+      break;
+    } catch (err) {
+      if (attempt >= 20 || !/locked|busy/i.test((err as Error).message)) throw err;
+      sleepSync(25);
+    }
+  }
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
-  // Without this, a second process touching the vault (e.g. an MCP server
-  // while the CLI indexes) fails instantly with SQLITE_BUSY instead of waiting.
-  db.pragma('busy_timeout = 5000');
+
+  // NOTE: no full integrity scan here. `quick_check` reads the whole file,
+  // so running it on every command was both slow and lock-prone — it made
+  // concurrent commands fail with "database is locked". The cheap
+  // sqlite_master probe above catches an unusable file; deep verification
+  // belongs in `lore doctor`, which can heal deliberately.
 
   // migrations
   const migrate = db.transaction(() => {
