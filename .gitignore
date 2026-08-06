@@ -7,3 +7,4 @@ coverage/
 *.tsbuildinfo
 eval/vault/
 eval/last-run.json
+*.tgz

@@ -24,3 +24,17 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: node eval/run.mjs --gate
+
+  # The suite above tests src/. This tests what users actually install: the
+  # packed tarball, its bin, its library entrypoint, its types, and the MCP
+  # server — the faults that only appear after `npm install`.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: bash scripts/smoke-package.sh
