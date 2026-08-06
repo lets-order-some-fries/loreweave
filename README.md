@@ -184,7 +184,8 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 | `lore watch` | reindex automatically as the vault changes |
 | `lore mark-used <note> [anchor]` | reinforce a passage that proved useful |
 | `lore graph export --format json\|graphml\|dot` | export the graph |
-| `lore doctor` / `lore stats` | health check / vault statistics |
+| `lore doctor` | health check: broken links, integrity, coverage |
+| `lore stats` | vault statistics and top entities |
 | `lore serve --mcp` | start the MCP server on stdio |
 
 ## Use it as agent memory (MCP)
@@ -285,7 +286,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 128 tests
+npm test          # 133 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
