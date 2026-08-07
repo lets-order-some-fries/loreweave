@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.5 — 2026-08-07
+
+Verified the spaced-repetition layer end to end rather than inferring it from
+the FSRS unit tests. Nothing needed fixing; the properties are now asserted.
+
+- **Reinforcement changes what search returns.** With five notes that answer a
+  query equally well, marking the last one used moves it to first.
+- **Usage history survives a reindex.** It is the only thing in the index that
+  cannot be re-derived from the vault, and the index is rebuilt from markdown
+  constantly — had a reindex wiped it, the layer would reset every time a file
+  was saved and every existing test would still have passed, because they
+  exercise the maths in isolation.
+- **An edit resets only what it changed.** Rewriting one section of a note
+  preserves the history of the sections that did not change and resets that
+  one, which is correct: a retrieval history describes text, and that block's
+  text no longer exists.
+
 ## 0.5.4 — 2026-08-07
 
 - **A mistyped config key is named instead of ignored.** Zod strips unknown

@@ -1,4 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { markUsed, resolveBlockIds } from '../src/dynamics/usage.js';
+import { openStore } from '../src/store/db.js';
+import { indexVault } from '../src/index/indexer.js';
+import { makeVault, editFile } from './helpers.js';
+import { search } from '../src/retrieve/search.js';
+import { ConfigSchema } from '../src/config.js';
+import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
+import type { LoreContext } from '../src/context.js';
 import {
   MAX_STABILITY_DAYS,
   daysBetween,
@@ -55,5 +64,97 @@ describe('fsrs dynamics', () => {
       1,
       1,
     );
+  });
+});
+
+describe('learned state is durable', () => {
+  // The FSRS maths above is exercised in isolation. None of it matters if the
+  // state it operates on is wiped whenever the user saves a file, and nothing
+  // was checking that — the index is rebuilt from markdown constantly, and
+  // usage history is the one thing in it that cannot be re-derived from the
+  // vault.
+  const VAULT = {
+    'a.md': '# A\n\n## One\n\nFirst section about compaction.\n\n## Two\n\nSecond section about batching.\n',
+  };
+
+  const stateOf = (store: ReturnType<typeof openStore>) =>
+    store.db
+      .prepare(
+        `SELECT anchor, stability, access_count FROM blocks WHERE note_path='a.md' ORDER BY ord`,
+      )
+      .all() as { anchor: string; stability: number; access_count: number }[];
+
+  it('survives a reindex that changes nothing', async () => {
+    const root = await makeVault(VAULT);
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    for (let i = 0; i < 4; i++) markUsed(store, resolveBlockIds(store, 'a.md'));
+    const before = stateOf(store);
+    expect(before.every((b) => b.access_count === 4)).toBe(true);
+
+    await indexVault(store, root);
+    expect(stateOf(store)).toEqual(before);
+    store.close();
+  });
+
+  it('survives an edit to a DIFFERENT section of the same note', async () => {
+    const root = await makeVault(VAULT);
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    for (let i = 0; i < 4; i++) markUsed(store, resolveBlockIds(store, 'a.md'));
+
+    await editFile(
+      root,
+      'a.md',
+      '# A\n\n## One\n\nFirst section about compaction.\n\n## Two\n\nRewritten entirely.\n',
+    );
+    await indexVault(store, root);
+
+    const after = stateOf(store);
+    const one = after.find((b) => b.anchor === 'A/One@0')!;
+    const two = after.find((b) => b.anchor === 'A/Two@0')!;
+    // untouched section keeps its history …
+    expect(one.access_count).toBe(4);
+    expect(one.stability).toBeGreaterThan(1);
+    // … and the rewritten one starts over, because the history described text
+    // that no longer exists
+    expect(two.access_count).toBe(0);
+    expect(two.stability).toBe(1);
+    store.close();
+  });
+
+  it('reinforcement actually changes what search returns', async () => {
+    // Five notes that answer the query equally well, so ranking among them is
+    // decided by nothing else. If use did not move them, the whole
+    // spaced-repetition layer would be decorative.
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 5; i++) {
+      files[`doc-${i}.md`] =
+        `# Doc ${i}\n\nOur compaction strategy for streaming ingestion, variant ${i}.\n` +
+        `Discusses compaction, strategy, throughput and batching in detail.\n`;
+    }
+    const root = await makeVault(files);
+    const config = ConfigSchema.parse({});
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    let cached: LoreGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => { cached = null; },
+      close: () => store.close(),
+    };
+    const rank = async () =>
+      (await search(ctx, 'compaction strategy', { k: 5, noLog: true })).map((h) => h.notePath);
+
+    const before = await rank();
+    const target = before[before.length - 1]!;
+    for (let i = 0; i < 5; i++) markUsed(store, resolveBlockIds(store, target));
+    ctx.invalidateGraph();
+
+    const after = await rank();
+    expect(after.indexOf(target)).toBeLessThan(before.indexOf(target));
+    ctx.close();
   });
 });
