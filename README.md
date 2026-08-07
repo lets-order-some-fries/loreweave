@@ -91,6 +91,14 @@ never tuned against. If you prefer pure lexical behaviour, set
 Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on any
 regression across either corpus, and CI enforces it on every push.
 
+**What lexical + graph retrieval cannot do**, stated precisely: the kestrel
+multi-hop questions use words like "hardware" and "outpost" that appear in
+*zero* notes — the vault says "instrument" and "station". No statistic derived
+from the vault (co-occurrence, PPMI, LSA) can bridge that, because there are no
+occurrences to derive one from. Those answers are still *found* (90%) by
+following links, but ranking them first needs external semantic knowledge —
+which is exactly what enabling embeddings supplies.
+
 ## What makes it different
 
 **1. Knowledge that has a timeline.** Facts are bitemporal: when they were true in the
@@ -297,7 +305,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 150 tests
+npm test          # 157 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

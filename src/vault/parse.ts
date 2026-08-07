@@ -183,6 +183,39 @@ function chunkText(text: string): string[] {
 }
 
 /**
+ * Filenames that describe a file's ROLE in its folder rather than naming a
+ * thing. A vault can hold dozens of these, and treating them all as the same
+ * title collapses them into one entity and one fact subject — measured on a
+ * real corpus, 39 separate `SKILL.md` files produced a single subject whose
+ * facts then superseded each other arbitrarily.
+ */
+const GENERIC_BASENAMES = new Set([
+  'readme', 'index', '_index', 'skill', 'home', 'notes', 'note', 'main',
+  'overview', 'about', 'summary', 'doc', 'docs', 'contents', 'toc', 'claude',
+  'agents', 'default',
+]);
+
+/**
+ * A note's title: explicit frontmatter wins, then a `name` field, then the
+ * filename — except when the filename is generic, in which case the parent
+ * folder is what actually identifies it (`skills/writing-skills/SKILL.md`
+ * is "writing-skills", not "SKILL").
+ */
+export function resolveTitle(path: string, fm: Record<string, unknown>): string {
+  for (const key of ['title', 'name']) {
+    const v = fm[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  const parts = path.split('/');
+  const base = (parts.pop() ?? path).replace(/\.md$/i, '');
+  if (GENERIC_BASENAMES.has(base.toLowerCase()) && parts.length > 0) {
+    const parent = parts[parts.length - 1]!;
+    if (parent) return parent;
+  }
+  return base;
+}
+
+/**
  * Parse one markdown file into a Note. Never throws on malformed input:
  * frontmatter errors degrade to empty frontmatter + a warning.
  */
@@ -200,11 +233,7 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
     body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   }
 
-  const basename = path.split('/').pop() ?? path;
-  const title =
-    typeof fm.title === 'string' && fm.title.trim()
-      ? fm.title.trim()
-      : basename.replace(/\.md$/i, '');
+  const title = resolveTitle(path, fm);
 
   // tags: frontmatter (string | array) + inline
   const tagSet = new Set<string>();
