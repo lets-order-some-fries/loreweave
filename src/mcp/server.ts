@@ -48,7 +48,7 @@ function safe<A extends unknown[]>(
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.3.0' });
+  const server = new McpServer({ name: 'loreweave', version: '0.3.1' });
 
   server.registerTool(
     'lore_search',

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.1 — 2026-08-07
+
+Fixes found by dogfooding a real documentation corpus.
+
+- **Notes whose filename states a role no longer collapse into one entity.**
+  39 separate  files all resolved to the title "SKILL", so their
+  frontmatter facts landed in a single subject and superseded each other
+  arbitrarily. A title now prefers frontmatter , then , then the
+  filename — except for generic names (, , ),
+  where the parent folder identifies the note. Measured: 1 collapsed subject
+  became 14 correctly attributed ones.
+- **Facts whose object repeats their subject are dropped.**
+   states nothing and was appearing
+  at the top of  output.
+
 ## 0.3.0 — 2026-08-06
 
 Retrieval, provenance, and durability. Every number below is produced by
