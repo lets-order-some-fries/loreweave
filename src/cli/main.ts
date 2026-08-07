@@ -48,6 +48,23 @@ function provenance(f: {
   return `${origin} · ${where}${conf}`;
 }
 
+/**
+ * A readable location line.
+ *
+ * The raw anchor is the full heading breadcrumb, which on a deeply nested
+ * research note ran to 327 characters and buried the score and the snippet.
+ * Show the file and the innermost heading — that is what identifies the
+ * passage to a reader. `--json` still carries the exact anchor.
+ */
+function fmtLocation(notePath: string, anchor: string): string {
+  const heading = anchor.replace(/@\d+$/, '');
+  if (!heading) return notePath;
+  const leaf = heading.split('/').filter(Boolean).pop() ?? '';
+  if (!leaf) return notePath;
+  const short = leaf.length > 60 ? `${leaf.slice(0, 57).trimEnd()}…` : leaf;
+  return `${notePath} › ${short}`;
+}
+
 function fmtResult(r: {
   notePath: string;
   anchor: string;
@@ -58,7 +75,7 @@ function fmtResult(r: {
   via: string[];
 }): string {
   const via = r.via.length ? `  ⟨via ${r.via.join(', ')}⟩` : '';
-  return `• ${r.notePath}#${r.anchor}  [${strength(r)}]${via}\n  ${r.snippet}`;
+  return `• ${fmtLocation(r.notePath, r.anchor)}  [${strength(r)}]${via}\n  ${r.snippet}`;
 }
 
 export function buildProgram(io: { out: (s: string) => void; err: (s: string) => void }): Command {

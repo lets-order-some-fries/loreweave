@@ -112,6 +112,31 @@ describe('cli', () => {
     expect(r.out).toContain('blocked'); // fact from fixture journal
   });
 
+  it('result lines stay readable however deep the headings are', async () => {
+    const deep = await makeVault({
+      'deep.md':
+        '# A very long top level heading that goes on for a while indeed\n\n' +
+        '## Another deeply nested subsection heading with plenty of words in it\n\n' +
+        '### And a third level that keeps going and going and going\n\n' +
+        'The distinctive payload token is zephyrine.\n',
+    });
+    await mkdir(join(deep, '.lore'), { recursive: true });
+    const saved = root;
+    root = deep;
+    await run('index');
+    const r = await run('search', 'zephyrine');
+    const locLine = r.out.split('\n').find((l) => l.startsWith('•'))!;
+    // the raw anchor is the full breadcrumb; on real notes it ran to 327 chars
+    expect(locLine.length).toBeLessThan(150);
+    expect(locLine).toContain('deep.md');
+
+    // --json must still carry the exact anchor for programmatic use
+    const j = await run('search', 'zephyrine', '--json');
+    const parsed = JSON.parse(j.out);
+    expect(parsed[0].anchor).toContain('And a third level');
+    root = saved;
+  });
+
   it('capture appends to inbox', async () => {
     const r = await run('capture', 'remember', 'to', 'test', 'capture');
     expect(r.out).toContain('lore/inbox.md');
