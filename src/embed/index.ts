@@ -1,3 +1,4 @@
+import { isHeadingEcho } from '../vault/parse.js';
 import type { Store } from '../store/db.js';
 import type { LoreConfig } from '../config.js';
 
@@ -110,13 +111,25 @@ export async function embedMissingBlocks(
   provider: EmbeddingProvider,
   batchSize = 32,
 ): Promise<number> {
-  const rows = store.db
+  const candidates = store.db
     .prepare(
-      `SELECT b.id, b.text, b.hash FROM blocks b
+      `SELECT b.id, b.heading, b.text, b.hash FROM blocks b
        LEFT JOIN embeddings e ON e.block_id = b.id
        WHERE e.block_id IS NULL OR e.hash != b.hash OR e.provider != ?`,
     )
-    .all(`${provider.name}:${provider.model}`) as { id: number; text: string; hash: string }[];
+    .all(`${provider.name}:${provider.model}`) as {
+    id: number;
+    heading: string;
+    text: string;
+    hash: string;
+  }[];
+  // Heading echoes are excluded, not merely down-weighted. Identical text
+  // yields an identical vector under ANY model, so two notes that happen to
+  // share a section name got a cosine of exactly 1.0 — a maximum-strength
+  // SIMILAR edge between unrelated notes, feeding graph expansion. They also
+  // cost real embedding calls for text nobody wrote. The lexical index
+  // already carries their headings, which is all they were ever for.
+  const rows = candidates.filter((r) => !isHeadingEcho(r.heading, r.text));
   if (rows.length === 0) return 0;
   const ins = store.db.prepare(
     `INSERT INTO embeddings(block_id, provider, dims, vec, hash) VALUES (?,?,?,?,?)

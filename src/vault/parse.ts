@@ -348,3 +348,22 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
     warnings,
   };
 }
+
+/**
+ * True when a block's text is only an echo of its own heading.
+ *
+ * A section with no body of its own is indexed as its heading so that a note
+ * made only of headings can still be found. That text is a stand-in for
+ * findability — nobody wrote it — and section names ("Overview", "Usage",
+ * "The Process") repeat constantly across a vault, so anything that treats
+ * block text as authored content must skip these or it will conclude that two
+ * unrelated notes say the same thing. They stay indexed and searchable; the
+ * lexical index is what they exist for.
+ *
+ * Shared by every such consumer on purpose: two copies of this rule would
+ * drift, and the failures it prevents are silent ones.
+ */
+export function isHeadingEcho(heading: string, text: string): boolean {
+  const leaf = (heading.split('/').pop() ?? '').trim();
+  return leaf !== '' && text.trim() === leaf;
+}

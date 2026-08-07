@@ -84,3 +84,61 @@ describe('embeddings', () => {
     expect(cosine(Float32Array.from([0, 0]), Float32Array.from([1, 1]))).toBe(0);
   });
 });
+
+describe('heading echoes are never embedded', () => {
+  const toyProvider = {
+    name: 'toy',
+    model: 'toy',
+    dims: 26,
+    embed: async (texts: string[]) =>
+      texts.map((t) => {
+        const v = new Array(26).fill(0);
+        for (const ch of t.toLowerCase()) {
+          const i = ch.charCodeAt(0) - 97;
+          if (i >= 0 && i < 26) v[i]++;
+        }
+        return Float32Array.from(v);
+      }),
+  } as any;
+
+  it('two notes sharing a section name get no similarity edge from it', async () => {
+    // Identical text yields an identical vector under ANY model, so a shared
+    // section name produced a cosine of exactly 1.0 — a maximum-strength
+    // SIMILAR edge between unrelated notes, feeding graph expansion. Unlike
+    // the duplicate report, this one silently distorted ranking.
+    const store = openStore(':memory:');
+    store.upsertNote(
+      parseNote('executing-plans.md', '# Executing Plans\n\n## The Process\n\n### A\n\nAlpha beta gamma.\n', 1),
+    );
+    store.upsertNote(
+      parseNote('finishing-branch.md', '# Finishing\n\n## The Process\n\n### B\n\nZeta eta theta.\n', 1),
+    );
+    const echoes = store.db
+      .prepare(`SELECT COUNT(*) c FROM blocks WHERE text = 'The Process'`)
+      .get() as { c: number };
+    expect(echoes.c).toBe(2); // they exist, and keep the sections findable
+
+    await embedMissingBlocks(store, toyProvider);
+    const embedded = store.db
+      .prepare(
+        `SELECT COUNT(*) c FROM embeddings e JOIN blocks b ON b.id = e.block_id
+         WHERE b.text = 'The Process'`,
+      )
+      .get() as { c: number };
+    expect(embedded.c).toBe(0);
+
+    buildSimilarEdges(store, { threshold: 0.8, topK: 5 });
+    const maxWeight = store.db
+      .prepare(`SELECT COALESCE(MAX(weight), 0) w FROM edges WHERE type='SIMILAR'`)
+      .get() as { w: number };
+    expect(maxWeight.w).toBeLessThan(1);
+    store.close();
+  });
+
+  it('blocks people actually wrote are still embedded', async () => {
+    const store = openStore(':memory:');
+    store.upsertNote(parseNote('a.md', '# A\n\n## Body\n\nReal authored prose here.\n', 1));
+    expect(await embedMissingBlocks(store, toyProvider)).toBeGreaterThan(0);
+    store.close();
+  });
+});

@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { isHeadingEcho } from '../vault/parse.js';
 import type { LoreContext } from '../context.js';
 import { normalizeKey } from '../normalize.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
@@ -144,17 +145,11 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
     text: string;
     hash: string;
   }[];
-  // A section with no body of its own is indexed as an echo of its own
-  // heading, so a note that is only headings can still be found. That text is
-  // a stand-in for findability, not something anyone wrote — and section names
-  // repeat constantly across a vault, so comparing them as content reported
-  // "The Process" ≈ "The Process" at Jaccard 1.0 for two unrelated skills.
-  // Measured on a real docs vault: 40 of 501 blocks are echoes, and they
-  // produced most of the duplicate findings.
-  const rows = all.filter((r) => {
-    const leaf = (r.heading.split('/').pop() ?? '').trim();
-    return leaf === '' || r.text.trim() !== leaf;
-  });
+  // Heading echoes are not authored content — see isHeadingEcho. Comparing
+  // them reported "The Process" ≈ "The Process" at Jaccard 1.0 for two
+  // unrelated skills; 40 of 501 blocks in a real docs vault are echoes and
+  // they produced most of the duplicate findings.
+  const rows = all.filter((r) => !isHeadingEcho(r.heading, r.text));
   const out: DuplicateFinding[] = [];
   const emitted = new Set<string>();
   const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);

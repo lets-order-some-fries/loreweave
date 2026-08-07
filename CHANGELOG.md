@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.10 — 2026-08-07
+
+0.4.9 removed heading echoes from duplicate detection. Rather than wait to trip
+over the same object again, every consumer of block text was checked against
+it — and embeddings had the same bug, worse.
+
+- **Heading echoes are no longer embedded.** Identical text yields an identical
+  vector under any model, so two notes sharing a section name — "Overview",
+  "Usage", "The Process" — scored a cosine of exactly 1.0 and got a
+  maximum-strength `SIMILAR` edge between them. That edge feeds graph
+  expansion, so what showed up as a wrong line in a report was also silently
+  steering retrieval, where nothing would have surfaced it. They also cost real
+  embedding calls on text nobody wrote: 40 of 501 blocks on the test vault.
+- **One shared definition.** `isHeadingEcho` is now exported and used by both
+  `dream` and the embedder. Two copies would drift, and both failures it
+  prevents are silent.
+
+Nothing is lost: an echo exists so a headings-only note stays findable, and its
+heading is already in the lexical index. The test asserts both directions — no
+similarity edge from a shared section name, and both notes still returned when
+searching for that heading.
+
 ## 0.4.9 — 2026-08-07
 
 Ran `dream` over a real docs vault and read what it found. Link suggestions are
