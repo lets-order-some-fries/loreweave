@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.4.8')
+    .version('0.4.9')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -441,10 +441,38 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         for (const c of r.contradictions.slice(0, 10)) {
           io.out(`  ⚡ ${c.subject} :: ${c.predicate} — ${c.detail}`);
         }
+        // Every finding type shows examples, not just a count. Reporting
+        // "6 duplicates · 23 orphans" and then listing only link suggestions
+        // left the other two actionable only via --apply, which writes files
+        // into the vault — so looking required changing.
+        const more = (shown: number, total: number, what: string) =>
+          total > shown ? `  … and ${total - shown} more ${what}` : null;
+        for (const d of r.duplicates.slice(0, 3)) {
+          io.out(`  ⧉ dup?  ${d.a.notePath}#${d.a.anchor}`);
+          io.out(`       ≈  ${d.b.notePath}#${d.b.anchor}  (J=${d.jaccard})`);
+        }
+        const dupMore = more(Math.min(3, r.duplicates.length), r.totals.duplicates, 'duplicates');
+        if (dupMore) io.out(dupMore);
+        for (const s of r.stale.slice(0, 3)) io.out(`  ◷ stale? ${s.ref} — ${s.detail}`);
         for (const l of r.linkSuggestions.slice(0, 5)) {
           io.out(
             `  ✦ link? ${l.from} ↔ ${l.to} (${l.sharedCount} shared: ${l.sharedEntities.join(', ')})`,
           );
+        }
+        const linkMore = more(
+          Math.min(5, r.linkSuggestions.length),
+          r.totals.linkSuggestions,
+          'link suggestions',
+        );
+        if (linkMore) io.out(linkMore);
+        if (r.orphans.length) {
+          io.out(`  ⌾ orphan? ${r.orphans.slice(0, 5).join(', ')}`);
+          const orphMore = more(
+            Math.min(5, r.orphans.length),
+            r.totals.orphans,
+            'unlinked notes',
+          );
+          if (orphMore) io.out(orphMore);
         }
         if (r.written.length) io.out(`written: ${r.written.join(', ')}`);
         else if (!opts.apply) io.out(`(run with --apply to write the digest + review queue)`);

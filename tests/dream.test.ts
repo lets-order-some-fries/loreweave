@@ -241,3 +241,51 @@ describe('dream', () => {
     ctx.close();
   });
 });
+
+describe('heading echoes are not content', () => {
+  it('two sections with the same name are not a duplicate passage', async () => {
+    // A section with no body of its own is indexed as an echo of its own
+    // heading so a headings-only note stays findable. That text is a stand-in
+    // for findability, not something anyone wrote — and section names repeat
+    // constantly, so comparing them as content reported "The Process" ≈ "The
+    // Process" at Jaccard 1.0 for two unrelated documents. On a real docs
+    // vault 40 of 501 blocks were echoes and they produced most of the
+    // duplicate findings.
+    const ctx = await ctxWith({
+      'one.md': '# Executing Plans\n\n## The Process\n\n### Step\n\nDo the first thing.\n',
+      'two.md': '# Finishing a Branch\n\n## The Process\n\n### Step\n\nDo a different thing.\n',
+    });
+    const hit = ctx.store.db
+      .prepare(`SELECT COUNT(*) c FROM blocks WHERE text = 'The Process'`)
+      .get() as { c: number };
+    expect(hit.c).toBe(2); // the echo blocks exist — they are what makes the note findable
+
+    const r = dream(ctx);
+    expect(
+      r.duplicates.some(
+        (d) => [d.a.notePath, d.b.notePath].includes('one.md') && [d.a.notePath, d.b.notePath].includes('two.md'),
+      ),
+    ).toBe(false);
+    ctx.close();
+  });
+
+  it('genuinely copy-pasted prose is still caught', async () => {
+    // The three pressure-test files in a real vault share a verbatim preamble.
+    // Excluding echoes must not blunt the detector on real duplication.
+    const boiler =
+      'IMPORTANT: This is a real scenario. You must choose and act now. ' +
+      'Do not ask hypothetical questions, make the actual decision and then ' +
+      'report exactly what you did and why you did it that way.';
+    const ctx = await ctxWith({
+      'p1.md': `# Pressure Test 1\n\n## Setup\n\n${boiler}\n`,
+      'p2.md': `# Pressure Test 2\n\n## Setup\n\n${boiler}\n`,
+    });
+    const r = dream(ctx);
+    expect(
+      r.duplicates.some(
+        (d) => [d.a.notePath, d.b.notePath].includes('p1.md') && [d.a.notePath, d.b.notePath].includes('p2.md'),
+      ),
+    ).toBe(true);
+    ctx.close();
+  });
+});

@@ -134,9 +134,27 @@ function sigSimilarity(a: Int32Array, b: Int32Array): number {
 }
 
 function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
-  const rows = ctx.store.db
-    .prepare(`SELECT id, note_path, anchor, text, hash FROM blocks WHERE archived=0`)
-    .all() as { id: number; note_path: string; anchor: string; text: string; hash: string }[];
+  const all = ctx.store.db
+    .prepare(`SELECT id, note_path, anchor, heading, text, hash FROM blocks WHERE archived=0`)
+    .all() as {
+    id: number;
+    note_path: string;
+    anchor: string;
+    heading: string;
+    text: string;
+    hash: string;
+  }[];
+  // A section with no body of its own is indexed as an echo of its own
+  // heading, so a note that is only headings can still be found. That text is
+  // a stand-in for findability, not something anyone wrote — and section names
+  // repeat constantly across a vault, so comparing them as content reported
+  // "The Process" ≈ "The Process" at Jaccard 1.0 for two unrelated skills.
+  // Measured on a real docs vault: 40 of 501 blocks are echoes, and they
+  // produced most of the duplicate findings.
+  const rows = all.filter((r) => {
+    const leaf = (r.heading.split('/').pop() ?? '').trim();
+    return leaf === '' || r.text.trim() !== leaf;
+  });
   const out: DuplicateFinding[] = [];
   const emitted = new Set<string>();
   const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);

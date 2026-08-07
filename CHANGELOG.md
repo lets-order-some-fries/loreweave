@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.9 — 2026-08-07
+
+Ran `dream` over a real docs vault and read what it found. Link suggestions are
+real — `code-reviewer.md` and `task-reviewer-prompt.md` share eighteen
+entities. The duplicates were not.
+
+- **Two sections with the same name are no longer "duplicates".** Top of the
+  list was `"The Process" ≈ "The Process"` at Jaccard 1.0 for two unrelated
+  skills. Since 0.4.1 a section with no body of its own is indexed as an echo
+  of its heading, so a headings-only note stays findable — but section names
+  repeat constantly, so comparing those echoes as content made every shared
+  section name an identical passage. 40 of 501 blocks in that vault were
+  echoes, and they produced most of the duplicate findings. The echo stays
+  indexed and searchable; it is excluded from duplicate detection only.
+  Genuinely copy-pasted prose is still caught, and both halves are now tested.
+- **Every finding type shows examples.** `dream` reported "6 duplicates · 23
+  orphans" and then listed only link suggestions; the rest were visible only by
+  running `--apply`, which writes files into the vault — so looking required
+  changing. Duplicates, stale items and orphans now each show a few, with a
+  count of how many more.
+
 ## 0.4.8 — 2026-08-07
 
 Read `ask` output on a real docs vault and followed one odd line: the answer to
