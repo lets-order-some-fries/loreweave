@@ -114,6 +114,11 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
   const budget = Math.max(40, rawBudget);
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return '';
+  // Lines that are pure markup carry no answer and read as noise when shown.
+  const isMarkup = (l: string) =>
+    /^\s*(<[^>]+>\s*)+$/.test(l) ||
+    /^\s*[-=*_]{3,}\s*$/.test(l) ||
+    /^\s*<\/?\w+[^>]*>\s*$/.test(l);
   const clip = (t: string) =>
     t.length > budget ? `${t.slice(0, budget).trimEnd()} …` : t;
   // Tags are layout, not content: a snippet is for reading, so `<h1
@@ -121,13 +126,12 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
   // text keeps the original — only the display is cleaned.
   const stripTags = (t: string) => t.replace(/<\/?[a-zA-Z][^>]{0,120}>/g, ' ');
   const join = (ls: string[]) =>
-    stripTags(ls.join(' ')).replace(/\s+/g, ' ').trim();
+    stripTags(ls.filter((l) => !isMarkup(l)).join(' '))
+      .replace(/\s+/g, ' ')
+      .trim();
   if (terms.length === 0) return clip(join(lines));
 
   const norm = lines.map((l) => normalizeKey(l));
-  // Lines that are pure markup carry no answer and read as noise when shown.
-  const isMarkup = (l: string) =>
-    /^\s*(<[^>]+>\s*)+$/.test(l) || /^\s*[-=*_]{3,}\s*$/.test(l) || /^\s*<\/?\w+[^>]*>\s*$/.test(l);
 
   // Score WINDOWS, not single lines: markdown is usually hard-wrapped, so the
   // sentence that answers a query is routinely split across two lines. Scoring

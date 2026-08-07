@@ -62,6 +62,18 @@ describe('bestSnippet', () => {
     expect(s).not.toMatch(/^<[a-z]/i);
   });
 
+  it('never renders a separator or bare tag as content', () => {
+    const withSep = [
+      '<h1 align="center">Project Guide</h1>',
+      '---',
+      'The database is a disposable cache you can delete.',
+    ].join('\n');
+    const s = bestSnippet(withSep, contentTerms('why is the database a cache'));
+    expect(s).toContain('disposable cache');
+    expect(s).not.toContain('---');
+    expect(s).not.toContain('<');
+  });
+
   it('handles empty input safely', () => {
     expect(bestSnippet('', contentTerms('anything'))).toBe('');
     expect(bestSnippet('some text', [])).toBe('some text');
