@@ -70,7 +70,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.3.3' });
+  const server = new McpServer({ name: 'loreweave', version: '0.3.4' });
 
   server.registerTool(
     'lore_search',

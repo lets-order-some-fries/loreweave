@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.4 — 2026-08-07
+
+- **Notes inside symlinked folders are indexed.** A symlink reports as neither
+  file nor directory, so a folder linked into a vault was skipped entirely and
+  its notes were simply invisible — with nothing in the output to explain why.
+  Links are now followed, with a visited-realpath set so a link pointing at an
+  ancestor terminates instead of walking an infinite tree. Dangling links are
+  skipped rather than fatal; `followSymlinks: false` restores the old
+  behaviour.
+
 ## 0.3.3 — 2026-08-07
 
 Context economy on the MCP surface, plus a presentation fix.
