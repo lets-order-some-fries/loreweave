@@ -148,4 +148,23 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE blocks ADD COLUMN event_to TEXT;
   CREATE INDEX idx_blocks_event ON blocks(event_from, event_to);
   `,
+  // v4 — the exact text handed to FTS. CJK needs per-character segmentation,
+  // which cannot be expressed in the trigger's SQL, so it is computed in JS
+  // and stored. Rebuilds the FTS triggers to index this column.
+  `
+  ALTER TABLE blocks ADD COLUMN fts_text TEXT NOT NULL DEFAULT '';
+  DROP TRIGGER IF EXISTS blocks_ai;
+  DROP TRIGGER IF EXISTS blocks_ad;
+  DROP TRIGGER IF EXISTS blocks_au;
+  CREATE TRIGGER blocks_ai AFTER INSERT ON blocks BEGIN
+    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.fts_text);
+  END;
+  CREATE TRIGGER blocks_ad AFTER DELETE ON blocks BEGIN
+    DELETE FROM blocks_fts WHERE rowid = old.id;
+  END;
+  CREATE TRIGGER blocks_au AFTER UPDATE OF fts_text ON blocks BEGIN
+    DELETE FROM blocks_fts WHERE rowid = old.id;
+    INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.fts_text);
+  END;
+  `,
 ];

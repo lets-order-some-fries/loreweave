@@ -55,6 +55,9 @@ knowledge-graph spreading activation. Add embeddings when you want them:
 Everything degrades gracefully — no embedding provider means lexical + graph retrieval,
 still fully functional.
 
+Works with non-English vaults: Chinese, Japanese and Korean text is segmented per
+character so it is searchable at all, and other scripts index as written.
+
 ## Measured, not asserted
 
 Loreweave ships its own benchmark — `npm run eval` — over **two** purpose-built

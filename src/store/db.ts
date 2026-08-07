@@ -31,7 +31,7 @@ export interface Store {
 }
 
 export { normalizeKey } from '../normalize.js';
-import { contentTerms, linkMatchKey } from '../normalize.js';
+import { contentTerms, linkMatchKey, segmentCJK } from '../normalize.js';
 import { extractDates, parseDateExpression } from '../temporal/dates.js';
 
 /** A dated filename (2026-08-05-standup.md, journal/2026-08-05.md) dates the note. */
@@ -45,7 +45,7 @@ function filenameDate(path: string): { from: string; to: string } | null {
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
   // Content words only: with AND semantics, one stray "what" in the question
   // is enough to miss the block that literally answers it.
-  const tokens = contentTerms(text).slice(0, 32);
+  const tokens = contentTerms(segmentCJK(text)).slice(0, 32);
   if (tokens.length === 0) return null;
   return tokens.map((t) => `"${t}"`).join(joiner);
 }
@@ -174,8 +174,8 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     delBlocks: db.prepare(`DELETE FROM blocks WHERE note_path=?`),
     delLinks: db.prepare(`DELETE FROM links WHERE note_path=?`),
     insBlock: db.prepare(
-      `INSERT INTO blocks(note_path,anchor,heading,ord,text,hash,event_from,event_to)
-       VALUES (?,?,?,?,?,?,?,?)`,
+      `INSERT INTO blocks(note_path,anchor,heading,ord,text,hash,event_from,event_to,fts_text)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
     ),
     insLink: db.prepare(
       `INSERT INTO links(note_path,block_anchor,target,target_norm,heading,alias) VALUES (?,?,?,?,?,?)`,
@@ -229,6 +229,8 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
         b.hash,
         d?.from ?? null,
         d?.to ?? null,
+        // heading breadcrumb is searchable too; CJK is split per character
+        segmentCJK(`${b.heading.replace(/\//g, ' ')} ${b.text}`),
       );
       const id = Number(info.lastInsertRowid);
       ids.set(b.anchor, id);

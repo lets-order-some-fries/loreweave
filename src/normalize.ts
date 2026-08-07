@@ -109,3 +109,30 @@ export function contentTerms(query: string): string[] {
   const kept = tokens.filter((t) => !STOPWORDS.has(t));
   return kept.length > 0 ? kept : tokens;
 }
+
+/**
+ * Insert spaces around CJK characters so a full-text tokenizer can index them.
+ *
+ * Chinese, Japanese and Korean text is written without spaces, so a
+ * whitespace tokenizer treats an entire sentence as one token: indexing
+ * "这个项目关于机器学习" and then searching "机器学习" matched nothing at all.
+ * Splitting per character makes a query a phrase of character tokens, which
+ * is the standard fallback when a language-specific segmenter is unavailable.
+ * Non-CJK text is returned unchanged.
+ */
+const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af]/;
+
+export function hasCJK(s: string): boolean {
+  return CJK.test(s);
+}
+
+export function segmentCJK(s: string): string {
+  if (!CJK.test(s)) return s;
+  return s
+    .replace(
+      /([\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f\uac00-\ud7af])/g,
+      ' $1 ',
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+}

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.0 — 2026-08-07
+
+### CJK vaults now work
+
+Chinese, Japanese and Korean text is written without spaces, so the full-text
+tokenizer treated an entire sentence as a single token: a vault of Chinese
+notes indexed fine and then returned **nothing** for any query. Searching
+`机器学习` against a note containing `这个项目关于机器学习` matched zero rows.
+
+Text handed to the index is now segmented per CJK character, and queries are
+segmented the same way, so a query becomes a phrase of character tokens. This
+is the standard fallback where a language-specific segmenter is unavailable.
+
+Verified across scripts, with English unchanged:
+
+| script | before | after |
+|---|---|---|
+| Chinese `机器学习` | no results | found |
+| Japanese `機械学習` | no results | found |
+| Devanagari `मशीन लर्निंग` | worked | worked |
+| accented Latin `stockage durable` | worked | worked |
+| English | worked | worked |
+
+Schema v4 adds the exact text given to the index as a stored column, since
+per-character segmentation cannot be expressed in the trigger's SQL. Existing
+indexes migrate automatically; run `lore index --full` to re-segment old
+content.
+
 ## 0.3.5 — 2026-08-07
 
 - **`dream` stays quiet when it has nothing to say.** On a densely interlinked
