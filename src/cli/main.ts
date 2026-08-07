@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.4.6')
+    .version('0.4.7')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -94,10 +94,14 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
   };
 
   /**
-   * `autoIndex: false` for commands whose job is to report the state of the
-   * index itself — `index`, `doctor`, `stats`. Everywhere else an empty index
-   * is indexed on the spot, so no command ever answers a question about the
-   * vault's contents from an index that was never built.
+   * `autoIndex: true` for the commands that answer questions about note
+   * CONTENT, so none of them can answer from an index that was never built.
+   *
+   * Opt-in rather than opt-out. Commands that report on the index itself
+   * (`doctor`, `stats`) must show the true state including "empty", and
+   * commands that only write (`assert`, `capture`) do not need the note index
+   * at all — auto-indexing there meant a mistyped date spent a full pass over
+   * the vault before reporting the typo.
    */
   const withCtx = async <T>(
     fn: (ctx: LoreContext) => Promise<T> | T,
@@ -105,7 +109,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
   ): Promise<T> => {
     const ctx = openContext(vaultRoot());
     try {
-      if (opts.autoIndex !== false) {
+      if (opts.autoIndex) {
         await ensureIndexed(ctx, (n) =>
           console.error(`[loreweave] first run: indexing ${n} notes…`),
         );
@@ -181,7 +185,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
             io.out(`(similarity edges not refreshed — run: lore index --rebuild-similar)`);
           }
         }
-      }, { autoIndex: false });
+      });
     });
 
   program
@@ -216,7 +220,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           }
           io.out(res.map(fmtResult).join('\n'));
         }
-      });
+      }, { autoIndex: true });
     },
     );
 
@@ -277,7 +281,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           io.out(passages.map(fmtResult).join('\n'));
         }
         if (!relevantFacts.length && !passages.length) io.out('nothing found');
-      });
+      }, { autoIndex: true });
     });
 
   program
@@ -444,7 +448,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         }
         if (r.written.length) io.out(`written: ${r.written.join(', ')}`);
         else if (!opts.apply) io.out(`(run with --apply to write the digest + review queue)`);
-      });
+      }, { autoIndex: true });
     });
 
   program
@@ -457,7 +461,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         const ids = resolveBlockIds(ctx.store, notePath, anchor);
         const n = markUsed(ctx.store, ids);
         io.out(`reinforced ${n} block(s)`);
-      });
+      }, { autoIndex: true });
     });
 
   program
@@ -501,7 +505,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         );
         const lastIndex = ctx.store.getMeta('last_index_at');
         io.out(`last index: ${lastIndex ?? 'never — run: lore index'}`);
-      }, { autoIndex: false });
+      });
     });
 
   program
@@ -524,7 +528,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           .all() as { display: string; n: number }[];
         io.out('top entities:');
         for (const t of top) io.out(`  ${String(t.n).padStart(4)}  ${t.display}`);
-      }, { autoIndex: false });
+      });
     });
 
   program
@@ -543,7 +547,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         } else {
           io.out(text);
         }
-      });
+      }, { autoIndex: true });
     });
 
   program

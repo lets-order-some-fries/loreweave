@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.7 — 2026-08-07
+
+Verified against the published package: the MCP wiring the README documents
+works end to end over real stdio, and so does an MCP server running live under
+an agent while the user works in a terminal — the CLI indexes, the server sees
+the new note immediately, both write facts at once, nothing is lost.
+
+- **A mistyped `--vault` says so.** It reported
+  `ENOENT: no such file or directory, mkdir '/nope/.lore'` — a raw errno naming
+  an internal directory the user has never heard of, for a mistake in the one
+  argument they can see. Now: `vault not found: /nope`, and
+  `vault is not a directory` when the path is a file.
+- **Auto-indexing is opt-in** (regression from 0.4.6, where it was opt-out). It
+  fired for commands that never read the note index, so a mistyped date spent a
+  full pass over the vault before reporting the typo. It is now held to the
+  commands that answer questions about note content — `search`, `ask`, `dream`,
+  `graph`, `mark-used`.
+
 ## 0.4.6 — 2026-08-07
 
 Installed the published package into a clean directory and used it as a new

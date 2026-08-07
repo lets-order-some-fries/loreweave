@@ -1,3 +1,4 @@
+import { statSync } from 'node:fs';
 import { loadConfig, dbPath, type LoreConfig } from './config.js';
 import { openStore, type Store } from './store/db.js';
 import { resolveProvider, type EmbeddingProvider } from './embed/index.js';
@@ -21,6 +22,17 @@ export interface LoreContext {
 }
 
 export function openContext(root: string, overrides?: { dbFile?: string }): LoreContext {
+  // A typo'd --vault should say so. Left to the store, it surfaced as
+  // `ENOENT: no such file or directory, mkdir '/nope/.lore'` — a raw errno
+  // naming an internal directory the user has never heard of, for a mistake
+  // they made in the argument they can see.
+  let stat;
+  try {
+    stat = statSync(root);
+  } catch {
+    throw new Error(`vault not found: ${root}`);
+  }
+  if (!stat.isDirectory()) throw new Error(`vault is not a directory: ${root}`);
   const config = loadConfig(root);
   const store = openStore(overrides?.dbFile ?? dbPath(root), {
     onHeal: (msg) => console.error(`[loreweave] ${msg}`),

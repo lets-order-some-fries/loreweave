@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openContext, ensureIndexed } from '../src/context.js';
@@ -62,5 +62,24 @@ describe('first run', () => {
     expect(seen).toHaveLength(0);
     expect(await search(ctx, 'anything at all', { k: 5 })).toEqual([]);
     ctx.close();
+  });
+});
+
+describe('a mistyped vault path', () => {
+  it('says the vault is missing, not that a mkdir failed', async () => {
+    // Left to the store this surfaced as
+    //   ENOENT: no such file or directory, mkdir '/nope/.lore'
+    // — a raw errno naming an internal directory the user has never heard of,
+    // for a mistake in the one argument they can see.
+    expect(() => openContext(join(tmpdir(), 'lw-definitely-not-here-9f3a2c'))).toThrow(
+      /vault not found/,
+    );
+  });
+
+  it('says so when the path is a file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lw-notdir-'));
+    const file = join(root, 'notes.md');
+    await writeFile(file, '# not a vault\n');
+    expect(() => openContext(file)).toThrow(/not a directory/);
   });
 });
