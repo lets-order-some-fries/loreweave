@@ -119,10 +119,14 @@ export function extractFactsFromNote(
   if (!subject) return out;
 
   const seen = new Set<string>();
+  const subjectKey = subject.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const push = (predicate: string, rawObject: string, blockAnchor: string, confidence: number) => {
     const p = predicate.trim().replace(/[:*_`]+$/, '').trim();
     const o = cleanValue(rawObject);
     if (!plausiblePredicate(p) || !plausibleObject(o)) return;
+    // "writing-skills :: name :: writing-skills" states nothing. A fact whose
+    // object merely repeats its subject is noise in every view it appears in.
+    if (o.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim() === subjectKey) return;
     const key = `${p.toLowerCase()}|${o.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);

@@ -34,6 +34,16 @@ tags: [infra, storage]
     expect(all.map((f) => `${f.predicate}=${f.object}`)).toContain('Deputy=Sam Okoro');
   });
 
+  it('a fact whose object repeats its subject is dropped', () => {
+    // `name: writing-skills` on a note titled writing-skills states nothing,
+    // and showed up as noise in `ask` output on a real corpus.
+    const raw = '---\ntitle: writing-skills\nname: writing-skills\nstatus: stable\n---\n\n# X\n\nBody.\n';
+    const facts = extractFactsFromNote(parseNote('a.md', raw, 1));
+    expect(facts.some((f) => f.predicate === 'name')).toBe(false);
+    // an informative value on the same key survives
+    expect(facts.map((f) => f.predicate)).toContain('status');
+  });
+
   it('task list items are never facts', () => {
     const raw = `---\ntitle: PR\n---\n\n- [x] Bug fix (non-breaking change)\n- [ ] New feature\n`;
     const facts = extractFactsFromNote(parseNote('pr.md', raw, 1), 'all');
