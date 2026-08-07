@@ -37,6 +37,8 @@ export const ConfigSchema = z
         expansionDecay: z.number().min(0).max(1).default(0.45),
         /** Expansion results slot in after this many fused results. */
         expansionPromoteAfter: z.number().int().min(0).max(50).default(2),
+        /** Return one result per note, choosing that note's most relevant block. */
+        oneBlockPerNote: z.boolean().default(true),
         boosts: z
           .object({
             retrievability: z.number().default(0.15),

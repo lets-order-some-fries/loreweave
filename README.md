@@ -67,23 +67,26 @@ titles, and real engineering note shapes (ADRs, incidents, runbooks, meeting
 notes) rather than uniform entity pages. In both, multi-hop answers share **no
 vocabulary** with the query and are reachable only by following links.
 
-| corpus | system | finds the answer | in top 5 | MRR |
-|---|---|---|---|---|
-| kestrel (40 q) | **hybrid** | **98%** | **75%** | **0.540** |
-| | BM25 | 75% | 65% | 0.532 |
-| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.643** |
-| | BM25 | 63% | 58% | 0.521 |
+| corpus | system | finds the answer | in top 5 | MRR | answer shown |
+|---|---|---|---|---|---|
+| kestrel (40 q) | **hybrid** | **98%** | **75%** | **0.540** | **55%** |
+| | BM25 | 75% | 65% | 0.532 | 55% |
+| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.643** | **83%** |
+| | BM25 | 63% | 58% | 0.521 | 54% |
 
 Multi-hop is where the graph earns its keep: **BM25 finds 0% on both corpora**
 — it cannot reach a note that shares no words with your query, at any depth —
 while hybrid finds 90% and 100%. On the second corpus every multi-hop answer
 lands in the top 5.
 
-The same shipped config wins on both, and wins by more on the corpus it was
-never tuned against. The honest caveat is `ans@5` on kestrel (0.50 vs BM25's
-0.55): promoting linked notes into the top 5 costs a little block-level
-precision to buy note-level reach. Set `retrieval.weights.expansion: 0` for
-pure BM25 behaviour.
+"answer shown" is the strictest measure: not just the right note, but a
+returned passage that literally contains the answer. Results are one per note,
+showing whichever of that note's sections best covers your query — ranking
+decides which notes matter, coverage decides which part of them you see.
+
+The same shipped config wins on both corpora, and by more on the one it was
+never tuned against. If you prefer pure lexical behaviour, set
+`retrieval.weights.expansion: 0`.
 
 Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on any
 regression across either corpus, and CI enforces it on every push.

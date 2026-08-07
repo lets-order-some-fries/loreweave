@@ -50,6 +50,56 @@ export function matchQueryEntities(
 }
 
 
+
+/**
+ * Collapse a block ranking to one entry per note, replacing each note's block
+ * with whichever of ITS blocks best covers the query — including blocks that
+ * never entered the candidate set.
+ */
+function pickBestBlockPerNote(
+  ctx: LoreContext,
+  ranked: SearchResult[],
+  qTerms: string[],
+  k: number,
+): SearchResult[] {
+  const out: SearchResult[] = [];
+  const seen = new Set<string>();
+  const stmt = ctx.store.db.prepare(
+    `SELECT anchor, heading, text FROM blocks WHERE note_path=? AND archived=0 ORDER BY ord`,
+  );
+  for (const r of ranked) {
+    if (seen.has(r.notePath)) continue;
+    seen.add(r.notePath);
+    let best = r;
+    if (qTerms.length > 0) {
+      const blocks = stmt.all(r.notePath) as { anchor: string; heading: string; text: string }[];
+      let bestCov = -1;
+      for (const b of blocks) {
+        const hay = normalizeKey(`${b.heading} ${b.text}`);
+        const cov = qTerms.filter((t) => hay.includes(t)).length;
+        // ties keep the originally ranked block: it won on the full signal
+        if (cov > bestCov) {
+          bestCov = cov;
+          if (b.anchor !== r.anchor) {
+            best = {
+              ...r,
+              anchor: b.anchor,
+              heading: b.heading,
+              snippet: bestSnippet(b.text, qTerms),
+              coverage: qTerms.length ? Number((cov / qTerms.length).toFixed(3)) : 0,
+            };
+          } else {
+            best = r;
+          }
+        }
+      }
+    }
+    out.push(best);
+    if (out.length >= k) break;
+  }
+  return out;
+}
+
 /**
  * Pick the part of a block that actually answers the query.
  *
@@ -438,7 +488,13 @@ export async function search(
     if (li < linked.length) merged.push(linked[li++]!);
     if (pi < primary.length) merged.push(primary[pi++]!);
   }
-  const top = merged.slice(0, k);
+  // One entry per note, showing that note's most relevant block.
+  //
+  // Measured: in 10 of 40 questions the right NOTE ranked in the top 5 while
+  // the block holding the literal answer sat at rank 18-36 — we surfaced the
+  // right note and then showed the wrong section of it. Ranking decides which
+  // notes matter; within a note, query-term coverage decides which block.
+  const top = cfg.oneBlockPerNote ? pickBestBlockPerNote(ctx, merged, qTerms, k) : merged.slice(0, k);
 
   if (!opts.noLog) {
     const idByAnchor = new Map(rows.map((r) => [`${r.note_path} ${r.anchor}`, r.id]));
