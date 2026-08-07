@@ -28,6 +28,8 @@ export interface SearchOptions {
 export function matchQueryEntities(
   query: string,
   entityKeyIndex: Map<string, number>,
+  /** Optional per-entity IDF (see LoreGraph.entityIdf); scales seed mass. */
+  idfFor?: (entityNodeIdx: number) => number,
 ): Map<number, { key: string; mass: number }> {
   const tokens = normalizeKey(query).split(' ').filter(Boolean);
   const found = new Map<number, { key: string; mass: number }>();
@@ -42,7 +44,10 @@ export function matchQueryEntities(
       if (idx === undefined) continue;
       for (let j = i; j < i + len; j++) claimed.add(j);
       const prev = found.get(idx);
-      const mass = len; // longer entity names get more seed mass
+      // Longer entity names get more seed mass; ubiquitous ones get less. A
+      // floor keeps a common-but-real topic seeded rather than silenced —
+      // this decides emphasis, not membership.
+      const mass = len * Math.max(0.15, idfFor ? idfFor(idx) : 1);
       if (!prev || prev.mass < mass) found.set(idx, { key: gram, mass });
     }
   }
@@ -322,7 +327,9 @@ export async function search(
   // 3) graph: PPR seeded by matched query entities + dense/lexical block hits
   const graph = ctx.graph();
   const seeds = new Map<number, number>();
-  const matched = matchQueryEntities(query, graph.entityKeyIndex);
+  const matched = matchQueryEntities(query, graph.entityKeyIndex, (idx) =>
+    graph.entityIdf[idx - graph.blockCount] ?? 1,
+  );
   for (const [idx, m] of matched) seeds.set(idx, m.mass * 2);
   for (const [blockId, score] of denseScores) {
     const idx = graph.blockIndex.get(blockId);

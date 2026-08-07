@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.4.8 — 2026-08-07
+
+Read `ask` output on a real docs vault and followed one odd line: the answer to
+"when should I use a worktree" included a note about persuasion technique,
+reached "via use".
+
+- **A shouted word is emphasis, not an acronym.** `use` was an entity because
+  of "YOU MUST USE IT" — the acronym exemption fired on any all-caps token,
+  and that exemption exists precisely to rescue `NASA` and `API` *from* the
+  common-word filter, so unconditionally it resurrected the very words the
+  filter removes. Documentation shouts constantly, so this was a standing
+  mis-read of emphasis as vocabulary. `NASA` and `API` are unaffected.
+- **A contraction is not a person.** "I'm" tokenises to a capitalised `Im` and
+  tags PROPN, making it an entity in 9 of 39 notes in a vault whose every skill
+  opens by announcing itself. `O'Brien` and `D'Angelo` are untouched.
+- **Seed mass is scaled by inverse document frequency.** An entity mentioned
+  across a quarter of the vault is background, not a topic; spreading
+  activation from it reaches a quarter of the vault, which is the same as
+  reaching nothing. This is the general form of a stopword list, and unlike one
+  it needs no maintenance and adapts to whatever the vault is about.
+
+IDF alone would not have fixed `use` — it appears in two notes, so it is rare,
+just meaningless. Rare-and-meaningless needs the extractor;
+common-and-meaningless needs the weighting.
+
+Top entities on that vault are now TDD, Task, Review, API, Subagents, Gemini
+CLI, Copilot CLI, YAGNI. Both eval corpora unchanged.
+
 ## 0.4.7 — 2026-08-07
 
 Verified against the published package: the MCP wiring the README documents

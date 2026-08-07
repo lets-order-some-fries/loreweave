@@ -84,3 +84,38 @@ Example output follows. Core behaviour is unchanged.`;
     expect(keys).toContain('new york');
   });
 });
+
+describe('capitalisation lies that a docs vault tells constantly', () => {
+  const nlpNames = (raw: string) =>
+    extractEntities(parseNote('n.md', raw, 1))
+      .filter((e) => e.source === 'nlp')
+      .map((e) => e.display);
+
+  it('a shouted ordinary word is emphasis, not an acronym', () => {
+    // The acronym exemption exists to rescue NASA and API FROM the common-word
+    // filter. Applied to any all-caps token it resurrected the very words that
+    // filter removes — and documentation shouts constantly.
+    const names = nlpNames('IF A SKILL APPLIES TO YOUR TASK, YOU MUST USE IT. Never skip.\n');
+    expect(names.map((n) => n.toLowerCase())).not.toContain('use');
+  });
+
+  it('but a real acronym in the same breath survives', () => {
+    const names = nlpNames('You MUST call the NASA telemetry API before takeoff.\n');
+    expect(names).toContain('NASA');
+    expect(names).toContain('API');
+  });
+
+  it('a contraction is not a person', () => {
+    // "I'm" tokenises to a capitalised "Im", tags PROPN, and became one of the
+    // most-mentioned entities in a vault whose every skill opens by announcing
+    // itself: "I'm using the X skill to …".
+    const names = nlpNames("I'm using the executing-plans skill. We've verified it. It's fine.\n");
+    for (const bad of ['Im', "I'm", 'Weve', "We've", 'Its']) expect(names).not.toContain(bad);
+  });
+
+  it('an apostrophe inside a real name is untouched', () => {
+    const names = nlpNames("Siobhan O'Brien reviewed it with Luca D'Angelo.\n");
+    expect(names.join(' ')).toContain("O'Brien");
+    expect(names.join(' ')).toContain("D'Angelo");
+  });
+});
