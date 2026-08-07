@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.6 — 2026-08-07
+
+- **`lore_context_pack` says when it is showing a sample.** Every list in it is
+  capped and none of them said so: with 120 open facts it returned 30, next to
+  a `stats` block reporting `openFacts: 120`, with nothing connecting the two.
+  For this consumer that is the worst shape — an agent asked "what do we know
+  about X" reads `currentFacts`, does not find X, and answers that there is no
+  record. A truncation that reads as completeness is indistinguishable from an
+  answer, so there is nothing to notice and nothing to retry. The pack now
+  reports `{ shown, of, rest }` naming the tool that returns the remainder, and
+  omits the field entirely when nothing was cut.
+- **`capture` verified under concurrency.** Forty separate processes appending
+  at once produce forty well-formed lines — none interleaved, none lost — and
+  unicode, emoji and multi-line input all survive. Captured notes are findable
+  after the next index.
+
 ## 0.5.5 — 2026-08-07
 
 Verified the spaced-repetition layer end to end rather than inferring it from

@@ -70,7 +70,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.5.5' });
+  const server = new McpServer({ name: 'loreweave', version: '0.5.6' });
 
   server.registerTool(
     'lore_search',
@@ -109,32 +109,61 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     safe(async ({ topic }) => {
       const db = ctx.store.db;
       const c = (sql: string) => (db.prepare(sql).get() as any).c as number;
+      const FACT_LIMIT = 30;
+      const RECENT_LIMIT = 10;
+      const ENTITY_LIMIT = 15;
       const recent = db
-        .prepare(`SELECT path, title FROM notes ORDER BY mtime_ms DESC LIMIT 10`)
+        .prepare(`SELECT path, title FROM notes ORDER BY mtime_ms DESC LIMIT ${RECENT_LIMIT}`)
         .all();
       const topEntities = db
         .prepare(
           `SELECT e.display, COUNT(*) n FROM mentions m JOIN entities e ON e.id=m.entity_id
-           GROUP BY e.id ORDER BY n DESC LIMIT 15`,
+           GROUP BY e.id ORDER BY n DESC LIMIT ${ENTITY_LIMIT}`,
         )
         .all();
-      const facts = queryFacts(ctx.store, { limit: 30 }).map(
+      const factRows = queryFacts(ctx.store, { limit: FACT_LIMIT });
+      const facts = factRows.map(
         (f) => `${f.subjectDisplay} :: ${f.predicate} :: ${f.object} (since ${f.validFrom ?? '?'})`,
       );
       const hits = topic ? (await search(ctx, topic, { k: 6 })).map(leanHit) : [];
+      const stats = {
+        notes: c('SELECT COUNT(*) c FROM notes'),
+        blocks: c('SELECT COUNT(*) c FROM blocks'),
+        entities: c('SELECT COUNT(*) c FROM entities'),
+        openFacts: c(
+          'SELECT COUNT(*) c FROM facts WHERE valid_until IS NULL AND superseded_by IS NULL',
+        ),
+      };
+      // Say when a list is a sample rather than the whole set, and what to
+      // call for the rest. Every list here is capped, and an agent handed 30
+      // of 120 facts with nothing to indicate it will answer "we have no
+      // record of that" — a truncation that reads as completeness is worse
+      // than a long list, because it is indistinguishable from an answer.
+      const truncated: Record<string, { shown: number; of: number; rest: string }> = {};
+      if (stats.openFacts > facts.length) {
+        truncated.currentFacts = {
+          shown: facts.length,
+          of: stats.openFacts,
+          rest: 'lore_query_facts',
+        };
+      }
+      if (stats.notes > recent.length) {
+        truncated.recentNotes = { shown: recent.length, of: stats.notes, rest: 'lore_search' };
+      }
+      if (stats.entities > topEntities.length) {
+        truncated.topEntities = {
+          shown: topEntities.length,
+          of: stats.entities,
+          rest: 'lore_search',
+        };
+      }
       return {
-        stats: {
-          notes: c('SELECT COUNT(*) c FROM notes'),
-          blocks: c('SELECT COUNT(*) c FROM blocks'),
-          entities: c('SELECT COUNT(*) c FROM entities'),
-          openFacts: c(
-            'SELECT COUNT(*) c FROM facts WHERE valid_until IS NULL AND superseded_by IS NULL',
-          ),
-        },
+        stats,
         recentNotes: recent,
         topEntities,
         currentFacts: facts,
         topicHits: hits,
+        ...(Object.keys(truncated).length ? { truncated } : {}),
       };
     }),
   );

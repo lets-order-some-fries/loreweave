@@ -233,3 +233,54 @@ describe('mcp server', () => {
     expect(bad.content[0]!.text).toContain('ISO date');
   });
 });
+
+describe('context pack says when it is showing a sample', () => {
+  it('names what was truncated, out of how many, and what to call for the rest', async () => {
+    // Every list in the pack is capped. An agent handed 30 of 120 facts with
+    // nothing to indicate it will answer "we have no record of that" — a
+    // truncation that reads as completeness is worse than a long list,
+    // because it is indistinguishable from an answer.
+    for (let i = 0; i < 60; i++) {
+      await client.callTool({
+        name: 'lore_assert_fact',
+        arguments: {
+          subject: `Bulk Subject ${i}`,
+          predicate: 'status',
+          object: `value ${i}`,
+          validFrom: '2026-01-01',
+        },
+      });
+    }
+    const pack = parseText(await client.callTool({ name: 'lore_context_pack', arguments: {} }));
+    expect(pack.stats.openFacts).toBeGreaterThan(pack.currentFacts.length);
+    expect(pack.truncated?.currentFacts).toBeDefined();
+    expect(pack.truncated.currentFacts.shown).toBe(pack.currentFacts.length);
+    expect(pack.truncated.currentFacts.of).toBe(pack.stats.openFacts);
+    expect(pack.truncated.currentFacts.rest).toBe('lore_query_facts');
+  });
+
+  it('says nothing when nothing was cut', async () => {
+    // The field must be absent rather than empty, or every pack carries a
+    // block of zeros an agent has to read past.
+    const root = await makeVault({ 'only.md': '# Only\n\nOne small note.\n' });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const config = ConfigSchema.parse({});
+    let cached: LoreGraph | null = null;
+    const small: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => { cached = null; },
+      close: () => store.close(),
+    };
+    const srv = createLoreMcpServer(small);
+    const [c2, s2] = InMemoryTransport.createLinkedPair();
+    const cli = new Client({ name: 'small', version: '0' });
+    await Promise.all([cli.connect(c2), srv.connect(s2)]);
+    const pack = parseText(await cli.callTool({ name: 'lore_context_pack', arguments: {} }));
+    expect(pack.truncated).toBeUndefined();
+    await cli.close();
+    small.close();
+  });
+});
