@@ -49,6 +49,21 @@ export function pruneOrphanEntities(store: Store): number {
 }
 
 /** Is the process that claimed the index still alive? */
+/**
+ * State of the index-in-progress marker, so callers other than the indexer can
+ * tell a half-built index from a healthy one.
+ *
+ * `doctor` needs this most: on an index interrupted part-way it reported
+ * "broken links: 1091" for a vault whose links are all fine, because the notes
+ * those links point at had not been indexed yet. A health report that invents
+ * a catastrophe is worse than one that says it cannot tell yet.
+ */
+export function indexState(store: Store): 'clean' | 'interrupted' | 'running' {
+  const marker = store.getMeta('index_in_progress');
+  if (marker === null || marker === '0') return 'clean';
+  return isRunning(marker) ? 'running' : 'interrupted';
+}
+
 function isRunning(marker: string): boolean {
   const pid = Number(marker);
   if (!Number.isInteger(pid) || pid <= 0) return false;

@@ -7,7 +7,7 @@ import { verifyOrReset } from '../store/db.js';
 import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
-import { indexVault } from '../index/indexer.js';
+import { indexVault, indexState } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
   aggregateFacts,
@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.5.2')
+    .version('0.5.3')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -503,6 +503,18 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         const db = ctx.store.db;
         const integrity = db.pragma('integrity_check') as { integrity_check: string }[];
         io.out(`db integrity: ${healed ? 'was corrupt — index reset' : (integrity[0]?.integrity_check ?? 'unknown')}`);
+        // Everything below reads the index as if it described the vault. On a
+        // half-built index it does not, and the numbers are not merely
+        // approximate — they are alarming and wrong. Say so first.
+        const state = indexState(ctx.store);
+        if (state !== 'clean') {
+          io.out(
+            state === 'running'
+              ? 'index: an index is running right now — counts below are a moving target'
+              : 'index: INCOMPLETE (a previous index did not finish) — run `lore index`;' +
+                ' counts below describe the partial index, not the vault',
+          );
+        }
         // A link is broken when no NOTE resolves to its target. (Checking
         // against `entities` would never fire: every link target becomes an
         // entity by construction.)
@@ -551,6 +563,11 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description('vault statistics')
     .action(async () => {
       await withCtx((ctx) => {
+        // The same caveat doctor gives: these are index counts, and a
+        // half-built index is not a description of the vault.
+        if (indexState(ctx.store) === 'interrupted') {
+          io.out('index: INCOMPLETE (a previous index did not finish) — run `lore index`');
+        }
         const db = ctx.store.db;
         const c = (sql: string) => (db.prepare(sql).get() as any).c as number;
         io.out(`notes:    ${c('SELECT COUNT(*) c FROM notes')}`);

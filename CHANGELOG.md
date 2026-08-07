@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.3 — 2026-08-07
+
+Killed the indexer mid-run on a 1 200-note vault, with SIGTERM and then
+SIGKILL. Recovery is already sound — the next index notices the previous one
+did not finish, rebuilds, and search comes back correct, with database
+integrity ok after a hard kill. The reporting was not.
+
+- **`doctor` no longer reports a healthy vault as broken.** On a half-built
+  index it said `broken links: 1091` for a vault whose links are all fine — the
+  notes they point at simply had not been indexed yet. Specific, alarming and
+  confidently inverted, at the exact moment a user is already worried because
+  they just interrupted something.
+- **The indexer already knew.** It keeps a marker naming the indexing PID and
+  distinguishes a crashed run from a live one, but only the indexer read it.
+  That state is exported now, and both commands that read the index as though
+  it described the vault — `doctor` and `stats` — say so first.
+
+Tested three ways: an interrupted index is recognised, a live one is not
+mistaken for a dead one, and recovery reproduces exactly the blocks and links a
+clean index would have produced — "it rebuilds" only reassures if what it
+rebuilds is right.
+
 ## 0.5.2 — 2026-08-07
 
 Yesterday's migration was nearly wrong in a way that only appears on an
