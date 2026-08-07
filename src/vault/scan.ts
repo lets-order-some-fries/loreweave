@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { VaultFile } from '../types.js';
 
@@ -22,11 +22,29 @@ export function isDerivedNote(path: string): boolean {
  * Skips dot-directories and DEFAULT_IGNORES; extra names via `ignore`.
  * Returns vault-relative forward-slash paths, sorted for determinism.
  */
-export async function scanVault(root: string, ignore: string[] = []): Promise<VaultFile[]> {
+export async function scanVault(
+  root: string,
+  ignore: string[] = [],
+  opts: { followSymlinks?: boolean } = {},
+): Promise<VaultFile[]> {
   const ignoreSet = new Set([...DEFAULT_IGNORES, ...ignore]);
+  const follow = opts.followSymlinks !== false;
   const out: VaultFile[] = [];
+  // Real paths already walked. A symlinked directory pointing at an ancestor
+  // is an infinite tree; following links without this would never terminate.
+  const visited = new Set<string>();
 
   async function walk(dir: string, rel: string): Promise<void> {
+    if (follow) {
+      let real: string;
+      try {
+        real = await realpath(dir);
+      } catch {
+        return; // broken link or vanished directory
+      }
+      if (visited.has(real)) return;
+      visited.add(real);
+    }
     let entries;
     try {
       entries = await readdir(dir, { withFileTypes: true });
@@ -35,10 +53,24 @@ export async function scanVault(root: string, ignore: string[] = []): Promise<Va
     }
     for (const e of entries) {
       const name = e.name;
-      if (e.isDirectory()) {
+      // A symlink reports as neither file nor directory, so without this a
+      // folder symlinked into the vault was silently skipped — the notes were
+      // simply invisible, with nothing to indicate why.
+      let isDir = e.isDirectory();
+      let isFile = e.isFile();
+      if (follow && e.isSymbolicLink()) {
+        try {
+          const st = await stat(join(dir, name)); // follows the link
+          isDir = st.isDirectory();
+          isFile = st.isFile();
+        } catch {
+          continue; // dangling link
+        }
+      }
+      if (isDir) {
         if (name.startsWith('.') || ignoreSet.has(name)) continue;
         await walk(join(dir, name), rel ? `${rel}/${name}` : name);
-      } else if (e.isFile() && /\.md$/i.test(name) && !name.startsWith('.')) {
+      } else if (isFile && /\.md$/i.test(name) && !name.startsWith('.')) {
         const relPath = rel ? `${rel}/${name}` : name;
         if (isDerivedNote(relPath)) continue;
         const abs = join(dir, name);
