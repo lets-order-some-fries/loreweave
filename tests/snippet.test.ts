@@ -33,6 +33,35 @@ describe('bestSnippet', () => {
     expect(s).toContain('Target roles');
   });
 
+  it('finds an answer split across hard-wrapped lines', () => {
+    // Most markdown is wrapped, so the answering sentence is routinely split.
+    // Scoring single lines made each half count 1, losing to an unrelated
+    // earlier line that also counted 1.
+    const wrapped = [
+      'It indexes, links, remembers, forgets, and dreams.',
+      'Some unrelated filler sentence goes here to add length.',
+      'Your files stay exactly as they are. The vault is the source of truth; the index is a',
+      'cache you can delete at any time.',
+    ].join('\n');
+    const s = bestSnippet(wrapped, contentTerms('why is the index a cache'));
+    expect(s).toContain('index is a');
+    expect(s).toContain('cache you can delete');
+  });
+
+  it('does not present raw markup as the answer', () => {
+    const withHtml = [
+      '<h1 align="center">Loreweave</h1>',
+      '<p align="center">',
+      '  <a href="#quickstart">Quickstart</a>',
+      '</p>',
+      '---',
+      'The index is a disposable cache rebuilt from your notes.',
+    ].join('\n');
+    const s = bestSnippet(withHtml, contentTerms('index cache'));
+    expect(s).toContain('disposable cache');
+    expect(s).not.toMatch(/^<[a-z]/i);
+  });
+
   it('handles empty input safely', () => {
     expect(bestSnippet('', contentTerms('anything'))).toBe('');
     expect(bestSnippet('some text', [])).toBe('some text');

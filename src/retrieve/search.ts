@@ -114,41 +114,61 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
   const budget = Math.max(40, rawBudget);
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return '';
-  if (terms.length === 0) return lines.join(' ').slice(0, budget).trim();
+  const clip = (t: string) =>
+    t.length > budget ? `${t.slice(0, budget).trimEnd()} …` : t;
+  // Tags are layout, not content: a snippet is for reading, so `<h1
+  // align="center">Loreweave</h1>` should read as "Loreweave". The indexed
+  // text keeps the original — only the display is cleaned.
+  const stripTags = (t: string) => t.replace(/<\/?[a-zA-Z][^>]{0,120}>/g, ' ');
+  const join = (ls: string[]) =>
+    stripTags(ls.join(' ')).replace(/\s+/g, ' ').trim();
+  if (terms.length === 0) return clip(join(lines));
 
-  const score = (line: string): number => {
-    const l = normalizeKey(line);
-    let n = 0;
-    for (const t of terms) if (l.includes(t)) n++;
-    return n;
-  };
-  let bestIdx = 0;
+  const norm = lines.map((l) => normalizeKey(l));
+  // Lines that are pure markup carry no answer and read as noise when shown.
+  const isMarkup = (l: string) =>
+    /^\s*(<[^>]+>\s*)+$/.test(l) || /^\s*[-=*_]{3,}\s*$/.test(l) || /^\s*<\/?\w+[^>]*>\s*$/.test(l);
+
+  // Score WINDOWS, not single lines: markdown is usually hard-wrapped, so the
+  // sentence that answers a query is routinely split across two lines. Scoring
+  // lines alone let "…the index is a" / "cache you can delete…" each count 1,
+  // losing to an unrelated earlier line that also counted 1.
+  let bestStart = 0;
+  let bestEnd = 0;
   let bestScore = -1;
-  lines.forEach((l, i) => {
-    const sc = score(l);
-    // ties go to the earlier line: it is usually the more general statement
-    if (sc > bestScore) {
-      bestScore = sc;
-      bestIdx = i;
+  for (let i = 0; i < lines.length; i++) {
+    if (isMarkup(lines[i]!)) continue;
+    const covered = new Set<string>();
+    let used = 0;
+    for (let j = i; j < lines.length; j++) {
+      used += lines[j]!.length + 1;
+      if (used > budget && j > i) break;
+      for (const t of terms) if (norm[j]!.includes(t)) covered.add(t);
+      // prefer the tightest window achieving this coverage
+      if (covered.size > bestScore) {
+        bestScore = covered.size;
+        bestStart = i;
+        bestEnd = j;
+      }
+      if (used > budget) break;
     }
-  });
-  if (bestScore <= 0) return lines.join(' ').slice(0, budget).trim();
+  }
+  if (bestScore <= 0) {
+    const firstProse = lines.findIndex((l) => !isMarkup(l));
+    return clip(join(lines.slice(Math.max(0, firstProse))));
+  }
 
-  // The matching line is the answer: include it whole, then spend whatever
-  // budget is left on surrounding context. Growing outward first pushed the
-  // key line to the end where it got truncated mid-word.
-  const best = lines[bestIdx]!.trim();
-  const clip = (t: string) => (t.length > budget ? t.slice(0, budget).trimEnd() + ' …' : t);
-  if (best.length >= budget) return clip(best.replace(/\s+/g, ' '));
-
-  const after: string[] = [];
+  // Include the winning window whole, then spend leftover budget on context.
+  const core = lines.slice(bestStart, bestEnd + 1).map((l) => l.trim());
+  let used = core.reduce((n, l) => n + l.length + 1, 0);
+  if (used >= budget) return clip(join(core));
   const before: string[] = [];
-  let used = best.length;
-  let lo = bestIdx;
-  let hi = bestIdx;
+  const after: string[] = [];
+  let lo = bestStart;
+  let hi = bestEnd;
   while (used < budget) {
     let grew = false;
-    if (hi < lines.length - 1) {
+    if (hi < lines.length - 1 && !isMarkup(lines[hi + 1]!)) {
       const next = lines[hi + 1]!.trim();
       if (used + next.length + 1 <= budget) {
         after.push(next);
@@ -156,8 +176,11 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
         hi++;
         grew = true;
       }
+    } else if (hi < lines.length - 1) {
+      hi++; // skip markup without spending budget
+      grew = true;
     }
-    if (lo > 0) {
+    if (lo > 0 && !isMarkup(lines[lo - 1]!)) {
       const prev = lines[lo - 1]!.trim();
       if (used + prev.length + 1 <= budget) {
         before.unshift(prev);
@@ -165,10 +188,13 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
         lo--;
         grew = true;
       }
+    } else if (lo > 0) {
+      lo--; // skip markup
+      grew = true;
     }
     if (!grew) break;
   }
-  return [...before, best, ...after].join(' ').replace(/\s+/g, ' ').trim();
+  return join([...before, ...core, ...after]);
 }
 
 interface RankedList {
