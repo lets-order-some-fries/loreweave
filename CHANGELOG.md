@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.1 — 2026-08-07
+
+Checked the temporal query path against a vault where every mtime was touched
+to now, so file times carried no information at all. Content time held up:
+`--since`/`--until` filter on dates from the filename, the frontmatter and the
+prose; frontmatter wins when a filename and frontmatter date disagree; mtime is
+used only where the content carries no date of its own. `doctor` finds every
+broken link and all three graph export formats are well formed.
+
+- **`doctor` quotes each broken link the way the file spells it.** It printed
+  `alpha.md → [[sub/nope.md]]` for a line that reads
+  `[a broken one](sub/nope.md)`. The parser has always distinguished wiki from
+  markdown links and the store discarded it, so the report guessed wiki for
+  everything — sending the reader grepping for text that is not in their vault,
+  in the one report whose purpose is "go fix this line". Link style is now
+  persisted (schema v5).
+- **The migration invalidates what the old parser recorded.** Adding the column
+  was not enough: incremental indexing short-circuits on mtime *and* size
+  before it ever consults the hash, so clearing the hash alone changed nothing
+  and every upgraded vault would have kept the column default forever. All
+  three keys are cleared, so the next index reparses.
+
 ## 0.5.0 — 2026-08-07
 
 Built a vault of the shape someone would actually keep — dated daily notes, a

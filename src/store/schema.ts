@@ -167,4 +167,23 @@ export const MIGRATIONS: string[] = [
     INSERT INTO blocks_fts(rowid, text) VALUES (new.id, new.fts_text);
   END;
   `,
+  // v5 — how a link was written. The parser already distinguishes a
+  // `[[wiki link]]` from a `[markdown](one.md)` and the distinction was
+  // discarded on the way in, so `doctor` rendered every broken link as
+  // `[[target]]` — including ones the file spells `](target)`. A report whose
+  // whole purpose is "go fix this line" must quote the line as written, or the
+  // reader greps for text that is not there.
+  //
+  // The next index must reparse, or existing rows keep the column default and
+  // the schema is upgraded while the data still is not. Incremental indexing
+  // short-circuits on mtime AND size before it ever looks at the hash, so all
+  // three are cleared — clearing the hash alone changes nothing.
+  //
+  // A migration that changes what the parser records has to invalidate what
+  // the old parser recorded. This is what "the index is a disposable cache"
+  // is for.
+  `
+  ALTER TABLE links ADD COLUMN style TEXT NOT NULL DEFAULT 'wiki';
+  UPDATE notes SET hash = '', mtime_ms = -1, size = -1;
+  `,
 ];

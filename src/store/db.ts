@@ -178,7 +178,8 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
        VALUES (?,?,?,?,?,?,?,?,?)`,
     ),
     insLink: db.prepare(
-      `INSERT INTO links(note_path,block_anchor,target,target_norm,heading,alias) VALUES (?,?,?,?,?,?)`,
+      `INSERT INTO links(note_path,block_anchor,target,target_norm,heading,alias,style)
+       VALUES (?,?,?,?,?,?,?)`,
     ),
     delNote: db.prepare(`DELETE FROM notes WHERE path=?`),
     listNotes: db.prepare(`SELECT path, hash, mtime_ms, size FROM notes`),
@@ -249,6 +250,7 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
         linkMatchKey(note.path, l.target, l.style),
         l.heading ?? null,
         l.alias ?? null,
+        l.style,
       );
     }
     return ids;

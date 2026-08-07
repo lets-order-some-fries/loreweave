@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.5.0')
+    .version('0.5.1')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -517,12 +517,22 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           resolvable.add(normalizeKey(n.path.split('/').pop() ?? n.path));
         }
         const allLinks = db
-          .prepare(`SELECT DISTINCT note_path, target, target_norm FROM links WHERE target != ''`)
-          .all() as { note_path: string; target: string; target_norm: string }[];
+          .prepare(
+            `SELECT DISTINCT note_path, target, target_norm, style FROM links WHERE target != ''`,
+          )
+          .all() as { note_path: string; target: string; target_norm: string; style: string }[];
         const broken = allLinks.filter((l) => !resolvable.has(l.target_norm));
         if (broken.length) {
           io.out(`broken links: ${broken.length}`);
-          for (const b of broken.slice(0, 20)) io.out(`  ${b.note_path} → [[${b.target}]]`);
+          // Quote each link the way the file spells it. Rendering a markdown
+          // link as `[[target]]` sends the reader grepping for text that is
+          // not in their vault, in the one report whose entire purpose is
+          // "go fix this line".
+          for (const b of broken.slice(0, 20)) {
+            const shown = b.style === 'markdown' ? `](${b.target})` : `[[${b.target}]]`;
+            io.out(`  ${b.note_path} → ${shown}`);
+          }
+          if (broken.length > 20) io.out(`  … and ${broken.length - 20} more`);
         } else {
           io.out('broken links: 0');
         }

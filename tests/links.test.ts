@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { openStore } from '../src/store/db.js';
+import { parseNote } from '../src/vault/parse.js';
+import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
 import { parseNote } from '../src/vault/parse.js';
 import { linkMatchKey, resolveRelative } from '../src/normalize.js';
@@ -76,6 +78,54 @@ describe('markdown links build real graph edges', () => {
       (store.db.prepare(`SELECT importance i FROM blocks WHERE note_path=?`).get(p) as any).i;
     expect(imp('projects/beta.md')).toBeGreaterThan(imp('index.md'));
 
+    store.close();
+  });
+});
+
+describe('how a link was written is remembered', () => {
+  it('persists wiki vs markdown style', async () => {
+    // The parser has always distinguished them and the store discarded it, so
+    // `doctor` rendered every broken link as `[[target]]` — including ones the
+    // file spells `](target)`, sending the reader grepping for text that is
+    // not in their vault.
+    const store = openStore(':memory:');
+    store.upsertNote(
+      parseNote('a.md', '# A\n\nSee [[Beta]] and [also this](sub/real.md).\n', 1),
+    );
+    const rows = store.db
+      .prepare(`SELECT target, style FROM links ORDER BY style`)
+      .all() as { target: string; style: string }[];
+    expect(rows).toEqual([
+      { target: 'sub/real.md', style: 'markdown' },
+      { target: 'Beta', style: 'wiki' },
+    ]);
+    store.close();
+  });
+});
+
+describe('schema migration v5', () => {
+  it('forces a reparse so existing rows do not keep the column default', async () => {
+    // Incremental indexing short-circuits on mtime AND size before it ever
+    // looks at the hash, so a migration that clears only the hash changes
+    // nothing — the schema upgrades and the data does not.
+    const { MIGRATIONS } = await import('../src/store/schema.js');
+    const v5 = MIGRATIONS[4] ?? '';
+    expect(v5).toContain('style');
+    expect(v5).toMatch(/mtime_ms\s*=\s*-1/);
+    expect(v5).toMatch(/size\s*=\s*-1/);
+  });
+
+  it('an index written before the column still opens and upgrades', async () => {
+    const store = openStore(':memory:');
+    store.upsertNote(parseNote('a.md', '# A\n\n[md](b.md) and [[Wiki]]\n', 1));
+    const version = store.db
+      .prepare(`SELECT value FROM meta WHERE key='schema_version'`)
+      .get() as { value: string };
+    expect(Number(version.value)).toBeGreaterThanOrEqual(5);
+    const cols = (store.db.prepare(`PRAGMA table_info(links)`).all() as { name: string }[]).map(
+      (c) => c.name,
+    );
+    expect(cols).toContain('style');
     store.close();
   });
 });
