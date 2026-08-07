@@ -180,7 +180,8 @@ describe('mcp server', () => {
         arguments: { predicate: 'lives_in', groupBy: 'object' },
       }),
     );
-    expect(agg.length).toBeGreaterThanOrEqual(2);
+    expect(agg.groups.length).toBeGreaterThanOrEqual(2);
+    expect(agg.totalGroups).toBeGreaterThanOrEqual(agg.groups.length);
   });
 
   it('read_note returns markdown; path traversal is refused', async () => {

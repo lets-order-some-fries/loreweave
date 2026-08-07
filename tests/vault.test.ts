@@ -116,3 +116,42 @@ describe('scanVault', () => {
     expect(files.map((f) => f.path)).toEqual(['b.md', 'sub/a.md']);
   });
 });
+
+describe('oversized sections keep their line structure', () => {
+  it('a long list of fact lines survives the word cap', async () => {
+    // Markdown is line-structured and several consumers read it that way:
+    // `- [fact]` lines, Dataview fields, list items. Splitting an oversized
+    // paragraph by rejoining words with spaces merged them all into one — a
+    // note with 60 fact lines crossed the cap and 59 of the facts stopped
+    // existing, leaving one whose object was the rest of the list. The same
+    // note with 20 lines parsed perfectly, so it only broke past a size
+    // nobody thinks about.
+    const { parseFactLines } = await import('../src/facts/journal.js');
+    for (const n of [20, 60, 300]) {
+      const lines = Array.from(
+        { length: n },
+        (_, i) => `- [fact] Person${i} :: lives_in :: City ${i} {valid_from=2026-01-01}`,
+      );
+      const blocks = parseNote('f.md', `# Facts\n\n${lines.join('\n')}\n`, 1).blocks;
+      const facts = blocks.flatMap((b) => parseFactLines(b.text));
+      expect(facts, `${n} fact lines`).toHaveLength(n);
+      expect(facts[0]!.object).toBe('City 0');
+      expect(facts[n - 1]!.object).toBe(`City ${n - 1}`);
+    }
+  });
+
+  it('a list of Dataview fields survives it too', async () => {
+    const lines = Array.from({ length: 80 }, (_, i) => `- field${i}:: value ${i}`);
+    const note = parseNote('d.md', `# D\n\n${lines.join('\n')}\n`, 1);
+    const { extractFactsFromNote } = await import('../src/facts/extract.js');
+    const facts = extractFactsFromNote(note, 'explicit');
+    expect(facts.length).toBe(80);
+  });
+
+  it('but a single line longer than the budget is still split', async () => {
+    // The one case with no line boundary to use.
+    const blocks = parseNote('l.md', `# L\n\n${'word '.repeat(900).trim()}\n`, 1).blocks;
+    expect(blocks.length).toBeGreaterThan(1);
+    for (const b of blocks) expect(b.text.split(/\s+/).length).toBeLessThanOrEqual(350);
+  });
+});

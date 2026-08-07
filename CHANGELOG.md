@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.0 — 2026-08-07
+
+- **A long list of `- [fact]` lines no longer loses all but one of them.** An
+  oversized paragraph was split by rejoining its words with spaces. Markdown is
+  line-structured and several consumers read it that way — `- [fact]` lines,
+  Dataview fields, list items — so crossing 350 words in one paragraph merged
+  every line into one. A note with 60 fact lines parsed **one** fact, whose
+  object was the remainder of the list; the same note with 20 lines parsed all
+  20. Nothing failed and nothing warned. Paragraphs now split at line
+  boundaries, falling back to mid-line only for a single line that is itself
+  over budget. 300 fact lines parse as 300 facts.
+- **`aggregateFacts` reports how many groups exist.** It has always returned at
+  most 100 and said nothing, so "the computable layer" answered a question
+  about 150 distinct values with 100 rows that looked like the answer. It now
+  returns `{ groups, totalGroups, limit }` and accepts a `limit` — a breaking
+  change to that function's return shape, taken deliberately: an opt-in total
+  would have been the same design that produced the bug.
+
+`lore_dream_report` was checked in the same sweep and was already correct — it
+carries its totals and a `verbose` escape hatch.
+
 ## 0.5.6 — 2026-08-07
 
 - **`lore_context_pack` says when it is showing a sample.** Every list in it is

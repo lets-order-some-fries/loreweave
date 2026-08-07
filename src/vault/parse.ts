@@ -175,10 +175,40 @@ function hardSplit(s: string): string[] {
 function splitLongParagraph(p: string): string[] {
   const words = p.split(/\s+/);
   if (words.length <= MAX_BLOCK_WORDS) return hardSplit(p);
+
+  // Split at LINE boundaries, because markdown is line-structured and several
+  // consumers read it that way: `- [fact]` lines, Dataview fields, list items.
+  // Rejoining words with spaces silently merged them — measured, a note with
+  // 60 `- [fact]` lines crossed the word cap and 59 of the facts stopped
+  // existing, leaving one whose object was the rest of the list. Under the cap
+  // the same note parsed perfectly, so the failure appeared only past a size
+  // nobody thinks about.
+  const lines = p.split('\n');
   const out: string[] = [];
-  for (let i = 0; i < words.length; i += MAX_BLOCK_WORDS) {
-    out.push(words.slice(i, i + MAX_BLOCK_WORDS).join(' '));
+  let current: string[] = [];
+  let count = 0;
+  const flush = () => {
+    if (current.length) out.push(current.join('\n'));
+    current = [];
+    count = 0;
+  };
+  for (const line of lines) {
+    const w = line.split(/\s+/).filter(Boolean).length;
+    // A single line longer than the whole budget is the only case with no line
+    // boundary to use; only there does splitting mid-line remain the option.
+    if (w > MAX_BLOCK_WORDS) {
+      flush();
+      const lw = line.split(/\s+/);
+      for (let i = 0; i < lw.length; i += MAX_BLOCK_WORDS) {
+        out.push(lw.slice(i, i + MAX_BLOCK_WORDS).join(' '));
+      }
+      continue;
+    }
+    if (count > 0 && count + w > MAX_BLOCK_WORDS) flush();
+    current.push(line);
+    count += w;
   }
+  flush();
   return out.flatMap(hardSplit);
 }
 

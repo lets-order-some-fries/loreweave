@@ -216,13 +216,42 @@ describe('assert / supersede / time-travel', () => {
     assertFact(ctx, { subject: 'trip-2', predicate: 'trip_to', object: 'Japan', validFrom: '2025-09-01' });
     assertFact(ctx, { subject: 'trip-3', predicate: 'trip_to', object: 'Kenya', validFrom: '2026-01-15' });
     const byPlace = aggregateFacts(ctx.store, { predicate: 'trip_to', groupBy: 'object' });
-    expect(byPlace[0]).toEqual({ group: 'Japan', count: 2 });
+    expect(byPlace.groups[0]).toEqual({ group: 'Japan', count: 2 });
+    expect(byPlace.totalGroups).toBe(2); // Japan and Kenya — nothing hidden
     const in2025 = aggregateFacts(ctx.store, {
       predicate: 'trip_to',
       since: '2025-01-01',
       until: '2025-12-31',
     });
-    expect(in2025.reduce((a, b) => a + b.count, 0)).toBe(2);
+    expect(in2025.groups.reduce((a, b) => a + b.count, 0)).toBe(2);
+    ctx.close();
+  });
+
+  it('reports the number of groups that exist, not just the ones returned', async () => {
+    // The query has always capped at 100 groups and said nothing, so "the
+    // computable layer" answered a question about 150 distinct values with
+    // 100 rows and no indication that it had stopped counting.
+    const ctx = await emptyCtx();
+    for (let i = 0; i < 150; i++) {
+      assertFact(ctx, {
+        subject: `s${i}`,
+        predicate: 'lives_in',
+        object: `City ${i}`,
+        validFrom: '2026-01-01',
+      });
+    }
+    const agg = aggregateFacts(ctx.store, { predicate: 'lives_in', groupBy: 'object' });
+    expect(agg.groups).toHaveLength(100);
+    expect(agg.limit).toBe(100);
+    expect(agg.totalGroups).toBe(150);
+
+    const all = aggregateFacts(ctx.store, {
+      predicate: 'lives_in',
+      groupBy: 'object',
+      limit: 500,
+    });
+    expect(all.groups).toHaveLength(150);
+    expect(all.totalGroups).toBe(150);
     ctx.close();
   });
 

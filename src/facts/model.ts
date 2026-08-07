@@ -229,16 +229,32 @@ export interface AggregateQuery {
   /** Restrict to facts whose validity intersects [since, until]. */
   since?: string;
   until?: string;
+  /** Max groups returned (default 100); the total is reported regardless. */
+  limit?: number;
 }
 
 /**
  * Computable layer: counting/grouping over fact history — the queries
  * similarity retrieval fundamentally cannot answer (User as Code, 2026).
  */
-export function aggregateFacts(
-  store: Store,
-  q: AggregateQuery = {},
-): { group: string; count: number }[] {
+/**
+ * Grouped fact counts, with the number of groups that exist.
+ *
+ * The total is part of the return rather than something a caller may ask for,
+ * because the bug this replaces was exactly a caller not asking: the query has
+ * always capped at 100 groups and said nothing, so "the computable layer"
+ * answered a question about 150 distinct values with 100 rows and no
+ * indication. An opt-in total would have been the same design that produced
+ * that.
+ */
+export interface FactAggregate {
+  groups: { group: string; count: number }[];
+  /** How many groups exist in total; `groups` is the top `limit` of them. */
+  totalGroups: number;
+  limit: number;
+}
+
+export function aggregateFacts(store: Store, q: AggregateQuery = {}): FactAggregate {
   checkDate('since', q.since);
   checkDate('until', q.until);
   const groupBy = q.groupBy ?? 'object';
@@ -266,11 +282,18 @@ export function aggregateFacts(
     params.push(`${q.until}~`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  return store.db
+  const limit = q.limit ?? 100;
+  const groups = store.db
     .prepare(
       `SELECT ${col} AS grp, COUNT(*) AS count FROM facts ${where}
-       GROUP BY ${col} ORDER BY count DESC, grp ASC LIMIT 100`,
+       GROUP BY ${col} ORDER BY count DESC, grp ASC LIMIT ?`,
     )
-    .all(...params)
+    .all(...params, limit)
     .map((r: any) => ({ group: r.grp as string, count: r.count as number }));
+  const totalGroups = (
+    store.db
+      .prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM facts ${where} GROUP BY ${col})`)
+      .get(...params) as { c: number }
+  ).c;
+  return { groups, totalGroups, limit };
 }

@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.5.6')
+    .version('0.6.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -385,15 +385,21 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
       until?: string;
     }) => {
       await withCtx((ctx) => {
-        const rows = aggregateFacts(ctx.store, {
+        const agg = aggregateFacts(ctx.store, {
           subject: opts.subject,
           predicate: opts.predicate,
           groupBy: (opts.groupBy as 'object' | 'subject' | 'predicate') ?? 'object',
           since: opts.since,
           until: opts.until,
         });
-        if (!rows.length) io.out('no facts');
-        for (const r of rows) io.out(`${String(r.count).padStart(5)}  ${r.group}`);
+        if (!agg.groups.length) io.out('no facts');
+        for (const r of agg.groups) io.out(`${String(r.count).padStart(5)}  ${r.group}`);
+        // Counting is the point of this command, so a capped list has to say
+        // it is capped — otherwise "how many distinct values" is answered with
+        // the limit, and it looks like an answer.
+        if (agg.totalGroups > agg.groups.length) {
+          io.out(`  … showing the top ${agg.groups.length} of ${agg.totalGroups} groups`);
+        }
       });
     });
 
