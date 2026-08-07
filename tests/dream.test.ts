@@ -123,6 +123,34 @@ describe('dream', () => {
     ctx.close();
   });
 
+  it('long notes do not outrank specific ones just for being long', async () => {
+    // Raw IDF-sum rewarded length: two sprawling documents about the same
+    // project inevitably share vocabulary, so they buried genuinely specific
+    // pairs. Normalizing by note size asks whether they share MORE than
+    // length alone predicts.
+    // Each long note is mostly its OWN material and shares only a slice —
+    // the README-vs-research-doc shape. The tiny pair shares everything it has.
+    const fillerA = Array.from({ length: 60 }, (_, i) => `[[Alpha Topic ${i}]]`).join(' ');
+    const fillerB = Array.from({ length: 60 }, (_, i) => `[[Beta Topic ${i}]]`).join(' ');
+    const ctx = await ctxWith({
+      'long-a.md': `# Long A\n\n${fillerA} [[Shared One]] [[Shared Two]]\n`,
+      'long-b.md': `# Long B\n\n${fillerB} [[Shared One]] [[Shared Two]]\n`,
+      'tiny-a.md': '# Tiny A\n\nAbout [[Quokka Protocol]] and [[Nimbus Ledger]].\n',
+      'tiny-b.md': '# Tiny B\n\nAlso [[Quokka Protocol]] and [[Nimbus Ledger]].\n',
+    });
+    const r = dream(ctx);
+    const idx = (a: string, b: string) =>
+      r.linkSuggestions.findIndex(
+        (s) => [s.from, s.to].includes(a) && [s.from, s.to].includes(b),
+      );
+    const tiny = idx('tiny-a.md', 'tiny-b.md');
+    const long = idx('long-a.md', 'long-b.md');
+    expect(tiny).toBeGreaterThanOrEqual(0);
+    // the tiny pair shares its entire vocabulary; the long pair shares a slice
+    if (long >= 0) expect(tiny).toBeLessThan(long);
+    ctx.close();
+  });
+
   it('finds orphans, excluding lore/ notes', async () => {
     const ctx = await ctxWith({});
     const r = dream(ctx);

@@ -41,7 +41,10 @@ export interface LinkSuggestion {
   sharedEntities: string[];
   /** How many distinct entities actually back this pair (ranking uses this). */
   sharedCount: number;
-  /** Sum of IDF over the shared entities — rare co-mentions score higher. */
+  /**
+   * IDF-weighted shared evidence, normalized by note size. Rare co-mentions
+   * score higher; long notes do not score higher merely for being long.
+   */
   score: number;
 }
 
@@ -386,18 +389,36 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
     }
   }
 
+  // How many distinct entities each note mentions, for length normalization.
+  const noteSize = new Map<string, number>();
+  for (const r of db
+    .prepare(
+      `SELECT note_path, COUNT(DISTINCT entity_id) AS n FROM mentions
+       WHERE confidence >= 0.6 GROUP BY note_path`,
+    )
+    .all() as { note_path: string; n: number }[]) {
+    noteSize.set(r.note_path, r.n);
+  }
+
   const ranked: LinkSuggestion[] = [];
   for (const [pair, acc] of pairs) {
     if (acc.keys.length < 2) continue;
     const sp = pair.indexOf(' ');
+    const from = pair.slice(0, sp);
+    const to = pair.slice(sp + 1);
     acc.keys.sort((x, y) => y.idf - x.idf);
+    // Normalize by note size. Raw IDF-sum rewards long documents: two
+    // sprawling notes about the same project inevitably share vocabulary, so
+    // on a 5-note corpus every pair was "related to" every other pair. This
+    // asks whether they share MORE than their length alone predicts.
+    const denom = Math.sqrt((noteSize.get(from) ?? 1) * (noteSize.get(to) ?? 1)) || 1;
     ranked.push({
-      from: pair.slice(0, sp),
-      to: pair.slice(sp + 1),
+      from,
+      to,
       // rank on ALL the evidence; show only the strongest few
       sharedEntities: acc.keys.slice(0, 6).map((k) => k.key),
       sharedCount: acc.keys.length,
-      score: Number(acc.score.toFixed(3)),
+      score: Number((acc.score / denom).toFixed(4)),
     });
   }
   ranked.sort((x, y) => y.score - x.score);
