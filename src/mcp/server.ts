@@ -2,7 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { openContext, type LoreContext } from '../context.js';
+import { openContext, ensureIndexed, type LoreContext } from '../context.js';
 import { indexVault } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -70,7 +70,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.4.5' });
+  const server = new McpServer({ name: 'loreweave', version: '0.4.6' });
 
   server.registerTool(
     'lore_search',
@@ -381,6 +381,12 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
 }
 
 export async function startMcpServer(ctx: LoreContext): Promise<void> {
+  // Before serving a single request. An agent handed an empty index does not
+  // get an error it can react to — it gets `[]`, and reports to the user that
+  // they have nothing written on the subject.
+  await ensureIndexed(ctx, (n) =>
+    console.error(`[loreweave mcp] first run: indexing ${n} notes…`),
+  );
   const server = createLoreMcpServer(ctx);
   const transport = new StdioServerTransport();
   // Without these the server goes permanently deaf on a malformed or

@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { openContext, type LoreContext } from '../context.js';
+import { openContext, ensureIndexed, type LoreContext } from '../context.js';
 import { verifyOrReset } from '../store/db.js';
 import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.4.5')
+    .version('0.4.6')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -93,9 +93,23 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     return opt ? resolve(opt) : findVaultRoot(process.cwd());
   };
 
-  const withCtx = async <T>(fn: (ctx: LoreContext) => Promise<T> | T): Promise<T> => {
+  /**
+   * `autoIndex: false` for commands whose job is to report the state of the
+   * index itself — `index`, `doctor`, `stats`. Everywhere else an empty index
+   * is indexed on the spot, so no command ever answers a question about the
+   * vault's contents from an index that was never built.
+   */
+  const withCtx = async <T>(
+    fn: (ctx: LoreContext) => Promise<T> | T,
+    opts: { autoIndex?: boolean } = {},
+  ): Promise<T> => {
     const ctx = openContext(vaultRoot());
     try {
+      if (opts.autoIndex !== false) {
+        await ensureIndexed(ctx, (n) =>
+          console.error(`[loreweave] first run: indexing ${n} notes…`),
+        );
+      }
       return await fn(ctx);
     } finally {
       ctx.close();
@@ -167,7 +181,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
             io.out(`(similarity edges not refreshed — run: lore index --rebuild-similar)`);
           }
         }
-      });
+      }, { autoIndex: false });
     });
 
   program
@@ -487,7 +501,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         );
         const lastIndex = ctx.store.getMeta('last_index_at');
         io.out(`last index: ${lastIndex ?? 'never — run: lore index'}`);
-      });
+      }, { autoIndex: false });
     });
 
   program
@@ -510,7 +524,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           .all() as { display: string; n: number }[];
         io.out('top entities:');
         for (const t of top) io.out(`  ${String(t.n).padStart(4)}  ${t.display}`);
-      });
+      }, { autoIndex: false });
     });
 
   program

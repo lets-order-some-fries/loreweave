@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.6 — 2026-08-07
+
+Installed the published package into a clean directory and used it as a new
+user would. The first command typed said the wrong thing.
+
+- **A never-indexed vault no longer answers "no results".** `lore search` in a
+  vault of 39 notes replied `no results`; `ask` replied `nothing found`. That
+  is indistinguishable from a genuine miss, delivered at the one moment a new
+  user cannot tell the difference — it says the tool works and their notes are
+  empty. Only `doctor` told the truth. An empty index is now filled on the
+  spot, once, by any command that answers questions about the vault.
+- **Agents were affected worse than people.** Over MCP there was no error to
+  react to — just `[]`, which an agent reports as "you have nothing written on
+  this". The server now indexes before serving its first request.
+- **The commands that report on the index itself opt out.** `index`, `doctor`
+  and `stats` still show the true state, including that it is empty — as does a
+  genuinely empty vault, where "no results" is the correct answer.
+
 ## 0.4.5 — 2026-08-07
 
 Indexed a real 86-note documentation vault instead of a synthetic one. The
