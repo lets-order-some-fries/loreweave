@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.2 — 2026-08-07
+
+Presentation fixes, all found by running the tool on real documents. Each is a
+case where retrieval was already correct and the output made it look wrong —
+a class of defect recall metrics score as a success.
+
+- **Snippets find answers split across wrapped lines.** Markdown is almost
+  always hard-wrapped, so the sentence answering a query is routinely split in
+  two. Scoring lines individually let each half count one term and lose to an
+  unrelated earlier line, so a query about the index being a cache showed the
+  README's HTML header instead of the sentence saying exactly that. Snippets
+  now score windows of consecutive lines.
+- **Markup is no longer presented as content.** Tag-only lines are skipped when
+  choosing and extending a snippet, and tags are stripped from the rendered
+  text: `<h1 align="center">Loreweave</h1>` reads as "Loreweave". The indexed
+  text is untouched.
+- **Result lines stay readable.** The location line printed the full heading
+  breadcrumb, which reached 327 characters on a deeply nested note and buried
+  the snippet. It now shows the file and innermost heading; `--json` still
+  carries the exact anchor.
+- **Link suggestions no longer reward length.** Raw IDF-sum meant two sprawling
+  documents about one project always looked related. Scores are normalized by
+  note size, so the question is whether two notes share more than their length
+  predicts.
+
 ## 0.3.1 — 2026-08-07
 
 Fixes found by dogfooding a real documentation corpus.
