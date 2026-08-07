@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { loadConfig, ConfigSchema } from '../src/config.js';
+import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildProgram } from '../src/cli/main.js';
@@ -99,5 +103,68 @@ describe('README conformance', () => {
     const claim = README.match(/exposes (\d+) typed tools/);
     if (claim) expect(Number(claim[1])).toBe(registered.size);
     store.close();
+  });
+});
+
+describe('config', () => {
+  it('every key `lore init` writes is actually honoured', async () => {
+    // A key the schema does not know is stripped in silence, so a default
+    // config that drifted from the schema would configure nothing and say
+    // nothing.
+    const root = await mkdtemp(join(tmpdir(), 'lw-cfg-'));
+    const prog = buildProgram({ out: () => {}, err: () => {} });
+    await prog.parseAsync(['node', 'lore', '--vault', root, 'init']);
+    const written = JSON.parse(
+      await readFile(join(root, '.lore', 'config.json'), 'utf8'),
+    ) as Record<string, unknown>;
+
+    const warnings: string[] = [];
+    loadConfig(root, (m) => warnings.push(m));
+    expect(warnings).toEqual([]);
+
+    // and the values survive the round trip, not just the key names
+    const parsed = ConfigSchema.parse(written) as Record<string, unknown>;
+    const leafPaths = (o: unknown, p = ''): string[] =>
+      o && typeof o === 'object' && !Array.isArray(o)
+        ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) =>
+            leafPaths(v, p ? `${p}.${k}` : k),
+          )
+        : [p];
+    const get = (o: unknown, path: string) =>
+      path.split('.').reduce<any>((a, k) => a?.[k], o);
+    for (const path of leafPaths(written)) {
+      expect(get(parsed, path), `config key ${path}`).toEqual(get(written, path));
+    }
+  });
+
+  it('names a mistyped or mis-nested key instead of ignoring it', async () => {
+    // `{"index": {"nlp": false}}` is a very natural guess — nlp lives at the
+    // top level — and it used to be discarded whole with no output at all.
+    const root = await mkdtemp(join(tmpdir(), 'lw-cfg-bad-'));
+    await mkdir(join(root, '.lore'), { recursive: true });
+    await writeFile(
+      join(root, '.lore', 'config.json'),
+      JSON.stringify({ nlpp: false, index: { nlp: false }, retrieval: { kk: 9 } }),
+    );
+    const warnings: string[] = [];
+    loadConfig(root, (m) => warnings.push(m));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('nlpp');
+    expect(warnings[0]).toContain('index');
+    expect(warnings[0]).toContain('retrieval.kk');
+  });
+
+  it('says nothing about a config that is entirely valid', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'lw-cfg-ok-'));
+    await mkdir(join(root, '.lore'), { recursive: true });
+    await writeFile(
+      join(root, '.lore', 'config.json'),
+      JSON.stringify({ embedding: { provider: 'ollama' }, nlp: false, retrieval: { k: 12 } }),
+    );
+    const warnings: string[] = [];
+    const cfg = loadConfig(root, (m) => warnings.push(m));
+    expect(warnings).toEqual([]);
+    expect(cfg.nlp).toBe(false);
+    expect(cfg.retrieval.k).toBe(12);
   });
 });

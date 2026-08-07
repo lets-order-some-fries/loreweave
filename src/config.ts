@@ -83,7 +83,57 @@ export type LoreConfig = z.infer<typeof ConfigSchema>;
 export const LORE_DIR = '.lore';
 
 /** Load .lore/config.json (missing file → defaults; invalid → throws with detail). */
-export function loadConfig(vaultRoot: string): LoreConfig {
+/**
+ * Every key path a config may contain, derived from a fully-defaulted parse
+ * rather than from the schema's internals — so it stays correct on its own as
+ * the schema changes. Arrays are leaves.
+ */
+function knownConfigPaths(): Set<string> {
+  const out = new Set<string>();
+  const walk = (o: unknown, prefix: string) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return;
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      out.add(path);
+      walk(v, path);
+    }
+  };
+  walk(ConfigSchema.parse({}), '');
+  return out;
+}
+
+/**
+ * Report config keys that will be ignored.
+ *
+ * Zod strips unknown keys rather than rejecting them, so a typo or a wrong
+ * nesting level was accepted in silence and simply did nothing: `"nlpp": false`
+ * left NLP running, and `{"index": {"nlp": false}}` — a very natural guess,
+ * and one I made myself while working on this code — was discarded whole.
+ * Config is the worst possible place for that, because the user edits a file
+ * by hand and gets no feedback at all that they missed.
+ *
+ * A warning, not an error: refusing to start over an unrecognised key would
+ * mean a config written for a newer version bricks an older one.
+ */
+function unknownConfigPaths(json: unknown): string[] {
+  const known = knownConfigPaths();
+  const out: string[] = [];
+  const walk = (o: unknown, prefix: string) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return;
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      const path = prefix ? `${prefix}.${k}` : k;
+      if (!known.has(path)) {
+        out.push(path);
+        continue; // do not descend: everything under it is unknown too
+      }
+      walk(v, path);
+    }
+  };
+  walk(json, '');
+  return out;
+}
+
+export function loadConfig(vaultRoot: string, onWarn?: (msg: string) => void): LoreConfig {
   let raw: string;
   try {
     raw = readFileSync(join(vaultRoot, LORE_DIR, 'config.json'), 'utf8');
@@ -99,6 +149,15 @@ export function loadConfig(vaultRoot: string): LoreConfig {
   const res = ConfigSchema.safeParse(json);
   if (!res.success) {
     throw new Error(`.lore/config.json invalid: ${res.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+  }
+  if (onWarn) {
+    const unknown = unknownConfigPaths(json);
+    if (unknown.length) {
+      onWarn(
+        `.lore/config.json: ignoring unrecognised ${unknown.length === 1 ? 'key' : 'keys'} ` +
+          `${unknown.join(', ')} — check spelling and nesting`,
+      );
+    }
   }
   return res.data;
 }

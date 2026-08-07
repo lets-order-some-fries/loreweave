@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.4 — 2026-08-07
+
+- **A mistyped config key is named instead of ignored.** Zod strips unknown
+  keys rather than rejecting them, so a wrong key was accepted in silence and
+  had no effect: `{"nlpp": false}` left NLP running, and
+  `{"index": {"nlp": false}}` — a natural guess, since `nlp` lives at the top
+  level — was discarded whole. Config is the worst place for a silent no-op:
+  every other surface at least does something you can observe, while editing
+  config and re-running produces identical output whether the edit took effect
+  or not. Reported as a warning, not an error, so a config written for a newer
+  version does not brick an older one.
+- **`lore init`'s own config is checked against the schema.** That file is the
+  first config most users see; if it drifted it would configure nothing, and
+  nothing would say so.
+
+The set of known keys is derived from a fully-defaulted parse rather than from
+the schema's internals, so it stays correct on its own as the schema grows.
+
 ## 0.5.3 — 2026-08-07
 
 Killed the indexer mid-run on a 1 200-note vault, with SIGTERM and then

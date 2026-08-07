@@ -33,7 +33,7 @@ export function openContext(root: string, overrides?: { dbFile?: string }): Lore
     throw new Error(`vault not found: ${root}`);
   }
   if (!stat.isDirectory()) throw new Error(`vault is not a directory: ${root}`);
-  const config = loadConfig(root);
+  const config = loadConfig(root, (msg) => console.error(`[loreweave] ${msg}`));
   const store = openStore(overrides?.dbFile ?? dbPath(root), {
     onHeal: (msg) => console.error(`[loreweave] ${msg}`),
   });
