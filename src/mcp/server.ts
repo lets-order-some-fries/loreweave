@@ -47,22 +47,53 @@ function safe<A extends unknown[]>(
   };
 }
 
+/** The fields an agent acts on; score internals stay behind verbose. */
+function leanHit(h: {
+  notePath: string;
+  heading: string;
+  coverage: number;
+  snippet: string;
+  via: string[];
+}) {
+  return {
+    note: h.notePath,
+    section: h.heading || undefined,
+    match:
+      h.coverage >= 0.99
+        ? 'all query terms'
+        : h.coverage > 0
+          ? `${Math.round(h.coverage * 100)}% of query terms`
+          : 'linked, no term match',
+    text: h.snippet,
+    ...(h.via.length ? { linkedVia: h.via } : {}),
+  };
+}
+
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.3.2' });
+  const server = new McpServer({ name: 'loreweave', version: '0.3.3' });
 
   server.registerTool(
     'lore_search',
     {
       title: 'Search the vault',
       description:
-        'Hybrid retrieval over the markdown vault: BM25 + knowledge-graph spreading activation (+ dense embeddings when configured). Returns passages with provenance (notePath#anchor), score breakdown, and the entities connecting them to the query. Use for any "what do my notes say about X" question, including multi-hop associations.',
+        'Hybrid retrieval over the markdown vault: BM25 + knowledge-graph spreading activation (+ dense embeddings when configured). Returns one passage per note — the section that best covers your query — with the file it came from, how much of your query it matched, and any entity that linked it in. Use for any "what do my notes say about X" question, including multi-hop associations where the answer shares no words with the query. Pass verbose:true only if you need score internals.',
       inputSchema: {
         query: z.string().min(1).max(2000).describe('natural-language query'),
         k: z.number().int().min(1).max(50).optional().describe('max results (default 8)'),
-        since: z.string().optional().describe('only notes modified on/after this ISO date'),
+        since: z.string().optional().describe('only content dated on/after this ISO date'),
+        until: z.string().optional().describe('only content dated on/before this ISO date'),
+        verbose: z.boolean().optional().describe('include score breakdown and block anchors'),
       },
     },
-    safe(async ({ query, k, since }) => search(ctx, query, { k, since })),
+    safe(async ({ query, k, since, until, verbose }) => {
+      const hits = await search(ctx, query, { k, since, until });
+      if (verbose) return hits;
+      // Lean by default: an agent acts on the text and its source, not on
+      // five floats. Measured, the full shape cost ~1,290 tokens per search —
+      // most of it score internals at 17 significant digits.
+      return hits.map(leanHit);
+    }),
   );
 
   server.registerTool(
@@ -90,7 +121,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       const facts = queryFacts(ctx.store, { limit: 30 }).map(
         (f) => `${f.subjectDisplay} :: ${f.predicate} :: ${f.object} (since ${f.validFrom ?? '?'})`,
       );
-      const hits = topic ? await search(ctx, topic, { k: 6 }) : [];
+      const hits = topic ? (await search(ctx, topic, { k: 6 })).map(leanHit) : [];
       return {
         stats: {
           notes: c('SELECT COUNT(*) c FROM notes'),
@@ -223,9 +254,38 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       title: 'Consolidation report',
       description:
         'Run the consolidation pass: duplicate passages, contradicting/recently-changed facts, stale knowledge needing review, suggested missing links, orphan notes. Read-only unless apply=true (which writes a digest + review queue under lore/).',
-      inputSchema: { apply: z.boolean().optional() },
+      inputSchema: {
+        apply: z.boolean().optional(),
+        verbose: z.boolean().optional().describe('return every finding rather than a summary'),
+      },
     },
-    safe(({ apply }) => dream(ctx, { apply })),
+    safe(({ apply, verbose }) => {
+      const r = dream(ctx, { apply });
+      if (verbose) return r;
+      // A summary plus the few findings worth acting on. The full report ran
+      // to ~2,600 tokens, most of it long tails nobody reads in one sitting.
+      return {
+        stats: r.stats,
+        totals: r.totals,
+        inactive: r.inactive,
+        contradictions: r.contradictions.slice(0, 5),
+        stale: r.stale.slice(0, 5),
+        duplicates: r.duplicates.slice(0, 5).map((d) => ({
+          a: `${d.a.notePath}#${d.a.anchor}`,
+          b: `${d.b.notePath}#${d.b.anchor}`,
+          similarity: d.jaccard,
+        })),
+        linkSuggestions: r.linkSuggestions.slice(0, 5).map((l) => ({
+          from: l.from,
+          to: l.to,
+          sharedCount: l.sharedCount,
+          shared: l.sharedEntities.slice(0, 4),
+        })),
+        orphans: r.orphans.slice(0, 10),
+        written: r.written,
+        note: 'summary — pass verbose:true for every finding',
+      };
+    }),
   );
 
 

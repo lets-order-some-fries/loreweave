@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.3 — 2026-08-07
+
+Context economy on the MCP surface, plus a presentation fix.
+
+Agent tool responses are the product's main interface, and every token spent
+on score internals is a token not spent on the user's actual task. Measured
+against a real 40-note vault:
+
+| tool | before | after |
+|---|---|---|
+| `lore_search` | ~1,290 tokens | **~735** |
+| `lore_context_pack` | ~1,470 tokens | **~1,000** |
+| `lore_dream_report` | ~2,640 tokens | **~580** |
+
+- **Search returns what an agent acts on** — the note, the section, the text,
+  and how much of the query it matched — instead of five floats at seventeen
+  significant digits. `verbose: true` restores the full shape.
+- **The dream report returns a summary** with the few findings worth acting
+  on; `verbose: true` returns every finding.
+- **Horizontal rules no longer leak into snippets.** The markup filter ran
+  when choosing and extending, but not at render, so a `---` between the
+  chosen window and its context still reached the output.
+
 ## 0.3.2 — 2026-08-07
 
 Presentation fixes, all found by running the tool on real documents. Each is a

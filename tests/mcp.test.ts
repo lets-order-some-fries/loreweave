@@ -83,11 +83,41 @@ describe('mcp server', () => {
     for (const c of res.candidates) expect(c.source).toMatch(/\.md/);
   });
 
-  it('search finds fixture content', async () => {
+  it('search returns a lean, actionable shape by default', async () => {
     const res = parseText(
       await client.callTool({ name: 'lore_search', arguments: { query: 'meltwater sensor' } }),
     );
+    expect(res[0].note).toBe('data/glacier-dataset.md');
+    expect(typeof res[0].text).toBe('string');
+    expect(res[0].match).toMatch(/query terms|linked/);
+    // score internals are noise for an agent and cost real context
+    expect(res[0].parts).toBeUndefined();
+    expect(res[0].score).toBeUndefined();
+  });
+
+  it('verbose search still exposes score internals', async () => {
+    const res = parseText(
+      await client.callTool({
+        name: 'lore_search',
+        arguments: { query: 'meltwater sensor', verbose: true },
+      }),
+    );
     expect(res[0].notePath).toBe('data/glacier-dataset.md');
+    expect(res[0].parts).toBeDefined();
+    expect(typeof res[0].score).toBe('number');
+  });
+
+  it('the lean shape is materially cheaper than the verbose one', async () => {
+    const lean = parseText(
+      await client.callTool({ name: 'lore_search', arguments: { query: 'riverbed protocol' } }),
+    );
+    const full = parseText(
+      await client.callTool({
+        name: 'lore_search',
+        arguments: { query: 'riverbed protocol', verbose: true },
+      }),
+    );
+    expect(JSON.stringify(lean).length).toBeLessThan(JSON.stringify(full).length * 0.75);
   });
 
   it('context pack orients a session', async () => {

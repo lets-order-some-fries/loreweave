@@ -466,12 +466,12 @@ export async function search(
       heading: r.heading,
       // Show the line that matched, not wherever FTS5 happened to point.
       snippet: bestSnippet(r.text, qTerms) || (lexSnippets.get(r.id) ?? ''),
-      score,
+      score: Number(score.toFixed(6)),
       // Raw BM25 for the caller to judge absolute match strength. The fused
       // score is a rank-fusion artifact: with no access history it is nearly
       // constant, so a nonsense query and a bullseye both scored ~0.0328 and
       // looked identical.
-      lexicalScore: lexScores.get(r.id) ?? 0,
+      lexicalScore: Number((lexScores.get(r.id) ?? 0).toFixed(3)),
       coverage: qTerms.length
         ? Number(
             (
@@ -481,11 +481,11 @@ export async function search(
           )
         : 0,
       parts: {
-        lexical: lexicalRanks.has(r.id) ? 1 / (cfg.rrfK + lexicalRanks.get(r.id)!) : 0,
-        dense: denseRanks.has(r.id) ? 1 / (cfg.rrfK + denseRanks.get(r.id)!) : 0,
-        graph: graphRanks.has(r.id) ? 1 / (cfg.rrfK + graphRanks.get(r.id)!) : 0,
-        retrievability: R,
-        importance: r.importance,
+        lexical: Number((lexicalRanks.has(r.id) ? 1 / (cfg.rrfK + lexicalRanks.get(r.id)!) : 0).toFixed(6)),
+        dense: Number((denseRanks.has(r.id) ? 1 / (cfg.rrfK + denseRanks.get(r.id)!) : 0).toFixed(6)),
+        graph: Number((graphRanks.has(r.id) ? 1 / (cfg.rrfK + graphRanks.get(r.id)!) : 0).toFixed(6)),
+        retrievability: Number(R.toFixed(4)),
+        importance: Number(r.importance.toFixed(4)),
       },
       via: [...new Set(via)],
     });
