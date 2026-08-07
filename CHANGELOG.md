@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.2 — 2026-08-07
+
+Yesterday's migration was nearly wrong in a way that only appears on an
+upgrade, never on a fresh install — so the upgrade path got checked properly
+rather than the one hop that happened to get tested.
+
+- **Verified against real installs.** 0.1.0, 0.2.0, 0.3.0, 0.3.5 and 0.4.0 were
+  installed from npm, each indexed a vault, and the current build then opened
+  the same database. All five upgrade cleanly — schema v1, v3 and v4 all reach
+  v5, reparse, and still answer searches. Nothing was broken; that is worth
+  knowing rather than assuming, because a failed migration does not degrade the
+  tool, it stops it starting.
+- **Reproduced in the suite without the network.** Each historical schema is
+  now built from the migration list itself, so every future migration is
+  checked against every old database automatically, rather than against
+  whichever version someone remembers to install.
+- **The specific mistake is pinned.** Incremental indexing short-circuits on
+  mtime *and* size before it consults the hash, so a migration that clears only
+  the hash changes nothing. The test fails if that invalidation is weakened.
+
 ## 0.5.1 — 2026-08-07
 
 Checked the temporal query path against a vault where every mtime was touched
