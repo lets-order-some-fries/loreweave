@@ -15,6 +15,7 @@
  */
 import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const SERVICES = [
   { id: 'gatekeeper', title: 'Gatekeeper', role: 'edge authentication', owner: 'Rosalind Feddersen', dep: 'quarry-cache' },
@@ -146,6 +147,6 @@ export function buildVault2(outDir, { quiet = true } = {}) {
   return { notes: written.length };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   buildVault2(process.argv[2] ?? join(dirname(new URL(import.meta.url).pathname), '..', 'vault2'), { quiet: false });
 }

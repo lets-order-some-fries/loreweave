@@ -1,6 +1,7 @@
 /** Render the Kestrel Basin vault to disk from the domain model. */
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   people, stations, instruments, datasets, projects, expeditions, methods, papers, orgs, forbidden,
 } from './domain.mjs';
@@ -308,7 +309,7 @@ return { notes: written.length, violations };
 }
 
 // CLI use: node eval/gen/build-vault.mjs [outDir]
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const target = process.argv[2] ?? join(dirname(new URL(import.meta.url).pathname), '..', 'vault');
   buildVault(target, { quiet: false });
 }

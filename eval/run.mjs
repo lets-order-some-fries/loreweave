@@ -18,7 +18,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
@@ -37,7 +37,11 @@ if (!existsSync(dist)) {
   console.error('dist/ not built — run `npm run build` first.');
   process.exit(2);
 }
-const { openContext, indexVault, search, ppr, matchQueryEntities } = await import(dist);
+// Dynamic import of an ABSOLUTE path must go through a file:// URL: on
+// Windows, `D:\...` is parsed as protocol "d:" and rejected by the ESM loader.
+const { openContext, indexVault, search, ppr, matchQueryEntities } = await import(
+  pathToFileURL(dist).href
+);
 // Two corpora. The second exists to catch overfitting: same shipped config,
 // a vault with different link syntax, note shapes and vocabulary. A config
 // tuned to one benchmark will win there and lose here.
