@@ -70,9 +70,15 @@ describe('parseNote', () => {
     expect(text).toContain('People');
   });
 
-  it('an empty note produces no blocks', () => {
-    expect(parseNote('empty.md', '', 1).blocks).toEqual([]);
-    expect(parseNote('ws.md', '   \n\n  \n', 1).blocks).toEqual([]);
+  it('an empty note is still findable by its name', () => {
+    // Creating `Quokka Protocol.md` and leaving it empty is the same stub
+    // workflow as a heading-only note; the filename is the content.
+    const empty = parseNote('Quokka Protocol.md', '', 1);
+    expect(empty.blocks).toHaveLength(1);
+    expect(empty.blocks[0]!.text).toContain('Quokka Protocol');
+
+    const ws = parseNote('Nimbus Ledger.md', '   \n\n  \n', 1);
+    expect(ws.blocks[0]!.text).toContain('Nimbus Ledger');
   });
 
   it('headings with bodies are unaffected', () => {

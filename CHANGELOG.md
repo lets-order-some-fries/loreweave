@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.2 — 2026-08-07
+
+- **Frontmatter-only and empty notes are findable.** A note whose entire
+  content is frontmatter — a metadata record, a template stub — produced no
+  blocks and could not be found by its own title. Its title and scalar
+  frontmatter values are now indexed, so both `Marmoset` and `active` find
+  `title: Marmoset Index / status: active`. An empty file is likewise findable
+  by its filename, which is the same stub workflow.
+- **A sweep of note shapes is now a permanent test.** Twelve shapes — code
+  block, table, list, frontmatter, heading, MOC, image, single word, CRLF, BOM,
+  no trailing newline, blockquote — must each be findable by a word they
+  contain, and every note must produce at least one block. This failure mode is
+  silent: the note indexes without error, `stats` counts it, and every search
+  returns nothing.
+
 ## 0.4.1 — 2026-08-07
 
 - **Notes that are only headings are searchable.** A note containing just

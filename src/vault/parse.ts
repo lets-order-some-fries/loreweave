@@ -284,6 +284,26 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
     // link extraction in the heading line itself (rare, skip otherwise)
   }
 
+  // A note whose entire content is frontmatter — a metadata record, a
+  // dataview-style entry, a template stub — otherwise produced no blocks and
+  // could not be found by its own title.
+  if (blocks.length === 0) {
+    const parts = [title];
+    for (const [k, v] of Object.entries(fm)) {
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+        parts.push(`${k}: ${v}`);
+      } else if (Array.isArray(v)) {
+        for (const item of v) {
+          if (typeof item === 'string' || typeof item === 'number') parts.push(String(item));
+        }
+      }
+    }
+    const text = parts.filter(Boolean).join(' · ').trim();
+    if (text) {
+      blocks.push({ anchor: '@0', heading: '', order: 0, text, hash: sha1(text) });
+    }
+  }
+
   return {
     path,
     title,
