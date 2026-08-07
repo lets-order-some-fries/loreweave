@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 — 2026-08-07
+
+- **Notes that are only headings are searchable.** A note containing just
+  `# Quokka Protocol` produced zero blocks and could not be found by searching
+  for its own title. Stub notes — the kind created by following a link before
+  writing anything — and index/MOC notes built from headings were entirely
+  invisible, while the note count reported them as indexed. A heading with no
+  body is now treated as its own content. Measured on a 3-note vault: 1 block
+  became 5, and both previously-unfindable notes are found.
+
 ## 0.4.0 — 2026-08-07
 
 ### CJK vaults now work

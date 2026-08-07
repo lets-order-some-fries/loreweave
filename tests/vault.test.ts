@@ -56,6 +56,30 @@ describe('parseNote', () => {
     expect(bigAnchors).toEqual(['Big@0', 'Big@1', 'Big@2']);
   });
 
+  it('a note that is only a heading is still indexable', () => {
+    // Stub notes (created by following a link) and index/MOC notes are often
+    // nothing but headings. They produced zero blocks and were invisible: a
+    // note titled "Quokka Protocol" could not be found by searching for it.
+    const stub = parseNote('stub.md', '# Quokka Protocol\n', 1);
+    expect(stub.blocks.length).toBeGreaterThan(0);
+    expect(stub.blocks[0]!.text).toContain('Quokka Protocol');
+
+    const moc = parseNote('moc.md', '# Index\n\n## Projects\n\n## People\n', 1);
+    const text = moc.blocks.map((b) => b.text).join(' ');
+    expect(text).toContain('Projects');
+    expect(text).toContain('People');
+  });
+
+  it('an empty note produces no blocks', () => {
+    expect(parseNote('empty.md', '', 1).blocks).toEqual([]);
+    expect(parseNote('ws.md', '   \n\n  \n', 1).blocks).toEqual([]);
+  });
+
+  it('headings with bodies are unaffected', () => {
+    const n = parseNote('n.md', '# A\n\nbody of a\n\n## B\n\nbody of b\n', 1);
+    expect(n.blocks.map((b) => b.text)).toEqual(['body of a', 'body of b']);
+  });
+
   it('handles unicode content and paths', () => {
     const raw = `# Überblick\n\nNaïve café — 中文内容 #标签\n`;
     const n = parseNote('notes/日本語.md', raw, 1);

@@ -257,8 +257,16 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
   let order = 0;
   for (const sec of sections) {
     const headingKey = sec.headingPath.join('/');
-    const chunks = chunkText(sec.lines.join('\n'));
+    let chunks = chunkText(sec.lines.join('\n'));
+    // A heading with no body IS the content. Stub notes (created by following
+    // a link) and index/MOC notes are often nothing but headings; without
+    // this they produced zero blocks and were entirely unsearchable — a note
+    // titled "Quokka Protocol" could not be found by searching for it.
+    if (chunks.length === 0 && sec.headingPath.length > 0) {
+      chunks = [sec.headingPath[sec.headingPath.length - 1] ?? ''];
+    }
     for (const chunk of chunks) {
+      if (!chunk) continue;
       const seq = anchorCounts.get(headingKey) ?? 0;
       anchorCounts.set(headingKey, seq + 1);
       const anchor = `${headingKey}@${seq}`;
