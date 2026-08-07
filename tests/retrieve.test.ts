@@ -127,3 +127,46 @@ describe('matchQueryEntities', () => {
     ctx.close();
   });
 });
+
+describe('block selection', () => {
+  it('does not show a diagram when a sibling section says it in words', async () => {
+    // A generated diagram restates the vocabulary of the prose it illustrates,
+    // so it ties on term coverage — and ties went to whichever block came
+    // first, which is the diagram. Same note, same heading, no answer.
+    const root = await makeVault({
+      'tdd.md': [
+        '# TDD',
+        '',
+        '## Red-Green-Refactor',
+        '',
+        '```dot',
+        'digraph tdd_cycle {',
+        '  red [label="RED\\nWrite failing test", shape=box];',
+        '  verify [label="Verify fails\\ncorrectly", shape=diamond];',
+        '}',
+        '```',
+        '',
+        '### Verify RED',
+        '',
+        'Watch the test fail. Confirm it fails for the right reason before you write code.',
+        '',
+      ].join('\n'),
+    });
+    const config = ConfigSchema.parse({});
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    let cached: LoreGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => { cached = null; },
+      close: () => store.close(),
+    };
+    const hits = await search(ctx, 'what should I do when a test fails', { k: 3 });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]!.snippet).not.toContain('digraph');
+    expect(hits[0]!.snippet).toContain('fail');
+    ctx.close();
+  });
+});

@@ -51,6 +51,38 @@ export function matchQueryEntities(
 
 
 
+/** Per-line mask of which lines sit inside (or open/close) a code fence. */
+function fencedMask(lines: string[]): boolean[] {
+  const mask: boolean[] = [];
+  let fenced = false;
+  for (const l of lines) {
+    const marker = /^\s*(```|~~~)/.test(l);
+    if (marker) fenced = !fenced;
+    mask.push(fenced || marker);
+  }
+  return mask;
+}
+
+/**
+ * True when a block is nothing but fenced source — a mermaid or graphviz
+ * diagram, a JSON dump, a config listing.
+ *
+ * Such a block is a trap for term coverage: generated source restates the
+ * vocabulary of the prose it illustrates, so it matches as well as the prose
+ * while being unreadable as an answer. Measured on a real docs vault, "what
+ * should I do when a test fails" chose an 800-character `digraph tdd_cycle {
+ * … label="RED\nWrite failing test" … }` over the sibling section that says,
+ * in words, what to do — same heading, same query terms, no answer.
+ *
+ * Code is not disqualifying: often the example IS the answer. It just has to
+ * beat the readable alternative outright rather than on a tie.
+ */
+function isAllFencedSource(text: string): boolean {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return false;
+  return fencedMask(lines).every(Boolean);
+}
+
 /**
  * Collapse a block ranking to one entry per note, replacing each note's block
  * with whichever of ITS blocks best covers the query — including blocks that
@@ -77,9 +109,12 @@ function pickBestBlockPerNote(
       for (const b of blocks) {
         const hay = normalizeKey(`${b.heading} ${b.text}`);
         const cov = qTerms.filter((t) => hay.includes(t)).length;
+        // Half a term of penalty, so a block of pure generated source has to
+        // cover strictly MORE of the query than a readable one to be chosen.
+        const score = cov - (isAllFencedSource(b.text) ? 0.5 : 0);
         // ties keep the originally ranked block: it won on the full signal
-        if (cov > bestCov) {
-          bestCov = cov;
+        if (score > bestCov) {
+          bestCov = score;
           if (b.anchor !== r.anchor) {
             best = {
               ...r,
@@ -125,13 +160,33 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
   // align="center">Loreweave</h1>` should read as "Loreweave". The indexed
   // text keeps the original — only the display is cleaned.
   const stripTags = (t: string) => t.replace(/<\/?[a-zA-Z][^>]{0,120}>/g, ' ');
+  // A bare fence marker is punctuation for the renderer, not content. Left in,
+  // a preview reads "``` Confirm: - Test fails" and spends its first
+  // characters on nothing. Display-only: scoring still sees the real lines.
+  const isFenceMarker = (l: string) => /^\s*(```|~~~)\S*\s*$/.test(l);
   const join = (ls: string[]) =>
-    stripTags(ls.filter((l) => !isMarkup(l)).join(' '))
+    stripTags(ls.filter((l) => !isMarkup(l) && !isFenceMarker(l)).join(' '))
       .replace(/\s+/g, ' ')
       .trim();
   if (terms.length === 0) return clip(join(lines));
 
   const norm = lines.map((l) => normalizeKey(l));
+
+  // Which lines sit inside a fenced code block. Code is not disqualifying — an
+  // example is often exactly the answer, and the best snippets read as prose
+  // that runs into one. But a window made of NOTHING but fenced source is a
+  // bad preview even when it matches well, because generated source repeats
+  // the vocabulary of the prose around it. Measured on a real docs vault,
+  // "what should I do when a test fails" returned the correct section of the
+  // TDD skill showing `digraph tdd_cycle { rankdir=LR; red [label="RED…` —
+  // right answer, unreadable evidence.
+  const inFence: boolean[] = [];
+  let fenced = false;
+  for (const l of lines) {
+    const isFenceMarker = /^\s*(```|~~~)/.test(l);
+    if (isFenceMarker) fenced = !fenced;
+    inFence.push(fenced || isFenceMarker);
+  }
 
   // Score WINDOWS, not single lines: markdown is usually hard-wrapped, so the
   // sentence that answers a query is routinely split across two lines. Scoring
@@ -144,13 +199,21 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
     if (isMarkup(lines[i]!)) continue;
     const covered = new Set<string>();
     let used = 0;
+    let allCode = true;
     for (let j = i; j < lines.length; j++) {
       used += lines[j]!.length + 1;
       if (used > budget && j > i) break;
       for (const t of terms) if (norm[j]!.includes(t)) covered.add(t);
+      if (!inFence[j]) allCode = false;
+      // Two penalties, both smaller than one query term, so neither can beat
+      // genuinely better coverage — they only decide ties:
+      //   · all-source windows must out-cover a readable one to be shown;
+      //   · a window that OPENS in source loses to the same coverage starting
+      //     at prose, because whatever leads the preview is what gets read.
+      const score = covered.size - (allCode ? 0.5 : 0) - (inFence[i] ? 0.25 : 0);
       // prefer the tightest window achieving this coverage
-      if (covered.size > bestScore) {
-        bestScore = covered.size;
+      if (score > bestScore) {
+        bestScore = score;
         bestStart = i;
         bestEnd = j;
       }
@@ -184,7 +247,12 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
       hi++; // skip markup without spending budget
       grew = true;
     }
-    if (lo > 0 && !isMarkup(lines[lo - 1]!)) {
+    // Context grows FORWARD into code but never BACKWARD into it. A snippet
+    // that runs from prose into its example reads well — "dispatch them in one
+    // response: ```text Subagent(...)" — while the same two pieces in the
+    // other order bury the answer behind a wall of source the reader must
+    // scroll past. Whatever leads the preview is what gets read.
+    if (lo > 0 && !isMarkup(lines[lo - 1]!) && !inFence[lo - 1]) {
       const prev = lines[lo - 1]!.trim();
       if (used + prev.length + 1 <= budget) {
         before.unshift(prev);
@@ -192,7 +260,7 @@ export function bestSnippet(text: string, terms: string[], rawBudget = 260): str
         lo--;
         grew = true;
       }
-    } else if (lo > 0) {
+    } else if (lo > 0 && !inFence[lo - 1]) {
       lo--; // skip markup
       grew = true;
     }

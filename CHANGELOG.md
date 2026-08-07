@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.5 — 2026-08-07
+
+Indexed a real 86-note documentation vault instead of a synthetic one. The
+ranking held up — every probe query returned the right note *and* the right
+section — but what got *shown* did not.
+
+- **A generated diagram no longer masquerades as the answer.** Asking "what
+  should I do when a test fails" returned the correct heading of a TDD guide
+  and then displayed 800 characters of `digraph tdd_cycle { … }`. Generated
+  source restates the vocabulary of the prose it illustrates, so it ties on
+  term coverage — and ties went to whichever block came first, which is the
+  diagram. It now has to out-cover the readable alternative outright, and the
+  same query returns *"MANDATORY. Never skip. … Confirm: Test fails (not
+  errors), failure message is expected"*.
+- **Previews lead with prose.** A snippet that runs from prose into its example
+  reads well; the same two pieces in the other order bury the answer behind
+  source the reader has to scroll past. Context now grows forward into code but
+  never backward into it.
+- **Bare fence markers are gone from previews** — a snippet no longer spends
+  its first characters rendering ``` for a renderer that is not running.
+
+Across 36 real hits, previews opening with raw source went from 6-in-30 to
+1-in-36 — and the survivor is a query about the diagram itself.
+
 ## 0.4.4 — 2026-08-07
 
 - **`watch` now reindexes a vault that never goes quiet.** The debounce

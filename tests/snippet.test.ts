@@ -86,3 +86,41 @@ describe('bestSnippet', () => {
     expect(s).not.toMatch(/\n/);
   });
 });
+
+describe('generated source never masquerades as the answer', () => {
+  // Every case here is drawn from a real docs vault, where "what should I do
+  // when a test fails" returned the right note and the right heading and then
+  // showed 800 characters of `digraph tdd_cycle { … }`.
+  const DIAGRAM = [
+    '```dot',
+    'digraph tdd_cycle {',
+    '    red [label="RED\\nWrite failing test", shape=box];',
+    '    verify_red [label="Verify fails\\ncorrectly", shape=diamond];',
+    '    red -> verify_red;',
+    '}',
+    '```',
+  ].join('\n');
+
+  it('a snippet prefers prose over a pure-source window that matches as well', () => {
+    const block = `${DIAGRAM}\n\nWhen a test fails, read the failure message before changing anything.`;
+    const s = bestSnippet(block, contentTerms('what should I do when a test fails'));
+    expect(s).toContain('read the failure message');
+    expect(s).not.toContain('digraph');
+  });
+
+  it('but source still wins when it is the only thing that answers', () => {
+    const block = `${DIAGRAM}\n\nSome unrelated prose about scheduling and meetings.`;
+    const s = bestSnippet(block, contentTerms('digraph tdd_cycle shape diamond'));
+    expect(s).toContain('digraph');
+  });
+
+  it('a snippet never opens with a bare fence marker', () => {
+    // "``` Confirm: - Test fails" spends its first characters on punctuation
+    // for a renderer that is not running.
+    const block = '**MANDATORY.**\n\n```bash\nnpm test path/to/x.test.ts\n```\n\nConfirm the test fails.';
+    const s = bestSnippet(block, contentTerms('verify the test fails'));
+    expect(s.trimStart().startsWith('```')).toBe(false);
+    expect(s).not.toContain('```');
+    expect(s).toContain('npm test');
+  });
+});
