@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.4.4 — 2026-08-07
+
+- **`watch` now reindexes a vault that never goes quiet.** The debounce
+  restarted its timer on every change, so as long as changes kept arriving no
+  reindex ever ran — and the things that keep a vault busy are exactly the ones
+  that matter: a sync client landing another device's notes, a bulk import,
+  `git checkout` of a large branch, an agent capturing as it works. Measured:
+  six seconds of writes 120 ms apart produced **zero** reindexes, so every
+  search in that window answered from a stale index with nothing to say so.
+  A reindex is now deferred at most `maxWaitMs` (default 2 s), while a single
+  edit still waits out the full quiet period.
+- **`watch` has tests at all now,** including the three ways real editors save:
+  in place (Obsidian), temp-file-and-rename (VSCode, Emacs), and
+  backup-then-write (vim). All three already worked; nothing was checking.
+- **Incremental indexing is asserted equal to a rebuild.** After each of nine
+  vault mutations — edit, delete, rename, move, add, truncate, drop a folder,
+  swap two notes, replace everything — the incrementally-updated database must
+  match a from-scratch index of the same bytes, down to blocks, links,
+  entities, mentions and FTS rows. The index is meant to be disposable; this is
+  what makes that claim checkable.
+
 ## 0.4.3 — 2026-08-07
 
 - **A pasted blob no longer holds a vault hostage.** Indexing a note containing
