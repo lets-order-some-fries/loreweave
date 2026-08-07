@@ -311,7 +311,8 @@ npm run typecheck
 npm run build
 ```
 
-Requires Node ≥ 20. Single native dependency (`better-sqlite3`).
+Requires Node ≥ 20. Single native dependency (`better-sqlite3`). Tested in CI on
+Linux, macOS and Windows across Node 20 and 22.
 
 ## License
 

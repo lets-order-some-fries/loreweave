@@ -423,6 +423,24 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
   }
   ranked.sort((x, y) => y.score - x.score);
 
+  // Suppress suggestions that carry no signal.
+  //
+  // On a densely interlinked vault (a Zettelkasten of small atomic notes),
+  // every pair shares a couple of co-cited neighbours, so thousands of pairs
+  // score almost identically and the "top" 30 are arbitrary. A suggestion the
+  // reader cannot act on is worse than no suggestion, so a pair must stand
+  // clearly above the typical candidate to be worth showing.
+  if (ranked.length >= 20) {
+    const median = ranked[Math.floor(ranked.length / 2)]!.score;
+    if (median > 0) {
+      const floor = median * 2;
+      const strong = ranked.filter((r) => r.score >= floor);
+      // If nothing stands out, the honest answer is that there is nothing.
+      ranked.length = 0;
+      ranked.push(...strong);
+    }
+  }
+
   // Cap per source note so one busy note cannot fill the entire report.
   const perSource = new Map<string, number>();
   const out: LinkSuggestion[] = [];

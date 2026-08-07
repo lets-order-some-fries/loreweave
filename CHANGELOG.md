@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.5 — 2026-08-07
+
+- **`dream` stays quiet when it has nothing to say.** On a densely interlinked
+  vault — a Zettelkasten of small atomic notes — every pair co-cites a couple
+  of neighbours, so thousands of pairs score almost identically and the "top"
+  thirty are arbitrary. Suggestions must now stand clearly above the typical
+  candidate. Measured across three real vaults: a 3,000-note Zettelkasten went
+  from 30 arbitrary suggestions to 0, while a personal vault kept all 30 of its
+  good ones and a docs corpus kept its 9.
+- **Windows is a tested platform.** CI now runs Linux, macOS and Windows across
+  Node 20 and 22. The product itself passed on the first Windows run; the eval
+  harness did not, because dynamic import of an absolute path needs a `file://`
+  URL there.
+
 ## 0.3.4 — 2026-08-07
 
 - **Notes inside symlinked folders are indexed.** A symlink reports as neither

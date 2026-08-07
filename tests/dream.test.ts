@@ -151,6 +151,37 @@ describe('dream', () => {
     ctx.close();
   });
 
+  it('says nothing when no pair stands out', async () => {
+    // A Zettelkasten of small atomic notes: every pair co-cites a couple of
+    // neighbours, so thousands of pairs score alike and the "top" ones are
+    // arbitrary. Thirty arbitrary suggestions are worse than none.
+    const notes: Record<string, string> = {};
+    const n = 60;
+    for (let i = 0; i < n; i++) {
+      const links = [1, 2, 3].map((k) => `[[note-${(i * 13 + k * 29) % n}]]`).join(' ');
+      notes[`note-${i}.md`] = `---\ntitle: note-${i}\n---\n\n# note-${i}\n\nAtomic note. See ${links}.\n`;
+    }
+    const ctx = await ctxWith(notes);
+    const r = dream(ctx);
+    // uniformly-linked notes produce no standout pair
+    expect(r.linkSuggestions.length).toBeLessThanOrEqual(5);
+    ctx.close();
+  });
+
+  it('still reports genuinely distinctive pairs', async () => {
+    const ctx = await ctxWith({
+      'x1.md': 'Notes on [[Quokka Protocol]], [[Nimbus Ledger]] and [[Tessera Method]].\n',
+      'x2.md': 'More on [[Quokka Protocol]], [[Nimbus Ledger]] and [[Tessera Method]].\n',
+    });
+    const r = dream(ctx);
+    expect(
+      r.linkSuggestions.some(
+        (l) => [l.from, l.to].includes('x1.md') && [l.from, l.to].includes('x2.md'),
+      ),
+    ).toBe(true);
+    ctx.close();
+  });
+
   it('finds orphans, excluding lore/ notes', async () => {
     const ctx = await ctxWith({});
     const r = dream(ctx);
