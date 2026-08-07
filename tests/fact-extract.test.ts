@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseNote } from '../src/vault/parse.js';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
 import { queryFacts } from '../src/facts/model.js';
@@ -78,5 +79,64 @@ tags: [infra, storage]
     expect(rows.map((r) => r.object)).toEqual(['shipped']);
     expect(rows[0]!.sourceType).toBe('stated');
     store.close();
+  });
+});
+
+describe('values the vault actually contains', () => {
+  const facts = (raw: string, mode: 'explicit' | 'all' = 'explicit') =>
+    extractFactsFromNote(parseNote('f.md', raw, 1), mode);
+
+  it('a frontmatter date stays the date that was written', () => {
+    // YAML turns a bare date into a Date and the frontmatter is stored as
+    // JSON, so it read back as "2025-03-01T00:00:00.000Z" — a timestamp with a
+    // timezone nobody wrote, which then became the literal object of a fact.
+    // A guard for this existed in this file and was dead: it tested
+    // `instanceof Date` on a value JSON had already turned into a string.
+    const f = facts('---\nstarted: 2025-03-01\n---\n\nbody\n');
+    expect(f.find((x) => x.predicate === 'started')?.object).toBe('2025-03-01');
+  });
+
+  it('a real time of day is not truncated to a date', () => {
+    const f = facts('---\ndeployed: 2025-03-01T09:30:00Z\n---\n\nbody\n');
+    expect(f.find((x) => x.predicate === 'deployed')?.object).toContain('09:30');
+  });
+
+  it('trailing {valid_from=…} is honoured on every fact form, not just [fact]', () => {
+    // The journal writes this syntax on every line it emits, but only the
+    // `- [fact]` form read it back. Elsewhere the braces were swallowed whole
+    // into the object: the date was lost AND it corrupted the value.
+    const dv = facts('# N\n\n- role:: Staff Engineer {valid_from=2025-06-01}\n');
+    const role = dv.find((x) => x.predicate === 'role');
+    expect(role?.object).toBe('Staff Engineer');
+    expect(role?.validFrom).toBe('2025-06-01');
+
+    const obs = facts('# N\n\n- [team] Platform {valid_from=2024-02-03, confidence=0.5}\n');
+    const team = obs.find((x) => x.predicate === 'team');
+    expect(team?.object).toBe('Platform');
+    expect(team?.validFrom).toBe('2024-02-03');
+    expect(team?.confidence).toBe(0.5);
+  });
+
+  it('braces that are not metadata are left in the value', () => {
+    const f = facts('# N\n\n- format:: {"a": 1}\n');
+    expect(f.find((x) => x.predicate === 'format')?.object).toContain('{');
+  });
+
+  it('a Dataview field on its own line is read, not only inside a list', () => {
+    // Obsidian users write `key:: value` on a bare line at least as often as
+    // inside a list; reading only the list form silently ignored half of a
+    // convention the README claims to support.
+    const f = facts('# N\n\nrole:: Staff Engineer\nteam:: Platform\n');
+    expect(f.map((x) => `${x.predicate}=${x.object}`)).toEqual(
+      expect.arrayContaining(['role=Staff Engineer', 'team=Platform']),
+    );
+  });
+
+  it('a scope operator in code is not a field', () => {
+    // The space after `::` is what separates them: std::vector, Foo::bar and
+    // every scope operator in every language has none.
+    expect(facts('# N\n\n```cpp\nstd::vector<int> v;\n```\n')).toEqual([]);
+    expect(facts('# N\n\nWe call std::vector and Foo::bar directly.\n')).toEqual([]);
+    expect(facts('# N\n\nuse serde::Serialize;\n')).toEqual([]);
   });
 });

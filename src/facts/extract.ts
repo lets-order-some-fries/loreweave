@@ -74,6 +74,28 @@ function plausibleObject(value: string): boolean {
 }
 
 /** Strip markdown emphasis/links so the value is the plain text. */
+/**
+ * Split a trailing `{key=value, key=value}` block off a fact's object.
+ *
+ * Same syntax the journal emits, so a hand-written line and a generated one
+ * mean the same thing. Values may be quoted; an unparseable block is left
+ * alone rather than guessed at.
+ */
+function splitTrailingAttrs(raw: string): { object: string; attrs: Record<string, string> } {
+  const m = raw.match(/\{([^{}]*)\}\s*$/);
+  if (!m) return { object: raw, attrs: {} };
+  const attrs: Record<string, string> = {};
+  for (const part of (m[1] ?? '').split(',')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    const k = part.slice(0, eq).trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const v = part.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
+    if (k) attrs[k] = v;
+  }
+  if (Object.keys(attrs).length === 0) return { object: raw, attrs: {} };
+  return { object: raw.slice(0, m.index).trim(), attrs };
+}
+
 function cleanValue(v: string): string {
   return v
     .replace(/\[\[([^\[\]|]+)(?:\|([^\[\]]+))?\]\]/g, (_m, t: string, a?: string) => a ?? t)
@@ -122,7 +144,13 @@ export function extractFactsFromNote(
   const subjectKey = subject.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const push = (predicate: string, rawObject: string, blockAnchor: string, confidence: number) => {
     const p = predicate.trim().replace(/[:*_`]+$/, '').trim();
-    const o = cleanValue(rawObject);
+    // A trailing `{valid_from=…}` is this project's own metadata syntax — the
+    // journal writes it on every line it emits. Only the `- [fact]` form used
+    // to read it, so on any other form the braces were swallowed whole into
+    // the object: the user's date was lost AND it corrupted the value, giving
+    // `status :: shipped {valid_from=2026-07-15}` as a literal object string.
+    const { object: stripped, attrs } = splitTrailingAttrs(rawObject);
+    const o = cleanValue(stripped);
     if (!plausiblePredicate(p) || !plausibleObject(o)) return;
     // "writing-skills :: name :: writing-skills" states nothing. A fact whose
     // object merely repeats its subject is noise in every view it appears in.
@@ -130,7 +158,18 @@ export function extractFactsFromNote(
     const key = `${p.toLowerCase()}|${o.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ subject, predicate: p, object: o, blockAnchor, confidence });
+    const from = attrs.valid_from ? asIsoDate(attrs.valid_from) : null;
+    const until = attrs.valid_until ? asIsoDate(attrs.valid_until) : null;
+    const conf = attrs.confidence ? Number(attrs.confidence) : NaN;
+    out.push({
+      subject,
+      predicate: p,
+      object: o,
+      blockAnchor,
+      confidence: Number.isFinite(conf) && conf > 0 && conf <= 1 ? conf : confidence,
+      ...(from ? { validFrom: from } : {}),
+      ...(until ? { validUntil: until } : {}),
+    });
   };
 
   // A date in frontmatter dates the whole note's assertions.
@@ -161,9 +200,27 @@ export function extractFactsFromNote(
 
   // tiers 2-4 — list-item conventions inside block text
   for (const b of note.blocks) {
+    let inFence = false;
     for (const line of b.text.split(/\r?\n/)) {
+      if (/^\s*(```|~~~)/.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
       const item = line.match(/^\s*[-*+]\s+(.*)$/);
-      if (!item) continue;
+      if (!item) {
+        // A bare `key:: value` line. Dataview's inline fields are written this
+        // way at least as often as inside a list, so only reading the list
+        // form silently ignored half of the convention we claim to support.
+        //
+        // The space after `::` is what makes this safe: `std::vector`,
+        // `Foo::bar` and every other scope operator in every language has no
+        // space, so requiring one separates a field from code without needing
+        // to know the language. Fenced blocks are skipped outright anyway.
+        const bare = line.match(/^([\p{L}][\p{L}\p{N} _/-]{0,38})::[ \t]+(\S.*)$/u);
+        if (bare) push(bare[1]!, bare[2]!, b.anchor, 0.9);
+        continue;
+      }
       const body = (item[1] ?? '').trim();
       if (!body) continue;
 

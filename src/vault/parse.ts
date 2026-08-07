@@ -226,6 +226,39 @@ const GENERIC_BASENAMES = new Set([
   'agents', 'default',
 ]);
 
+
+/**
+ * YAML turns a bare `started: 2025-03-01` into a Date, and the frontmatter is
+ * stored as JSON — so by the time anything reads it back it is the string
+ * "2025-03-01T00:00:00.000Z", a timestamp with a timezone the user never
+ * wrote. Downstream that became the literal object of a fact, so
+ * `count --predicate started` grouped by an instant instead of a day.
+ *
+ * Normalising here rather than at each reader is deliberate: a guard for this
+ * already existed in the fact extractor and was dead, because it tested
+ * `instanceof Date` on a value JSON had already turned into a string. The
+ * index should simply hold what the vault says.
+ *
+ * A date-only YAML value lands exactly on midnight UTC; anything with a real
+ * time component keeps its full ISO form.
+ */
+function normalizeFrontmatterValue(v: unknown): unknown {
+  if (v instanceof Date) {
+    if (Number.isNaN(v.valueOf())) return String(v);
+    const iso = v.toISOString();
+    return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso;
+  }
+  if (Array.isArray(v)) return v.map(normalizeFrontmatterValue);
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      out[k] = normalizeFrontmatterValue(val);
+    }
+    return out;
+  }
+  return v;
+}
+
 /**
  * A note's title: explicit frontmatter wins, then a `name` field, then the
  * filename — except when the filename is generic, in which case the parent
@@ -338,7 +371,7 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
   return {
     path,
     title,
-    frontmatter: fm,
+    frontmatter: normalizeFrontmatterValue(fm) as Record<string, unknown>,
     tags: [...tagSet],
     links,
     blocks,

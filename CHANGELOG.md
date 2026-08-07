@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.0 — 2026-08-07
+
+Built a vault of the shape someone would actually keep — dated daily notes, a
+project whose status and owner change over time — and read what the fact store
+made of it. The bitemporal core is sound: the canonical
+`- [fact] S :: p :: o {valid_from=…}` round-trips exactly. Three things around
+it did not.
+
+- **Frontmatter dates keep the date that was written.** `started: 2025-03-01`
+  came back as the object `2025-03-01T00:00:00.000Z` — YAML parses a bare date
+  into a Date, and frontmatter is stored as JSON, so every reader saw an
+  instant with a timezone nobody typed. A guard for exactly this existed in the
+  extractor and was dead: it tested `instanceof Date` on a value JSON had
+  already turned into a string. Frontmatter is normalised at parse time now; a
+  value with a real time of day keeps it.
+- **Trailing `{valid_from=…}` is honoured on every fact form.** It is this
+  project's own syntax — the journal emits it on every line it writes — but
+  only `- [fact]` read it back. Elsewhere the braces were swallowed into the
+  object, so the date was lost *and* it corrupted the value. A `{...}` that is
+  not `key=value` is left alone.
+- **Dataview fields are read on a bare line, not only inside a list.** Obsidian
+  users write `key:: value` on its own line at least as often, so half of a
+  supported convention was silently ignored. The space after `::` is what makes
+  this safe — `std::vector`, `Foo::bar` and every scope operator in every
+  language have none — and fenced blocks are skipped regardless.
+
 ## 0.4.10 — 2026-08-07
 
 0.4.9 removed heading echoes from duplicate detection. Rather than wait to trip
