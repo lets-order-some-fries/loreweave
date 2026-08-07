@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.3 — 2026-08-07
+
+- **A pasted blob no longer holds a vault hostage.** Indexing a note containing
+  one very long unbroken token — an Excalidraw drawing, a base64 `data:` image,
+  a minified bundle, a JWT — took time *quadratic* in that token's length,
+  because the POS tagger is. A 2 MB blob took roughly half an hour for that one
+  note; it now takes 38 ms. A 3 000-note, 19 MB vault that previously did not
+  finish indexing in ten minutes now indexes in 4 seconds.
+- **Blocks are capped in characters, not only in words.** The existing word cap
+  was measured in the wrong unit for the exact case it was written for: a blob
+  is ONE word, so `words <= 350` passed and the block stayed unbounded. Blocks
+  are now also capped at 4 000 characters, which additionally bounds CJK
+  paragraphs — they contain no whitespace either.
+- **Splitting never severs a surrogate pair,** so emoji and astral-plane text
+  cannot be corrupted on the way into the database.
+- Tokens of 64 characters or more are no longer fed to the entity tagger. No
+  proper noun is that long; the things that are — hashes, payloads, data URIs —
+  were only ever noise in the graph.
+
 ## 0.4.2 — 2026-08-07
 
 - **Frontmatter-only and empty notes are findable.** A note whose entire

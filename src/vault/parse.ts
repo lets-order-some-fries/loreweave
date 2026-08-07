@@ -3,6 +3,8 @@ import matter from 'gray-matter';
 import type { Block, Note, WikiLink } from '../types.js';
 
 const MAX_BLOCK_WORDS = 350;
+/** ~MAX_BLOCK_WORDS of ordinary English prose, used when words run out. */
+const MAX_BLOCK_CHARS = 4000;
 
 export function sha1(text: string): string {
   return createHash('sha1').update(text, 'utf8').digest('hex');
@@ -141,20 +143,43 @@ function splitSections(body: string): RawSection[] {
 }
 
 /**
- * Hard-split a single oversized paragraph at word boundaries. Without this,
- * MAX_BLOCK_WORDS is only advisory — a pasted log or CSV with no blank lines
- * becomes one enormous block, and everything downstream (FTS snippets,
- * shingling, embedding) degrades from fast to unusable. Measured before this
- * cap: a 1 MB single-paragraph note made `search` take 30 seconds.
+ * Split at a character boundary, never inside a surrogate pair — a lone
+ * surrogate is not valid UTF-8 and corrupts the text on its way to SQLite.
+ */
+function hardSplit(s: string): string[] {
+  if (s.length <= MAX_BLOCK_CHARS) return [s];
+  const out: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    let end = Math.min(i + MAX_BLOCK_CHARS, s.length);
+    const code = s.charCodeAt(end);
+    if (end < s.length && code >= 0xdc00 && code <= 0xdfff) end -= 1;
+    out.push(s.slice(i, end));
+    i = end;
+  }
+  return out;
+}
+
+/**
+ * Hard-split a single oversized paragraph. Without this, MAX_BLOCK_WORDS is
+ * only advisory — a pasted log or CSV with no blank lines becomes one enormous
+ * block, and everything downstream (FTS snippets, shingling, embedding)
+ * degrades from fast to unusable. Measured before this cap: a 1 MB
+ * single-paragraph note made `search` take 30 seconds.
+ *
+ * The word cap alone is measured in the wrong unit for the very case it exists
+ * for. A base64 image, a minified payload, an Excalidraw drawing or a CJK
+ * paragraph is ONE "word" that can be megabytes long, so `words.length <= 350`
+ * passes and the block stays unbounded. Hence the character cap too.
  */
 function splitLongParagraph(p: string): string[] {
   const words = p.split(/\s+/);
-  if (words.length <= MAX_BLOCK_WORDS) return [p];
+  if (words.length <= MAX_BLOCK_WORDS) return hardSplit(p);
   const out: string[] = [];
   for (let i = 0; i < words.length; i += MAX_BLOCK_WORDS) {
     out.push(words.slice(i, i + MAX_BLOCK_WORDS).join(' '));
   }
-  return out;
+  return out.flatMap(hardSplit);
 }
 
 /** Split section text into ~MAX_BLOCK_WORDS chunks, preferring paragraph borders. */
@@ -168,15 +193,21 @@ function chunkText(text: string): string[] {
   const chunks: string[] = [];
   let current: string[] = [];
   let words = 0;
+  let chars = 0;
   for (const p of paras) {
     const w = p.split(/\s+/).length;
-    if (words > 0 && words + w > MAX_BLOCK_WORDS) {
+    // Both budgets, for the same reason the split above needs both: one
+    // hundred 4 000-character wordless paragraphs count as one hundred words
+    // and would be merged straight back into the block we just split apart.
+    if (words > 0 && (words + w > MAX_BLOCK_WORDS || chars + p.length > MAX_BLOCK_CHARS)) {
       chunks.push(current.join('\n\n'));
       current = [];
       words = 0;
+      chars = 0;
     }
     current.push(p);
     words += w;
+    chars += p.length;
   }
   if (current.length) chunks.push(current.join('\n\n'));
   return chunks;
