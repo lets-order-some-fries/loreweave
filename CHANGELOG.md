@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.9 — 2026-08-08
+
+- **"No network calls" is now enforced, not just stated.** The README leads
+  with it, and for a tool pointed at a private vault that is a promise about
+  the vault. It holds — trapping `fetch` and running the whole pipeline (index,
+  searches, assert, query, aggregate, capture, mark-used, reindex, dream with
+  `--apply`, graph export) produces zero calls, with the default embedding
+  provider `none`.
+
+  Guarded two ways, because either alone is weak: a runtime check only covers
+  paths a test exercises, so a static check greps every source file for `fetch`
+  or a node network module and allows exactly one — the opt-in embedding
+  client. Verified to fail: a stray `fetch` added to `capture.ts` names the file
+  and fails the suite.
+
+This is the kind of promise that erodes one reasonable-sounding convenience at
+a time — a version check, an update notice, a crash report — each defensible
+alone. Cheaper to make it fail loudly than to rely on remembering.
+
 ## 0.7.8 — 2026-08-08
 
 - **`lore graph export` now contains the links between notes.** It emitted
