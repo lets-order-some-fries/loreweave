@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.3 — 2026-08-08
+
+- **`graph export` is byte-identical whether the index was grown or rebuilt.**
+  Node order came straight from an unordered `SELECT`, so it followed row
+  order, which follows edit history — the same vault produced a different file
+  depending on how its index was built. These are files people diff and commit,
+  which is the whole reason the format exists. Notes, entities, mentions and
+  link edges are all ordered now.
+
+That completes the sweep the last two releases started: every user-visible
+output — search answers, the review queue, the digest, and all three export
+formats — is now a function of the vault rather than of its index's history.
+
 ## 0.8.2 — 2026-08-08
 
 - **`dream` writes the same review queue whether the index was grown or

@@ -23,13 +23,17 @@ interface GraphDump {
  */
 function dumpGraph(ctx: LoreContext): GraphDump {
   const db = ctx.store.db;
-  const notes = db.prepare(`SELECT path, title FROM notes`).all() as {
+  // Ordered, because this file gets diffed and version-controlled. Without it
+  // node order follows row order, which follows edit history, so the same
+  // vault exported a different file depending on how its index was built.
+  const notes = db.prepare(`SELECT path, title FROM notes ORDER BY path`).all() as {
     path: string;
     title: string;
   }[];
   const entities = db.prepare(
     `SELECT e.id, e.display, COUNT(m.id) AS uses FROM entities e
-     JOIN mentions m ON m.entity_id = e.id GROUP BY e.id HAVING uses >= 2`,
+     JOIN mentions m ON m.entity_id = e.id GROUP BY e.id HAVING uses >= 2
+     ORDER BY e.display, e.id`,
   ).all() as { id: number; display: string; uses: number }[];
   const keep = new Set(entities.map((e) => e.id));
   const allEntities = (
@@ -42,7 +46,7 @@ function dumpGraph(ctx: LoreContext): GraphDump {
   ];
   const edgeAgg = new Map<string, { source: string; target: string; type: string; weight: number }>();
   const mentions = db.prepare(
-    `SELECT DISTINCT entity_id, note_path FROM mentions`,
+    `SELECT DISTINCT entity_id, note_path FROM mentions ORDER BY note_path, entity_id`,
   ).all() as { entity_id: number; note_path: string }[];
   for (const m of mentions) {
     if (!keep.has(m.entity_id)) continue;
@@ -56,8 +60,8 @@ function dumpGraph(ctx: LoreContext): GraphDump {
   }
   // Note → note, resolved the same way retrieval resolves them, so an
   // ambiguous name points at the same note in the picture and in the search.
-  for (const [from, tos] of ctx.noteLinks().out) {
-    for (const to of tos) {
+  for (const [from, tos] of [...ctx.noteLinks().out].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) {
+    for (const to of [...tos].sort()) {
       const k = `${from}⇢${to}`;
       if (edgeAgg.has(k)) continue;
       edgeAgg.set(k, {

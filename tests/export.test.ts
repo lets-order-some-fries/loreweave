@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
 import { exportGraph } from '../src/cli/export.js';
@@ -101,4 +103,59 @@ describe('graph export', () => {
     expect(gml).toContain('</graphml>');
     ctx.close();
   });
+});
+
+describe('the export is a function of the vault', () => {
+  it('is byte-identical whether the index was grown or rebuilt', async () => {
+    // Exports get diffed and committed. Node order followed row order, which
+    // follows edit history, so the same vault produced a different file
+    // depending on how its index was built.
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 10; i++) {
+      files[`bulk/n${i}.md`] =
+        `# Note ${i}\n\nCompaction and ingestion for the ledger pipeline.\n` +
+        `Mentions [[Shared Topic]] and [[Another Topic]].\n`;
+    }
+    const root = await makeVault(files);
+    const config = ConfigSchema.parse({});
+    const ctxFor = (store: ReturnType<typeof openStore>): LoreContext => {
+      let cached: LoreGraph | null = null;
+      let links: NoteLinkGraph | null = null;
+      return {
+        root, config, store, provider: null,
+        graph: () => (cached ??= buildGraph(store, config)),
+        noteLinks: () => (links ??= buildNoteLinkGraph(store)),
+        invalidateGraph: () => { cached = null; links = null; },
+        close: () => store.close(),
+      };
+    };
+
+    const grown = openStore(':memory:');
+    await indexVault(grown, root);
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < 10; i += 2) {
+        await writeFile(join(root, `bulk/n${i}.md`), `${files[`bulk/n${i}.md`]!}Revision ${round}.\n`);
+      }
+      await indexVault(grown, root);
+    }
+    for (let i = 0; i < 10; i += 2) {
+      await writeFile(join(root, `bulk/n${i}.md`), files[`bulk/n${i}.md`]!);
+    }
+    await indexVault(grown, root);
+
+    const rebuilt = openStore(':memory:');
+    await indexVault(rebuilt, root);
+
+    const hi = (s: ReturnType<typeof openStore>) =>
+      (s.db.prepare(`SELECT MAX(id) hi FROM blocks`).get() as { hi: number }).hi;
+    expect(hi(grown)).not.toBe(hi(rebuilt)); // or this proves nothing
+
+    const a = ctxFor(grown);
+    const b = ctxFor(rebuilt);
+    for (const format of ['json', 'dot', 'graphml']) {
+      expect(exportGraph(a, format), format).toBe(exportGraph(b, format));
+    }
+    a.close();
+    b.close();
+  }, 60_000);
 });
