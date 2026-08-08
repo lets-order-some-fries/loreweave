@@ -98,7 +98,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.7.9')
+    .version('0.8.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -624,11 +624,19 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .argument('<action>', 'export')
     .option('--format <fmt>', 'json|graphml|dot', 'json')
     .option('-o, --out <file>', 'output file (default: stdout)')
-    .action(async (action: string, opts: { format: string; out?: string }) => {
+    .option('--force', 'overwrite the output file if it already exists')
+    .action(async (action: string, opts: { format: string; out?: string; force?: boolean }) => {
       if (action !== 'export') throw new Error(`unknown graph action: ${action}`);
       await withCtx((ctx) => {
         const text = exportGraph(ctx, opts.format);
         if (opts.out) {
+          // The only place this engine writes a path the user typed, and so
+          // the only write that can destroy something. Everything else either
+          // appends or lives under lore/ and is regenerated. A mistyped
+          // `--out notes/atlas.md` overwrote the note and reported success.
+          if (existsSync(opts.out) && !opts.force) {
+            throw new Error(`${opts.out} already exists — pass --force to overwrite it`);
+          }
           writeFileSync(opts.out, text);
           io.out(`wrote ${opts.out}`);
         } else {

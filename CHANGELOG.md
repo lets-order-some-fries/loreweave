@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 — 2026-08-08
+
+- **`graph export --out` no longer silently overwrites.** Audited every write
+  in the source: six are append-only or live under `lore/` and are regenerated.
+  The seventh took a path the user typed and wrote it unconditionally, then
+  printed `wrote notes/atlas.md`. A typo — or a moment's inattention about
+  which file was which — destroyed the note and reported success. It now
+  refuses unless `--force`.
+
+  The vault is the source of truth, so destroying part of it is the one error
+  this engine cannot walk back: an index rebuilds, a note does not.
+- **`dream`'s writes are contained.** Its digest and review queue joined paths
+  directly, so a symlinked `lore/` would have put generated files outside the
+  vault — the gap fixed for `capture` in 0.6.3, in the two places that fix did
+  not reach.
+- **A static test fails on any new truncating write** outside the two files
+  where one is justified, for the same reason the network check is static as
+  well as dynamic: a path no test exercises is exactly where the next one goes.
+
 ## 0.7.9 — 2026-08-08
 
 - **"No network calls" is now enforced, not just stated.** The README leads

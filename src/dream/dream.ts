@@ -4,6 +4,7 @@ import { isHeadingEcho } from '../vault/parse.js';
 import type { LoreContext } from '../context.js';
 import { normalizeKey } from '../normalize.js';
 import { buildNameIndex, resolveNoteName } from '../retrieve/expand.js';
+import { safeVaultPath } from '../capture.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 
 /**
@@ -576,7 +577,9 @@ export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamRe
   if (opts.apply) {
     const date = report.generatedAt.slice(0, 10);
     const digestRel = `lore/digests/${date}.md`;
-    const digestAbs = join(ctx.root, digestRel);
+    // Contained the same way capture is: a symlinked `lore/` would otherwise
+    // put generated files outside the vault the user pointed at.
+    const digestAbs = safeVaultPath(ctx.root, digestRel, { followSymlinks: false });
     mkdirSync(dirname(digestAbs), { recursive: true });
     // append-only: never overwrite an existing digest silently
     if (!existsSync(digestAbs)) {
@@ -587,7 +590,7 @@ export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamRe
     // finding on each run. Items the user already ticked off are carried
     // forward as done so their work is never lost.
     const queueRel = `lore/review-queue.md`;
-    const queueAbs = join(ctx.root, queueRel);
+    const queueAbs = safeVaultPath(ctx.root, queueRel, { followSymlinks: false });
     const done = new Set<string>();
     if (existsSync(queueAbs)) {
       for (const line of readFileSync(queueAbs, 'utf8').split(/\r?\n/)) {
