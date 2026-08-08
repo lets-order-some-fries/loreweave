@@ -118,11 +118,18 @@ export interface OpenStoreOptions {
    */
   healCorruption?: boolean;
   onHeal?: (message: string) => void;
+  /** Rows of retrieval history to keep (see config.accessLogRows). */
+  accessLogRows?: number;
 }
+
+/** Inserts between retention checks; see logAccess. */
+const TRIM_EVERY = 200;
 
 export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
   if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true });
   const heal = opts.healCorruption !== false && dbPath !== ':memory:';
+  const accessLogRows = opts.accessLogRows ?? 5000;
+  let sinceTrim = 0;
 
   let db: Database.Database;
   try {
@@ -207,6 +214,11 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       `INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
     ),
     logAccess: db.prepare(`INSERT INTO access_log(at,kind,query,block_id) VALUES (?,?,?,?)`),
+    countAccess: db.prepare(`SELECT COUNT(*) c FROM access_log`),
+    trimAccess: db.prepare(
+      `DELETE FROM access_log WHERE id NOT IN
+         (SELECT id FROM access_log ORDER BY id DESC LIMIT ?)`,
+    ),
   };
 
   const upsertNoteTx = db.transaction((note: Note): Map<string, number> => {
@@ -328,7 +340,17 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     },
     searchLexical,
     logAccess: (kind, blockId, query) => {
+      if (accessLogRows === 0) return;
       stmts.logAccess.run(new Date().toISOString(), kind, query ?? null, blockId);
+      // Trim on a margin rather than on every insert: the DELETE walks the
+      // table, and paying that per search to remove one row would cost more
+      // than the rows do.
+      sinceTrim++;
+      if (sinceTrim >= TRIM_EVERY) {
+        sinceTrim = 0;
+        const { c } = stmts.countAccess.get() as { c: number };
+        if (c > accessLogRows) stmts.trimAccess.run(accessLogRows);
+      }
     },
     getMeta: (k) => {
       const r = stmts.getMeta.get(k) as { value: string } | undefined;

@@ -91,6 +91,18 @@ export const ConfigSchema = z
       .default({}),
     nlp: z.boolean().default(true),
     ignore: z.array(z.string()).default([]),
+    /**
+     * Rows of retrieval history to keep. Everything else in the index is
+     * derivable from the markdown and can be rebuilt by deleting `.lore`; this
+     * table is not, and nothing pruned it. Measured: five rows per search, one
+     * per result, each carrying the full query text — an agent searching 200
+     * times a day accumulates ~365 000 rows a year of a log nothing reads
+     * except a COUNT, and which no command shows the user.
+     *
+     * Bounded rather than removed: the count is a real activity signal, and a
+     * recent window is the part with any use in it. Set to 0 to keep none.
+     */
+    accessLogRows: z.number().int().min(0).default(5000),
   })
   .default({});
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.6 — 2026-08-08
+
+- **Retrieval history is bounded.** `access_log` was written on every search —
+  five rows, one per result, each carrying the full query text — and read in
+  exactly one place, as a `COUNT` for dream's stats. Nothing pruned it: an
+  agent searching 200 times a day accumulates ~365 000 rows a year.
+
+  Size is the smaller half. Everything else in the index is derivable from the
+  markdown, which is what makes "delete `.lore` and reindex" a real answer.
+  This table was the exception — the user's complete search history, in
+  plaintext, accumulating indefinitely in a file described as a rebuildable
+  cache, shown by no command and cleared by nothing.
+
+  Bounded rather than removed, since the count is a genuine activity signal and
+  a recent window is the useful part. Default 5 000 rows; `accessLogRows: 0`
+  keeps none. Trimming runs on a margin rather than every insert, so the count
+  settles near the cap rather than exactly on it.
+
 ## 0.6.5 — 2026-08-08
 
 No defects found this pass. One subtle deliberate choice is now guarded.

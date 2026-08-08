@@ -117,3 +117,51 @@ describe('store', () => {
     s.close();
   });
 });
+
+describe('retrieval history is bounded', () => {
+  // Everything else in the index is derivable from the markdown and comes back
+  // by deleting `.lore`. This table is not, and nothing pruned it: five rows
+  // per search, one per result, each carrying the full query text. An agent
+  // searching 200 times a day accumulates roughly 365 000 rows a year of a log
+  // that nothing reads except a COUNT and no command shows the user.
+  const fill = (store: ReturnType<typeof openStore>, n: number) => {
+    for (let i = 0; i < n; i++) store.logAccess('retrieved', null, `query number ${i}`);
+  };
+  const rows = (store: ReturnType<typeof openStore>) =>
+    (store.db.prepare('SELECT COUNT(*) c FROM access_log').get() as { c: number }).c;
+
+  it('stays near the configured cap instead of growing forever', () => {
+    const store = openStore(':memory:', { accessLogRows: 500 });
+    fill(store, 5000);
+    // Trimming runs on a margin rather than every insert, so the count settles
+    // near the cap rather than exactly on it — the DELETE walks the table and
+    // paying that per search to remove one row would cost more than the rows.
+    expect(rows(store)).toBeGreaterThan(400);
+    expect(rows(store)).toBeLessThan(1000);
+    store.close();
+  });
+
+  it('keeps the most recent entries, not the oldest', () => {
+    const store = openStore(':memory:', { accessLogRows: 100 });
+    fill(store, 3000);
+    const newest = store.db
+      .prepare('SELECT query FROM access_log ORDER BY id DESC LIMIT 1')
+      .get() as { query: string };
+    expect(newest.query).toBe('query number 2999');
+    store.close();
+  });
+
+  it('records nothing at all when set to zero', () => {
+    const store = openStore(':memory:', { accessLogRows: 0 });
+    fill(store, 1000);
+    expect(rows(store)).toBe(0);
+    store.close();
+  });
+
+  it('leaves history alone while it is under the cap', () => {
+    const store = openStore(':memory:', { accessLogRows: 5000 });
+    fill(store, 2000);
+    expect(rows(store)).toBe(2000);
+    store.close();
+  });
+});

@@ -36,6 +36,7 @@ export function openContext(root: string, overrides?: { dbFile?: string }): Lore
   const config = loadConfig(root, (msg) => console.error(`[loreweave] ${msg}`));
   const store = openStore(overrides?.dbFile ?? dbPath(root), {
     onHeal: (msg) => console.error(`[loreweave] ${msg}`),
+    accessLogRows: config.accessLogRows,
   });
   let provider: EmbeddingProvider | null = null;
   let providerError: string | null = null;
