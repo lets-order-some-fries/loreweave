@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.3 — 2026-08-08
+
+The other central claim — incremental indexing equals a rebuild — rested on
+nine mutations chosen by hand, which is the same kind of evidence that let the
+fact store's invariants pass three examples while failing 127 of 300 generated
+ones.
+
+- **Checked against 150 generated mutation sequences** — random adds, edits,
+  deletes, moves and truncations across nested directories, reindexing after
+  each step, comparing every table against a rebuild of the same bytes.
+  **Zero failures.** Sixty of them are now a test.
+
+That is a weaker result than the last release and worth saying so: it found
+nothing. The reason to trust it is that the check was checked — disabling
+orphan-entity pruning made 20 of 20 sequences diverge, and restoring it took
+them to zero. Without that step, a clean run means only that the probe ran.
+
 ## 0.7.2 — 2026-08-08
 
 Yesterday's supersession fix was verified with three histories written by hand.
