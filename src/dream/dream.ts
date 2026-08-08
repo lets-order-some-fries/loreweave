@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { isHeadingEcho } from '../vault/parse.js';
 import type { LoreContext } from '../context.js';
 import { normalizeKey } from '../normalize.js';
+import { buildNameIndex, resolveNoteName } from '../retrieve/expand.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 
 /**
@@ -365,19 +366,18 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
     path: string;
     title: string;
   }[];
-  const keyToPath = new Map<string, string>();
-  for (const n of notes) {
-    keyToPath.set(normalizeKey(n.title), n.path);
-    keyToPath.set(normalizeKey(n.path), n.path);
-    keyToPath.set(normalizeKey(n.path.split('/').pop() ?? n.path), n.path);
-  }
+  // Same name resolution the link graph uses: nearest note by path when a name
+  // is ambiguous. A one-per-name map credited every `[[Overview]]` to whichever
+  // note was enumerated last, so a note whose own folder links to it was
+  // reported as an orphan — a false accusation a reader would act on.
+  const names = buildNameIndex(notes);
   const linked = new Set<string>();
   const links = db.prepare(`SELECT note_path, target_norm FROM links`).all() as {
     note_path: string;
     target_norm: string;
   }[];
   for (const l of links) {
-    const dst = keyToPath.get(l.target_norm);
+    const dst = resolveNoteName(names, l.target_norm, l.note_path);
     if (!dst) continue;
     linked.add(`${l.note_path} ${dst}`);
     linked.add(`${dst} ${l.note_path}`);
@@ -405,9 +405,12 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
     if (d === undefined) continue;
     const pair = `${r.a} ${r.b}`;
     if (linked.has(pair)) continue;
-    // a note's own name is not evidence that it relates to another note
-    const owner = keyToPath.get(r.key);
-    if (owner === r.a || owner === r.b) continue;
+    // A note's own name is not evidence that it relates to another note.
+    // Membership rather than a single owner: when several notes answer to a
+    // name, the name belongs to all of them, and picking one let the other be
+    // "linked to itself by name" without being caught.
+    const owners = names.get(r.key);
+    if (owners && (owners.includes(r.a) || owners.includes(r.b))) continue;
     const idf = Math.log(noteCount / d);
     if (idf <= 0) continue;
     const acc = pairs.get(pair);
@@ -490,11 +493,7 @@ function findOrphans(ctx: LoreContext): string[] {
     path: string;
     title: string;
   }[];
-  const keyToPath = new Map<string, string>();
-  for (const n of notes) {
-    keyToPath.set(normalizeKey(n.title), n.path);
-    keyToPath.set(normalizeKey(n.path.split('/').pop() ?? n.path), n.path);
-  }
+  const names = buildNameIndex(notes);
   const hasLink = new Set<string>();
   const links = db.prepare(`SELECT note_path, target_norm FROM links`).all() as {
     note_path: string;
@@ -502,7 +501,7 @@ function findOrphans(ctx: LoreContext): string[] {
   }[];
   for (const l of links) {
     hasLink.add(l.note_path);
-    const dst = keyToPath.get(l.target_norm);
+    const dst = resolveNoteName(names, l.target_norm, l.note_path);
     if (dst) hasLink.add(dst);
   }
   return notes.map((n) => n.path).filter((p) => !hasLink.has(p) && !p.startsWith('lore/'));

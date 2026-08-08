@@ -390,3 +390,36 @@ describe('a change is dated when it happened', () => {
     ctx.close();
   });
 });
+
+describe('a linked note is not called an orphan', () => {
+  it('resolves ambiguous names the way the link graph does', async () => {
+    // dream kept its own one-path-per-name map, so both `[[Overview]]` links
+    // were credited to whichever note was enumerated last and the other was
+    // reported as an orphan — a false accusation, about a note whose own
+    // folder links to it, that a reader would act on.
+    const ctx = await ctxWith({
+      'projects/atlas/overview.md':
+        '---\ntitle: Overview\n---\n\n# Overview\n\nAtlas ingests telemetry.\n',
+      'projects/northwind/overview.md':
+        '---\ntitle: Overview\n---\n\n# Overview\n\nNorthwind reconciles invoices.\n',
+      'projects/atlas/plan.md': '# Atlas Plan\n\nDesign is in [[Overview]].\n',
+      'projects/northwind/plan.md': '# Northwind Plan\n\nBilling rules live in [[Overview]].\n',
+    });
+    const r = dream(ctx);
+    expect(r.orphans).not.toContain('projects/atlas/overview.md');
+    expect(r.orphans).not.toContain('projects/northwind/overview.md');
+    ctx.close();
+  });
+
+  it('a genuinely unlinked note is still reported', async () => {
+    const ctx = await ctxWith({
+      'projects/atlas/overview.md':
+        '---\ntitle: Overview\n---\n\n# Overview\n\nAtlas ingests telemetry.\n',
+      'projects/atlas/plan.md': '# Atlas Plan\n\nDesign is in [[Overview]].\n',
+      'stranded.md': '# Stranded\n\nNothing links here and it links nowhere.\n',
+    });
+    const r = dream(ctx);
+    expect(r.orphans).toContain('stranded.md');
+    ctx.close();
+  });
+});

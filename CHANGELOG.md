@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.7 — 2026-08-08
+
+- **`dream` no longer calls a linked note an orphan.** It carried two more
+  copies of the one-path-per-name resolution fixed in 0.7.6, so with two
+  projects each holding an `overview.md` both `[[Overview]]` links were
+  credited to whichever note was enumerated last and the other was reported as
+  `orphan? projects/atlas/overview.md` — about a note its own project's plan
+  links to. Stated as a finding rather than shown as a ranking, so a reader
+  would act on it.
+- **A name with several owners is checked by membership.** dream asks whether
+  an entity name belongs to one of two notes, to avoid suggesting a link on the
+  evidence of a note's own name. Picking a single owner let the other note pass
+  that check and be linked to itself by name.
+
+Four copies of one rule, in four files, each subtly different — that was the
+defect; the orphan report was a symptom. It lives in one exported function now.
+
 ## 0.7.6 — 2026-08-08
 
 - **An ambiguous link no longer resolves to the wrong project's note.** The
