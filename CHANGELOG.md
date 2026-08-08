@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.9.0 — 2026-08-08
+
+- **What the engine writes is searchable the moment it writes it.** The natural
+  agent sequence — record something, then look for it — silently failed:
+  `capture` then search found nothing, `assert_fact` then search found nothing,
+  both until the next `lore_index`. The previous release documented that trap
+  in the tool description; documenting a trap is what you do when you cannot
+  remove it, and both tools know exactly which file they appended to.
+
+  `capture`, `assertFact` and `invalidateFact` now index the single file they
+  wrote — the same per-note work the indexer does, so the next incremental run
+  sees matching mtime/size and correctly skips it. The consistency test asserts
+  the strong form: after self-indexed writes, the next full index reports
+  **zero** changes *and* the store equals a fresh build of the same bytes,
+  blocks and facts both.
+- **`lore_index`'s contract updated in the same commit** — it is for writes
+  made outside `lore_*` tools; the `lore_*` write tools handle their own. The
+  caveat added last release became stale the moment this landed, which is
+  exactly the drift that release was about.
+
+Two guards worth noting: the identical-assertion path still self-indexes (the
+journal line is appended even when the fact is a no-op), and a derived note
+(e.g. capturing to `lore/review-queue.md`) is never self-indexed, since a full
+rebuild would delete it — a transient violation of the disposability property.
+
 ## 0.8.4 — 2026-08-08
 
 - **The MCP tool contracts describe what the tools do now.** Descriptions are

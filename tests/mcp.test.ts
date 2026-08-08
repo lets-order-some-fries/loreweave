@@ -220,9 +220,14 @@ describe('mcp server', () => {
     );
     expect(dream.stats.notes).toBeGreaterThan(0);
 
+    // capture self-indexes its write now, so the note is searchable without a
+    // reindex — and the next index sees nothing left to do.
+    const found = parseText(
+      await client.callTool({ name: 'lore_search', arguments: { query: 'note from mcp' } }),
+    );
+    expect(found.some((h: { note: string }) => h.note.includes('inbox'))).toBe(true);
     const idx = parseText(await client.callTool({ name: 'lore_index', arguments: {} }));
-    // capture wrote lore/inbox.md → at least one add/update
-    expect(idx.added + idx.updated).toBeGreaterThanOrEqual(1);
+    expect(idx.added + idx.updated).toBe(0);
   });
 
   it('validation errors surface as tool errors, not crashes', async () => {

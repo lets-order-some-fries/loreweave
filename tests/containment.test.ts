@@ -3,6 +3,17 @@ import { mkdtemp, mkdir, writeFile, symlink, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { capture, readNoteRaw, safeVaultPath } from '../src/capture.js';
+import { openStore } from '../src/store/db.js';
+import { ConfigSchema } from '../src/config.js';
+
+/** capture now self-indexes its write, so it needs a real store and config. */
+function miniCtx(root: string) {
+  return {
+    root,
+    config: ConfigSchema.parse({}),
+    store: openStore(':memory:'),
+  } as never;
+}
 
 /**
  * `resolve` normalises `..` but does not follow symlinks, so containment was
@@ -42,15 +53,13 @@ describe('vault containment', () => {
     // create files inside it. Before this, capture appended to a file outside
     // the vault and reported success.
     const { vault, outside } = await vaultWithSymlink();
-    expect(() =>
-      capture({ root: vault } as never, 'INJECTED', 'linked/target.md'),
-    ).toThrow(/symlink/);
+    expect(() => capture(miniCtx(vault), 'INJECTED', 'linked/target.md')).toThrow(/symlink/);
     expect(await readFile(join(outside, 'target.md'), 'utf8')).toBe('original\n');
   });
 
   it('still writes normally inside the vault', async () => {
     const { vault } = await vaultWithSymlink();
-    expect(capture({ root: vault } as never, 'a real note', 'lore/inbox.md')).toBe('lore/inbox.md');
+    expect(capture(miniCtx(vault), 'a real note', 'lore/inbox.md')).toBe('lore/inbox.md');
     expect(await readFile(join(vault, 'lore', 'inbox.md'), 'utf8')).toContain('a real note');
   });
 

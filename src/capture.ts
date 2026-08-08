@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { LoreContext } from './context.js';
+import { indexNoteFile } from './index/indexer.js';
 
 /** Deepest ancestor of `abs` that exists, with symlinks resolved. */
 function realExistingAncestor(abs: string): { real: string; tail: string[] } {
@@ -76,6 +77,11 @@ export function capture(ctx: LoreContext, text: string, to = 'lore/inbox.md'): s
   mkdirSync(dirname(abs), { recursive: true });
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   appendFileSync(abs, `- ${stamp} — ${clean.replace(/\r?\n+/g, ' ')}\n`, 'utf8');
+  // Index what was just written, so "capture, then search for it" works. The
+  // trap this removes was real enough to have been documented in the MCP tool
+  // description as something the caller had to remember.
+  indexNoteFile(ctx.store, ctx.root, to, { nlp: ctx.config.nlp });
+  ctx.invalidateGraph?.();
   return to;
 }
 

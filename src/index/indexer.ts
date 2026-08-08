@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
+import { readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import type { IndexReport, Note } from '../types.js';
 import type { Store } from '../store/db.js';
 import { parseNote, sha1 } from '../vault/parse.js';
-import { scanVault } from '../vault/scan.js';
+import { isDerivedNote, scanVault } from '../vault/scan.js';
 import { extractEntities } from '../entities/extract.js';
 import { rebuildFactsFromNotes } from '../facts/journal.js';
 import { updateImportance } from '../dynamics/usage.js';
@@ -19,6 +21,47 @@ export interface IndexOptions {
 }
 
 /** Replace all entity mentions derived from one note. */
+
+/**
+ * Index one file the engine itself just wrote.
+ *
+ * `capture` and `assertFact` append to a note and know exactly which one, but
+ * the content was not searchable until the next full index — the natural
+ * agent sequence "record a fact, then search for it" returned nothing, and
+ * the tool description documented the trap instead of removing it.
+ *
+ * Does the same per-note work as the indexer (parse, upsert, mentions), so a
+ * later incremental run sees matching mtime/size and correctly skips it.
+ * The batch steps (fact replay, importance) are deliberately not run here:
+ * they read blocks from the DATABASE, not from files, so the upserted content
+ * is already visible to them whenever the next real index runs — and journal
+ * fact lines replay into exactly the fact `assertFact` already inserted, which
+ * is the identity the replay property tests pin.
+ *
+ * Synchronous on purpose: the callers are synchronous, the file was written a
+ * moment ago, and better-sqlite3 is synchronous anyway.
+ */
+export function indexNoteFile(
+  store: Store,
+  root: string,
+  relPath: string,
+  opts: { nlp?: boolean } = {},
+): void {
+  // Mirror scanVault: a derived note (review queue, digests) is never indexed
+  // by a full run, so indexing it here would create a note a rebuild deletes —
+  // a transient divergence from the disposability property.
+  if (isDerivedNote(relPath)) return;
+  const abs = join(root, relPath);
+  const st = statSync(abs);
+  const raw = readFileSync(abs, 'utf8');
+  const note = parseNote(relPath, raw, st.mtimeMs, st.size);
+  const tx = store.db.transaction(() => {
+    store.upsertNote(note);
+    writeMentions(store, note, opts.nlp !== false);
+  });
+  tx();
+}
+
 export function writeMentions(store: Store, note: Note, useNlp: boolean): void {
   const db = store.db;
   const mentions = extractEntities(note, useNlp);

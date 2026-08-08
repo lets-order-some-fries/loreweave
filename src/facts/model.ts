@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
+import { indexNoteFile } from '../index/indexer.js';
 import { join, dirname } from 'node:path';
 import type { LoreContext } from '../context.js';
 import type { Store } from '../store/db.js';
@@ -152,6 +153,10 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
     | undefined;
   if (identical) {
     recomputeSupersessions(ctx.store);
+    // The journal line was still appended above — the journal is a log of what
+    // was said — so the note still needs its self-index.
+    indexNoteFile(ctx.store, ctx.root, journalPath, { nlp: ctx.config.nlp });
+    ctx.invalidateGraph();
     const kept = rowToFact(db.prepare(`SELECT * FROM facts WHERE id=?`).get(identical.id) as any);
     return { fact: kept, superseded: [], journalPath };
   }
@@ -178,6 +183,10 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
       input.validUntil ?? null, // user_valid_until: an explicit close is intent
     );
   recomputeSupersessions(ctx.store);
+  // The journal line just appended becomes searchable immediately, matching
+  // capture. The fact itself was queryable already; the NOTE was not.
+  indexNoteFile(ctx.store, ctx.root, journalPath, { nlp: ctx.config.nlp });
+  ctx.invalidateGraph();
 
   const id = Number(info.lastInsertRowid);
   const fact = rowToFact(db.prepare(`SELECT * FROM facts WHERE id=?`).get(id) as any);
@@ -235,6 +244,8 @@ export function invalidateFact(
        )`,
     )
     .run(until, until, normalizeKey(input.subject), normalizeKey(input.predicate));
+  indexNoteFile(ctx.store, ctx.root, journalPath, { nlp: ctx.config.nlp });
+  ctx.invalidateGraph();
   return { closed: res.changes, journalPath };
 }
 

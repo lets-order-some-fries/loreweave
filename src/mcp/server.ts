@@ -73,7 +73,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.8.4' });
+  const server = new McpServer({ name: 'loreweave', version: '0.9.0' });
 
   server.registerTool(
     'lore_search',
@@ -268,7 +268,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Capture a note',
       description:
-        'Append a timestamped line to lore/inbox.md (or another vault note). Use for fleeting observations worth keeping that are not atomic facts. Never overwrites anything, and never writes outside the vault — a path that escapes it, including through a symlink, is refused.',
+        'Append a timestamped line to lore/inbox.md (or another vault note). Use for fleeting observations worth keeping that are not atomic facts. The captured text is searchable immediately. Never overwrites anything, and never writes outside the vault — a path that escapes it, including through a symlink, is refused.',
       inputSchema: {
         text: z.string().min(1).max(100_000),
         to: z.string().max(1024).optional().describe('target .md path (default lore/inbox.md)'),
@@ -412,7 +412,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Reindex the vault',
       description:
-        'Incrementally sync the markdown vault into the index. Call after writing files to the vault outside lore_* tools — lore_capture and lore_assert_fact write to the vault but do not reindex, so their content is not searchable until this runs.',
+        'Incrementally sync the markdown vault into the index. Call after writing files to the vault through anything OTHER than lore_* tools (an editor, another agent, plain fs writes) — the lore_* write tools index their own writes, so their content is searchable immediately without this.',
       inputSchema: { full: z.boolean().optional() },
     },
     safe(async ({ full }) => {

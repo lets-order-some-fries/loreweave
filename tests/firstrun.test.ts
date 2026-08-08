@@ -83,3 +83,64 @@ describe('a mistyped vault path', () => {
     expect(() => openContext(file)).toThrow(/not a directory/);
   });
 });
+
+describe('the engine can find what it just wrote', () => {
+  // The natural agent sequence — record something, then search for it —
+  // returned nothing until a full reindex, and the tool description documented
+  // the trap instead of removing it. capture and assertFact know exactly which
+  // file they appended to, so they index it themselves.
+  it('capture is searchable immediately', async () => {
+    const root = await makeVault(FIXTURE_VAULT);
+    const ctx = openContext(root);
+    await ensureIndexed(ctx);
+    const { capture } = await import('../src/capture.js');
+    capture(ctx, 'XENOPUS decision: streaming compaction wins');
+    const hits = await search(ctx, 'XENOPUS', { k: 5, noLog: true });
+    expect(hits.some((h) => h.notePath.includes('inbox'))).toBe(true);
+    ctx.close();
+  });
+
+  it('an asserted fact’s journal entry is searchable immediately', async () => {
+    const root = await makeVault(FIXTURE_VAULT);
+    const ctx = openContext(root);
+    await ensureIndexed(ctx);
+    const { assertFact } = await import('../src/facts/model.js');
+    assertFact(ctx, {
+      subject: 'Quagga Initiative', predicate: 'status', object: 'shipped', validFrom: '2026-08-01',
+    });
+    const hits = await search(ctx, 'Quagga', { k: 5, noLog: true });
+    expect(hits.some((h) => h.notePath.includes('journal'))).toBe(true);
+    ctx.close();
+  });
+
+  it('the self-index leaves exactly the state a full rebuild produces', async () => {
+    // The helper does the per-note work and skips the batch steps, so a later
+    // incremental run must see the file as unchanged AND the resulting store
+    // must equal a fresh index of the same bytes — otherwise the trap has been
+    // traded for a divergence.
+    const root = await makeVault(FIXTURE_VAULT);
+    const ctx = openContext(root);
+    await ensureIndexed(ctx);
+    const { capture } = await import('../src/capture.js');
+    const { assertFact } = await import('../src/facts/model.js');
+    capture(ctx, 'consistency check line');
+    assertFact(ctx, {
+      subject: 'Consistency', predicate: 'holds', object: 'yes', validFrom: '2026-08-01',
+    });
+
+    const { indexVault } = await import('../src/index/indexer.js');
+    const report = await indexVault(ctx.store, root);
+    expect(report.added + report.updated).toBe(0); // nothing left half-done
+
+    const { openStore } = await import('../src/store/db.js');
+    const fresh = openStore(':memory:');
+    await indexVault(fresh, root);
+    const snap = (s: typeof fresh) =>
+      JSON.stringify(
+        s.db.prepare(`SELECT note_path, anchor, text FROM blocks ORDER BY note_path, anchor`).all(),
+      );
+    expect(snap(ctx.store as never)).toBe(snap(fresh));
+    fresh.close();
+    ctx.close();
+  });
+});
