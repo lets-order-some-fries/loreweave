@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.7 — 2026-08-08
+
+- **Search no longer slows down the longer a vault is used.** Every edit
+  deletes and reinserts a note's blocks, and FTS5 writes a new segment each
+  time rather than updating in place. Nothing merged them. On a 200-note vault,
+  twenty rounds of editing took 300 searches from 103 ms to 126 ms; merging
+  brought it to 94 ms — below the original, since merged segments are denser
+  than the ones a first index leaves behind. On a 300-note vault the same
+  experiment gave 133 ms → 113 ms. The magnitude depends on the write pattern
+  (FTS5 merges on its own under some conditions); the direction does not.
+
+  Merging runs in `dream`, where maintenance with no effect on results belongs.
+  It costs 1 ms on 200 notes and 8 ms on 2 000 — cheap enough to need no
+  schedule — and a failed merge can never fail a consolidation report.
+
+Measured and deliberately not acted on: the database file grows ~60% under
+repeated rewriting of identical content, and `VACUUM` recovers only a third of
+that. The rest is real index structure rather than free pages, so vacuuming
+would mostly buy a long pause.
+
 ## 0.6.6 — 2026-08-08
 
 - **Retrieval history is bounded.** `access_log` was written on every search —

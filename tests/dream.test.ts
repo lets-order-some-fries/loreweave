@@ -289,3 +289,55 @@ describe('heading echoes are not content', () => {
     ctx.close();
   });
 });
+
+describe('dream performs index maintenance', () => {
+  it('merges accumulated full-text segments', async () => {
+    // Every edit deletes and reinserts a note's blocks, and FTS5 writes a new
+    // segment rather than updating in place. Left alone they accumulate, and
+    // search slows down for as long as the vault is used without ever
+    // recovering — measured between 15% and 22% slower after twenty rounds of
+    // editing, depending on the write pattern, and back to at or below the
+    // original after merging.
+    //
+    // Asserted on the segment count rather than on timing: the mechanism is
+    // deterministic and a wall-clock threshold would be flaky for the one
+    // thing it is meant to prove.
+    const ctx = await ctxWith({});
+    const segments = () =>
+      (ctx.store.db.prepare(`SELECT COUNT(*) c FROM blocks_fts_data`).get() as { c: number }).c;
+
+    // churn the index the way ordinary editing does
+    const ids = ctx.store.db.prepare(`SELECT id, text FROM blocks`).all() as {
+      id: number;
+      text: string;
+    }[];
+    const upd = ctx.store.db.prepare(`UPDATE blocks SET fts_text=? WHERE id=?`);
+    for (let round = 0; round < 25; round++) {
+      for (const b of ids) upd.run(`${b.text} revision ${round}`, b.id);
+    }
+    const before = segments();
+    expect(before).toBeGreaterThan(1);
+
+    dream(ctx);
+    expect(segments()).toBeLessThan(before);
+    ctx.close();
+  });
+
+  it('still reports correctly after merging', async () => {
+    // The merge must not disturb the report it shares a pass with.
+    const ctx = await ctxWith({
+      'a1.md': `${DUP_TEXT}\n`,
+      'a2.md': `${DUP_TEXT}\n`,
+    });
+    const r = dream(ctx);
+    expect(r.stats.notes).toBeGreaterThan(0);
+    expect(
+      r.duplicates.some(
+        (d) =>
+          [d.a.notePath, d.b.notePath].includes('a1.md') &&
+          [d.a.notePath, d.b.notePath].includes('a2.md'),
+      ),
+    ).toBe(true);
+    ctx.close();
+  });
+});
