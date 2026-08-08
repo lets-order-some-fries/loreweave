@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.9 — 2026-08-08
+
+Ran `dream` against a vault with real fact history — on the vault audited
+earlier it reported three of five detectors as "n/a, no input yet", so
+contradictions and staleness had never produced output at all. Contested facts
+work well (two owners both effective the same day came back as "needs a human
+ruling"), and staleness correctly declined to flag a backdated but freshly
+recorded fact.
+
+- **A change is dated when it happened, not when it was written down.**
+  Supersessions read `"Senior Engineer" → "Staff Engineer" (2026-08-08)` for a
+  change effective June 2025 — the timestamp was the day it was typed. The
+  detector selects by record time, which is right (the list answers "what did
+  we learn recently"), but described the finding with the same timestamp, and
+  those differ whenever a fact is backdated — which is most of the time.
+  Importing a year of history in one sitting reported every change in it as
+  today's. Now: `effective 2025-06-01, recorded 2026-08-08`, collapsing to one
+  date when they agree.
+
+This is the distinction the fact store exists to keep, and the staleness
+detector already respected it one function away.
+
 ## 0.6.8 — 2026-08-08
 
 - **`ask` no longer prints the same facts twice.** Tested on a vault that

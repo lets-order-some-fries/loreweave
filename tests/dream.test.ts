@@ -341,3 +341,52 @@ describe('dream performs index maintenance', () => {
     ctx.close();
   });
 });
+
+describe('a change is dated when it happened', () => {
+  it('describes a supersession by valid time, not record time', async () => {
+    // Supersessions are SELECTED by record time — "what did we learn recently"
+    // — but were also DESCRIBED by it. The two differ whenever a fact is
+    // backdated, which is most of the time: writing up June's handover in
+    // August is ordinary, and reporting it as a change that happened in August
+    // is simply false. Importing a year of history in one sitting reported
+    // every change as today's.
+    const ctx = await ctxWith({});
+    assertFact(ctx, {
+      subject: 'Priya Sharma',
+      predicate: 'role',
+      object: 'Senior Engineer',
+      validFrom: '2024-01-01',
+    });
+    assertFact(ctx, {
+      subject: 'Priya Sharma',
+      predicate: 'role',
+      object: 'Staff Engineer',
+      validFrom: '2025-06-01',
+    });
+
+    const r = dream(ctx);
+    const change = r.contradictions.find(
+      (c) => c.kind === 'recent-supersession' && c.subject === 'priya sharma',
+    );
+    expect(change).toBeDefined();
+    expect(change!.detail).toContain('effective 2025-06-01');
+    // and it still says when it was learned, since that is why it is listed
+    expect(change!.detail).toContain('recorded');
+    ctx.close();
+  });
+
+  it('says it once when the change was recorded the day it happened', async () => {
+    // No point printing "effective X, recorded X".
+    const today = new Date().toISOString().slice(0, 10);
+    const ctx = await ctxWith({});
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'old', validFrom: '2024-01-01' });
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'new', validFrom: today });
+    const r = dream(ctx);
+    const change = r.contradictions.find(
+      (c) => c.kind === 'recent-supersession' && c.subject === 's',
+    );
+    expect(change!.detail).toContain(today);
+    expect(change!.detail).not.toContain('effective');
+    ctx.close();
+  });
+});

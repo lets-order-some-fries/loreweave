@@ -245,7 +245,8 @@ function findContradictions(ctx: LoreContext): ContradictionFinding[] {
   // recent supersessions (last 14 days): surfaced so changes are visible
   const recent = db
     .prepare(
-      `SELECT f.subject, f.predicate, f.object AS oldObj, g.object AS newObj, f.superseded_at
+      `SELECT f.subject, f.predicate, f.object AS oldObj, g.object AS newObj,
+              f.superseded_at, g.valid_from AS newFrom
        FROM facts f JOIN facts g ON g.id = f.superseded_by
        WHERE f.superseded_at IS NOT NULL AND f.superseded_at >= ?`,
     )
@@ -255,14 +256,30 @@ function findContradictions(ctx: LoreContext): ContradictionFinding[] {
     oldObj: string;
     newObj: string;
     superseded_at: string;
+    newFrom: string | null;
   }[];
   for (const r of recent) {
+    // Selected by RECORD time — "what did we learn recently" — but described
+    // by VALID time, because that is when the thing actually changed. The two
+    // differ whenever a fact is backdated, which is most of the time: writing
+    // up June's handover in August is ordinary, and reporting it as
+    // "Senior Engineer → Staff Engineer (August)" is simply false. Importing a
+    // year of history in one sitting used to report every change as today's.
+    //
+    // The same distinction the staleness detector already respects, where a
+    // freshly recorded backdated fact is deliberately not called stale.
+    const recorded = r.superseded_at.slice(0, 10);
+    const effective = r.newFrom ? r.newFrom.slice(0, 10) : null;
+    const when =
+      effective && effective !== recorded
+        ? `effective ${effective}, recorded ${recorded}`
+        : recorded;
     out.push({
       subject: r.subject,
       predicate: r.predicate,
       objects: [r.oldObj, r.newObj],
       kind: 'recent-supersession',
-      detail: `"${r.oldObj}" → "${r.newObj}" (${r.superseded_at.slice(0, 10)})`,
+      detail: `"${r.oldObj}" → "${r.newObj}" (${when})`,
     });
   }
   return out;
