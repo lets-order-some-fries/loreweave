@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.3 — 2026-08-08
+
+- **`capture` can no longer write outside the vault through a symlink.** The
+  containment check was lexical: `resolve` normalises `..` but does not follow
+  symlinks, so `../secret.md` was refused while `linked/secret.md` — through a
+  symlinked folder — went straight through. Measured on a temp vault,
+  `lore_read_note` returned a file outside the vault and `lore_capture`
+  appended to one and reported success. Both are MCP tools an agent drives.
+- **Reads and writes get different answers, deliberately.** `scanVault` follows
+  symlinked folders on purpose (one used to be silently invisible), so those
+  notes are indexed and returned by search — refusing to read them would leave
+  search returning results that cannot be opened. Writes are held to the real
+  vault root with symlinks resolved, checked against the deepest existing
+  ancestor since `capture` creates its target.
+
+The asymmetry is the point: refusing both would look strictly more secure and
+would make every note under a symlinked folder unopenable.
+
 ## 0.6.2 — 2026-08-08
 
 - **The benchmark now measures what each retrieval channel is worth.** It has
