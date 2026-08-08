@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.2 — 2026-08-08
+
+- **The benchmark now measures what each retrieval channel is worth.** It has
+  always shown that hybrid beats BM25 and never shown which *part* of hybrid
+  earned it, so a channel could contribute nothing and the headline number
+  would be unchanged. Running the shipped pipeline with each recall channel
+  switched off:
+
+  | corpus | entity-PPR | link expansion |
+  |---|---|---|
+  | kestrel | **+13 pts** reach | +0 pts |
+  | northwind | +8 pts | **+25 pts** |
+
+  Both earn their place, and on *different* corpora — each is worth nearly
+  nothing on the other's. A single-corpus benchmark would have condemned one of
+  them, which is the clearest argument yet for the second corpus existing.
+  Deliberately outside the regression gate: improving the graph channel should
+  make `hybrid−graph` fall, and that is progress.
+- **`weights.graph` and `weights.expansion` say what they are.** Both recall
+  channels are read as on/off — they add notes nothing else found and are
+  spliced in by position, never competing on score — but `graph` defaulted to
+  `0.35` and described itself as "weighted below lexical". Setting `0.7`
+  expecting more graph influence changed nothing whatsoever. Default is now
+  `1`, with a test pinning that any positive value behaves identically.
+
 ## 0.6.1 — 2026-08-08
 
 - **A long query no longer loses everything after its 32nd word.** The FTS

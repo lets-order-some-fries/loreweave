@@ -85,7 +85,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.6.1')
+    .version('0.6.2')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {

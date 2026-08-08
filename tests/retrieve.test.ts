@@ -217,3 +217,39 @@ describe('a long query keeps its tail', () => {
     expect(terms).toHaveLength(4); // compaction, strategy, streaming, pipeline
   });
 });
+
+describe('recall channels are gates, not weights', () => {
+  it('the graph weight is read as on/off, and the schema says so', async () => {
+    // Entity-PPR and link expansion add notes nothing else found and are
+    // spliced in by position; they never compete on score, so only `> 0` is
+    // read. The field used to default to 0.35 and describe itself as
+    // "weighted below lexical" — a weighting that does not happen. Setting 0.7
+    // expecting more graph influence changed nothing at all.
+    const root = await makeVault(FIXTURE_VAULT);
+    const config = ConfigSchema.parse({});
+    expect(config.retrieval.weights.graph).toBe(1);
+    expect(config.retrieval.weights.expansion).toBe(1);
+
+    const run = async (graph: number) => {
+      const cfg = ConfigSchema.parse({ retrieval: { weights: { graph } } });
+      const store = openStore(':memory:');
+      await indexVault(store, root);
+      let cached: LoreGraph | null = null;
+      const ctx: LoreContext = {
+        root, config: cfg, store, provider: null,
+        graph: () => (cached ??= buildGraph(store, cfg)),
+        noteLinks: () => buildNoteLinkGraph(store),
+        invalidateGraph: () => { cached = null; },
+        close: () => store.close(),
+      };
+      const hits = await search(ctx, 'riverbed protocol', { k: 10, noLog: true });
+      const paths = hits.map((h) => h.notePath);
+      ctx.close();
+      return paths;
+    };
+    // any positive value behaves identically …
+    expect(await run(0.35)).toEqual(await run(3));
+    // … and zero is the only setting that changes anything
+    expect(await run(0)).not.toEqual(await run(1));
+  });
+});

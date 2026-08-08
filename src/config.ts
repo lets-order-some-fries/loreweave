@@ -23,11 +23,27 @@ export const ConfigSchema = z
         rrfK: z.number().min(1).default(60),
         weights: z
           .object({
+            /** True weights: scale each list's contribution to the RRF sum. */
             lexical: z.number().default(1.0),
             dense: z.number().default(1.0),
-            /** Entity-graph PPR: broad but noisy, so weighted below lexical. */
-            graph: z.number().default(0.35),
-            /** Note-level link traversal: high precision, carries multi-hop. */
+            /**
+             * ON/OFF, not a weight, despite the name and the company it keeps.
+             *
+             * Entity-PPR and link expansion are recall mechanisms: they add
+             * notes nothing else found, spliced in by position, and never
+             * compete on score. Measured, treating expansion as a peer ranking
+             * list moved MRR 0.489 -> 0.208, because a note reached by one
+             * link outranked an exact lexical match. So only `> 0` is read and
+             * the magnitude is discarded.
+             *
+             * This field used to default to 0.35 and describe itself as
+             * "weighted below lexical", which is a weighting that does not
+             * happen — setting 0.7 expecting more graph influence changed
+             * nothing at all. The default is 1 so the number matches what the
+             * code does with it.
+             */
+            graph: z.number().default(1.0),
+            /** ON/OFF, for the same reason as `graph`. */
             expansion: z.number().default(1.0),
           })
           .default({}),

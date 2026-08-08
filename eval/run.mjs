@@ -157,7 +157,39 @@ async function evaluate(corpus) {
     return out.slice(0, DEPTH).map(({ i }) => blockMeta.get(g.nodeDbId[i]));
   };
 
-  const SYSTEMS = { hybrid, bm25, graph: graphOnly };
+  // Ablations: the same pipeline with one recall channel switched off. The
+  // harness has always shown that hybrid beats BM25; it never showed which
+  // PART of hybrid earned that, so a channel could quietly contribute nothing
+  // and the headline number would look identical.
+  const withWeights = (over) => ({
+    ...ctx,
+    config: {
+      ...ctx.config,
+      retrieval: {
+        ...ctx.config.retrieval,
+        weights: { ...ctx.config.retrieval.weights, ...over },
+      },
+    },
+  });
+  const ablate = (over) => async (q) => {
+    const res = await search(withWeights(over), q, { k: DEPTH, noLog: true });
+    return res.map((r) => ({
+      notePath: r.notePath,
+      anchor: r.anchor,
+      text: blockMeta.get(
+        db.prepare('SELECT id FROM blocks WHERE note_path=? AND anchor=?')
+          .get(r.notePath, r.anchor)?.id,
+      )?.text ?? '',
+    }));
+  };
+
+  const SYSTEMS = {
+    hybrid,
+    bm25,
+    graph: graphOnly,
+    'hybrid−graph': ablate({ graph: 0 }),
+    'hybrid−expand': ablate({ expansion: 0 }),
+  };
   const cats = [...new Set(corpus.questions.map((q) => q.cat))];
   const results = {};
   const perQuestion = [];
@@ -263,6 +295,31 @@ if (asJson) {
         (mh && mhB ? ` · multihop reach ${(mh.found * 100).toFixed(0)}% vs ${(mhB.found * 100).toFixed(0)}%` : ''),
     );
   }
+  // What each recall channel is actually worth. The comparison above shows
+  // that hybrid beats BM25; it never showed which PART of hybrid earned it, so
+  // a channel could contribute nothing and the headline number would be
+  // unchanged. Deliberately NOT part of the regression gate: improving the
+  // graph channel should make `hybrid−graph` fall, and that is progress, not a
+  // regression.
+  log('');
+  log('══ channel contribution (ablation) ═════════════════════════');
+  for (const run of runs) {
+    const full = run.overall.hybrid;
+    for (const [label, key] of [
+      ['entity-PPR    ', 'hybrid−graph'],
+      ['link expansion', 'hybrid−expand'],
+    ]) {
+      const off = run.overall[key];
+      if (!full || !off) continue;
+      const dFound = (full.found - off.found) * 100;
+      const dMrr = full.mrr - off.mrr;
+      log(
+        `  ${run.name.padEnd(11)} ${label}  reach ${dFound >= 0 ? '+' : ''}${dFound.toFixed(0)} pts` +
+          ` · MRR ${dMrr >= 0 ? '+' : ''}${dMrr.toFixed(3)}   (without it: ${(off.found * 100).toFixed(0)}% / ${off.mrr.toFixed(3)})`,
+      );
+    }
+  }
+  log('');
   log(
     winsAll
       ? '  ✓ the same config beats BM25 on BOTH corpora — not tuned to one benchmark'
