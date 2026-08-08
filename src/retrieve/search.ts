@@ -1,6 +1,6 @@
 import type { LoreContext } from '../context.js';
 import type { SearchResult } from '../types.js';
-import { contentTerms, normalizeKey } from '../normalize.js';
+import { STOPWORDS, contentTerms, normalizeKey } from '../normalize.js';
 import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
@@ -101,6 +101,11 @@ function pickBestBlockPerNote(
 ): SearchResult[] {
   const out: SearchResult[] = [];
   const seen = new Set<string>();
+  // Same rule as the main coverage assignment: when the query is nothing but
+  // function words there are no content words to have matched, so a share of
+  // them is not a coverage figure. Recomputed here rather than passed in
+  // because this function replaces the coverage it was given.
+  const noContentWords = qTerms.length > 0 && qTerms.every((t) => STOPWORDS.has(t));
   const stmt = ctx.store.db.prepare(
     `SELECT anchor, heading, text FROM blocks WHERE note_path=? AND archived=0 ORDER BY ord`,
   );
@@ -126,7 +131,10 @@ function pickBestBlockPerNote(
               anchor: b.anchor,
               heading: b.heading,
               snippet: bestSnippet(b.text, qTerms),
-              coverage: qTerms.length ? Number((cov / qTerms.length).toFixed(3)) : 0,
+              coverage:
+                noContentWords || !qTerms.length
+                  ? 0
+                  : Number((cov / qTerms.length).toFixed(3)),
             };
           } else {
             best = r;
@@ -506,6 +514,13 @@ export async function search(
   // raw BM25 (unbounded, corpus-dependent), this is directly interpretable:
   // 0 means the block matched no query term at all.
   const qTerms = [...new Set(contentTerms(query))];
+  // `contentTerms` falls back to the raw tokens when a query is nothing but
+  // function words, so that a search never silently returns nothing. Good
+  // rule; the reporting was not. Matching "the of and a an" against a note
+  // scored coverage 0.8, which the MCP layer renders as "80% of query terms" —
+  // true, uninformative, and read by an agent as strong relevance. Coverage is
+  // a claim about content words, and here there were none.
+  const noContentWords = qTerms.length > 0 && qTerms.every((t) => STOPWORDS.has(t));
   const lexSnippets = new Map(lexical.map((h) => [h.blockId, h.snippet]));
 
   const results: SearchResult[] = [];
@@ -547,7 +562,9 @@ export async function search(
       // constant, so a nonsense query and a bullseye both scored ~0.0328 and
       // looked identical.
       lexicalScore: Number((lexScores.get(r.id) ?? 0).toFixed(3)),
-      coverage: qTerms.length
+      coverage: noContentWords
+        ? 0
+        : qTerms.length
         ? Number(
             (
               qTerms.filter((t) => normalizeKey(r.text + ' ' + r.heading).includes(t)).length /

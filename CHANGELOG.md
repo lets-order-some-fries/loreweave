@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.6.4 — 2026-08-08
+
+Threw nineteen hostile and malformed queries at search — unbalanced quotes, FTS
+operators, `NEAR` syntax, a SQL fragment, a lone surrogate, an RTL override,
+50 000 characters without a space. None threw. Every SQL string built by
+interpolation turned out to be a zod enum, a generated placeholder list, or a
+constant.
+
+- **A query of only function words no longer reports high relevance.**
+  `contentTerms` falls back to the raw tokens when a query is nothing but
+  function words, so a search never silently returns nothing — a sound rule.
+  What it then reported was not: "the of and a an" gave a note coverage `0.8`,
+  which the MCP layer renders as `"80% of query terms"`. True, uninformative,
+  and read by an agent as strong relevance. Coverage is now `0` for such
+  queries and the label reads `"weak — query had no distinctive words"`. The
+  results still come back; only the claim about them changed.
+
+A query that merely *contains* function words is untouched — "what is the
+riverbed protocol" scores exactly what "riverbed protocol" scores, pinned by a
+test, since the sloppy version of this fix would suppress both.
+
 ## 0.6.3 — 2026-08-08
 
 - **`capture` can no longer write outside the vault through a symlink.** The

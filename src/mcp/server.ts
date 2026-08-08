@@ -52,6 +52,7 @@ function leanHit(h: {
   notePath: string;
   heading: string;
   coverage: number;
+  lexicalScore: number;
   snippet: string;
   via: string[];
 }) {
@@ -63,14 +64,16 @@ function leanHit(h: {
         ? 'all query terms'
         : h.coverage > 0
           ? `${Math.round(h.coverage * 100)}% of query terms`
-          : 'linked, no term match',
+          : h.lexicalScore > 0
+            ? 'weak — query had no distinctive words'
+            : 'linked, no term match',
     text: h.snippet,
     ...(h.via.length ? { linkedVia: h.via } : {}),
   };
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.6.3' });
+  const server = new McpServer({ name: 'loreweave', version: '0.6.4' });
 
   server.registerTool(
     'lore_search',

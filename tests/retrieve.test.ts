@@ -253,3 +253,27 @@ describe('recall channels are gates, not weights', () => {
     expect(await run(0)).not.toEqual(await run(1));
   });
 });
+
+describe('a query with no distinctive words says so', () => {
+  it('reports zero coverage rather than a high percentage of function words', async () => {
+    // contentTerms falls back to the raw tokens when a query is nothing but
+    // function words, so a search never silently returns nothing. Sound rule;
+    // the reporting was not. "the of and a an" scored coverage 0.8 against a
+    // note, which the MCP layer renders as "80% of query terms" — true,
+    // uninformative, and read by an agent as strong relevance.
+    const ctx = await fixtureCtx();
+    const hits = await search(ctx, 'the of and a an', { k: 3, noLog: true });
+    expect(hits.length).toBeGreaterThan(0); // still not silently empty
+    for (const h of hits) expect(h.coverage).toBe(0);
+    ctx.close();
+  });
+
+  it('a query that merely CONTAINS function words is unaffected', async () => {
+    const ctx = await fixtureCtx();
+    const bare = await search(ctx, 'riverbed protocol', { k: 3, noLog: true });
+    const wrapped = await search(ctx, 'what is the riverbed protocol', { k: 3, noLog: true });
+    expect(wrapped[0]!.coverage).toBe(bare[0]!.coverage);
+    expect(wrapped[0]!.coverage).toBeGreaterThan(0);
+    ctx.close();
+  });
+});
