@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.6 — 2026-08-08
+
+- **An ambiguous link no longer resolves to the wrong project's note.** The
+  name index held one path per name, so two notes titled "Overview" — or two
+  projects each with an `overview.md` — meant the last one enumerated won and
+  every link to that name pointed at it. A `[[Overview]]` written inside
+  `projects/atlas/` could resolve to `projects/northwind/`, silently, and a
+  search for something only Atlas says would surface Northwind's notes through
+  the borrowed edge. Per-topic folders each holding a README or an overview is
+  the normal way people organise a vault.
+
+  Ambiguous names now resolve to the nearest note by shared directory prefix —
+  what a link written inside a folder means by any reading. Unambiguous names
+  are untouched; ties fall back to sorted order so the graph is stable.
+- **Backlink credit follows the same rule.** `updateImportance` resolved names
+  with its own copy of the one-per-name map, so one note collected the other's
+  backlinks and the in-degree boost landed on the wrong project. Both now use
+  one resolver.
+
+Not fixed, and visible on purpose: the entity graph still has a single
+`overview` key for both notes, so PPR can cross between them. On the same
+vault the affected notes now rank *below* the correct ones rather than
+displacing them — the high-precision channel is right and the noisy one is
+merely noisy. Per-note identity for title entities is a larger change than this
+finding justifies.
+
 ## 0.7.5 — 2026-08-08
 
 - **A note with two identical sections no longer loses its usage history.**

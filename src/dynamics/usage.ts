@@ -1,5 +1,6 @@
 import type { Store } from '../store/db.js';
 import { normalizeKey } from '../normalize.js';
+import { buildNameIndex, resolveNoteName } from '../retrieve/expand.js';
 import { daysBetween, reinforce, retrievability } from './fsrs.js';
 
 /**
@@ -58,21 +59,18 @@ export function updateImportance(store: Store): void {
     frontmatter: string;
     mtime_ms: number;
   }[];
-  // resolve link targets to note paths via normalized title/basename
-  const byKey = new Map<string, string>();
-  for (const n of notes) {
-    byKey.set(normalizeKey(n.title), n.path);
-    byKey.set(normalizeKey(n.path), n.path);
-    const base = n.path.split('/').pop() ?? n.path;
-    byKey.set(normalizeKey(base), n.path);
-  }
+  // Resolve link targets the same way the link graph does — nearest note by
+  // path when a name is ambiguous. Two notes sharing a title otherwise sent
+  // every inbound link to whichever was enumerated last, so one got credit for
+  // the other's backlinks.
+  const candidates = buildNameIndex(notes);
   const links = db.prepare(`SELECT note_path AS src, target_norm FROM links`).all() as {
     src: string;
     target_norm: string;
   }[];
   for (const l of links) {
     outDeg.set(l.src, (outDeg.get(l.src) ?? 0) + 1);
-    const dst = byKey.get(l.target_norm);
+    const dst = resolveNoteName(candidates, l.target_norm, l.src);
     if (dst) inDeg.set(dst, (inDeg.get(dst) ?? 0) + 1);
   }
   const upd = db.prepare(`UPDATE blocks SET importance=? WHERE note_path=?`);

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { openStore } from '../src/store/db.js';
+import { indexVault } from '../src/index/indexer.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
+import { makeVault } from './helpers.js';
+import { openStore } from '../src/store/db.js';
 import { parseNote } from '../src/vault/parse.js';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
@@ -126,6 +130,61 @@ describe('schema migration v5', () => {
       (c) => c.name,
     );
     expect(cols).toContain('style');
+    store.close();
+  });
+});
+
+describe('an ambiguous link resolves to the nearest note', () => {
+  // Two projects each with an overview, or two notes both titled "Notes", is
+  // the ordinary shape of a vault with per-topic folders. The name index held
+  // one path per name, so the last note enumerated won and BOTH links pointed
+  // at it — a `[[Overview]]` written inside projects/atlas/ could resolve to
+  // projects/northwind/, silently.
+  const VAULT = {
+    'projects/atlas/overview.md':
+      '---\ntitle: Overview\n---\n\n# Overview\n\nAtlas ingests telemetry through a streaming compactor.\n',
+    'projects/northwind/overview.md':
+      '---\ntitle: Overview\n---\n\n# Overview\n\nNorthwind reconciles invoices against the ledger.\n',
+    'projects/atlas/plan.md': '# Atlas Plan\n\nDesign is in [[Overview]] — see the compactor.\n',
+    'projects/northwind/plan.md': '# Northwind Plan\n\nBilling rules live in [[Overview]].\n',
+  };
+
+  it('links inside a folder point at that folder’s note', async () => {
+    const root = await makeVault(VAULT);
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const graph = buildNoteLinkGraph(store);
+    expect(graph.out.get('projects/atlas/plan.md')).toEqual(['projects/atlas/overview.md']);
+    expect(graph.out.get('projects/northwind/plan.md')).toEqual([
+      'projects/northwind/overview.md',
+    ]);
+    store.close();
+  });
+
+  it('an unambiguous name is unaffected', async () => {
+    const root = await makeVault({
+      'a.md': '# A\n\nSee [[Unique Target]].\n',
+      'deep/nested/unique-target.md': '---\ntitle: Unique Target\n---\n\n# Unique Target\n\nBody.\n',
+    });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    expect(buildNoteLinkGraph(store).out.get('a.md')).toEqual([
+      'deep/nested/unique-target.md',
+    ]);
+    store.close();
+  });
+
+  it('backlink credit goes to the nearest note too', async () => {
+    // updateImportance resolved names its own way, so one note collected the
+    // other's backlinks and the in-degree boost landed on the wrong project.
+    const root = await makeVault(VAULT);
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const graph = buildNoteLinkGraph(store);
+    expect(graph.in.get('projects/atlas/overview.md')).toEqual(['projects/atlas/plan.md']);
+    expect(graph.in.get('projects/northwind/overview.md')).toEqual([
+      'projects/northwind/plan.md',
+    ]);
     store.close();
   });
 });
