@@ -235,16 +235,49 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     // preserve dynamics for unchanged blocks: capture old state by hash
     const old = db
       .prepare(
-        `SELECT hash, stability, last_accessed, access_count, importance FROM blocks WHERE note_path=?`,
+        `SELECT anchor, hash, stability, last_accessed, access_count, importance
+         FROM blocks WHERE note_path=? ORDER BY ord`,
       )
       .all(note.path) as {
+      anchor: string;
       hash: string;
       stability: number;
       last_accessed: string | null;
       access_count: number;
       importance: number;
     }[];
-    const oldByHash = new Map(old.map((o) => [o.hash, o]));
+    // Usage history is matched by anchor first, then by content.
+    //
+    // Hash alone is not an identity: a note can hold the same text twice — a
+    // repeated disclaimer, a duplicated table row, boilerplate under two
+    // headings — and a Map keyed by hash collapses them, so the last one wins
+    // and BOTH blocks are restored from it. Measured, a note with two identical
+    // sections lost all learned state on a reindex that changed nothing, which
+    // is the one thing in the index that cannot be re-derived from the vault.
+    //
+    // Content still matters, and is the fallback rather than the key: renaming
+    // a heading changes a block's anchor while leaving its text alone, and the
+    // history should follow the text. Editing the text resets it, which is
+    // correct — a retrieval history describes words that no longer exist.
+    const oldByAnchor = new Map(old.map((o) => [o.anchor, o]));
+    const oldByHash = new Map<string, typeof old>();
+    for (const o of old) {
+      const arr = oldByHash.get(o.hash);
+      if (arr) arr.push(o);
+      else oldByHash.set(o.hash, [o]);
+    }
+    const claimed = new Set<(typeof old)[number]>();
+    const takePrev = (anchor: string, hash: string): (typeof old)[number] | undefined => {
+      const exact = oldByAnchor.get(anchor);
+      if (exact && exact.hash === hash && !claimed.has(exact)) {
+        claimed.add(exact);
+        return exact;
+      }
+      const queue = oldByHash.get(hash);
+      const next = queue?.find((o) => !claimed.has(o));
+      if (next) claimed.add(next);
+      return next;
+    };
     stmts.delBlocks.run(note.path);
     stmts.delLinks.run(note.path);
     const ids = new Map<string, number>();
@@ -266,7 +299,7 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       );
       const id = Number(info.lastInsertRowid);
       ids.set(b.anchor, id);
-      const prev = oldByHash.get(b.hash);
+      const prev = takePrev(b.anchor, b.hash);
       if (prev) {
         db.prepare(
           `UPDATE blocks SET stability=?, last_accessed=?, access_count=?, importance=? WHERE id=?`,

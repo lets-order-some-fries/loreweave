@@ -201,3 +201,58 @@ describe('a never-read block is not treated as forgotten', () => {
     ctx.close();
   });
 });
+
+describe('usage history is matched per block, not per text', () => {
+  const rows = (store: ReturnType<typeof openStore>) =>
+    store.db
+      .prepare(`SELECT anchor, access_count FROM blocks WHERE note_path='guide.md' ORDER BY ord`)
+      .all() as { anchor: string; access_count: number }[];
+
+  // Two sections with byte-identical bodies. Ordinary in real notes: a repeated
+  // disclaimer, a duplicated table row, the same instruction under two headings.
+  const NOTE = [
+    '# Guide', '',
+    '## Setup', '', 'Run the command with a flag.', '',
+    '## Usage', '', 'Run the command with a flag.', '',
+    '## Other', '', 'Something entirely different here.', '',
+  ].join('\n');
+
+  it('two identical blocks do not share or destroy each other’s history', async () => {
+    // Restoring by content hash alone collapsed them — last one wins — so BOTH
+    // were restored from the unused one and all learned state was lost on a
+    // reindex that changed nothing. Usage is the only thing in the index that
+    // cannot be re-derived from the vault.
+    const root = await makeVault({ 'guide.md': NOTE });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    for (let i = 0; i < 3; i++) {
+      markUsed(store, resolveBlockIds(store, 'guide.md', 'Guide/Setup@0'));
+    }
+    const before = rows(store);
+    expect(before.find((r) => r.anchor === 'Guide/Setup@0')!.access_count).toBe(3);
+    expect(before.find((r) => r.anchor === 'Guide/Usage@0')!.access_count).toBe(0);
+
+    await indexVault(store, root, { full: true });
+    expect(rows(store)).toEqual(before);
+    store.close();
+  });
+
+  it('history still follows the text when a heading is renamed', async () => {
+    // Anchor-first matching must not lose the fallback: renaming a heading
+    // changes the anchor while leaving the text alone, and the history belongs
+    // to the text.
+    const root = await makeVault({ 'guide.md': NOTE });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    for (let i = 0; i < 3; i++) {
+      markUsed(store, resolveBlockIds(store, 'guide.md', 'Guide/Setup@0'));
+    }
+    await editFile(root, 'guide.md', NOTE.replace('## Setup', '## Installation'));
+    await indexVault(store, root);
+
+    const after = rows(store);
+    expect(after.find((r) => r.anchor === 'Guide/Installation@0')!.access_count).toBe(3);
+    expect(after.find((r) => r.anchor === 'Guide/Usage@0')!.access_count).toBe(0);
+    store.close();
+  });
+});

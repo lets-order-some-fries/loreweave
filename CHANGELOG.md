@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.7.5 — 2026-08-08
+
+- **A note with two identical sections no longer loses its usage history.**
+  Usage is preserved across a reindex by matching block *content*, which is why
+  renaming a heading keeps it and editing a body resets it — both correct. But
+  hash alone is not an identity: a note can hold the same text twice (a
+  repeated disclaimer, a duplicated table row, the same instruction under two
+  headings), and the restore map was keyed by hash, so the two collapsed, the
+  last one won, and **both** blocks came back with its state. A reindex that
+  changed nothing wiped all learned state for that note — and usage is the one
+  thing in the index that cannot be re-derived from the vault, so it was simply
+  gone.
+
+  Matching is now anchor-first with content as the fallback, preserving every
+  existing behaviour: unchanged blocks keep their history, a renamed heading
+  carries it across, an edited body resets it, and identical blocks keep their
+  own.
+
+Also checked and found sound: block anchors are heading paths, so inserting a
+section, reordering sections and editing a body all leave every other anchor
+intact.
+
 ## 0.7.4 — 2026-08-08
 
 The last load-bearing claim to get generated histories instead of hand-picked
