@@ -158,3 +158,46 @@ describe('learned state is durable', () => {
     ctx.close();
   });
 });
+
+describe('a never-read block is not treated as forgotten', () => {
+  it('ranks unaccessed blocks at neutral retrievability, not zero', async () => {
+    // FSRS says a block never accessed has R = 0 — infinitely long since it
+    // was last recalled. Applying that literally to search would multiply the
+    // retrievability boost by zero for every note the user has not already
+    // read, which is exactly the material a search is usually FOR. The ranker
+    // substitutes a neutral 0.5 when `last_accessed` is null.
+    //
+    // Nothing was pinning that. Replacing it with a plain
+    // `retrievability(days, stability)` looks like a simplification, passes
+    // every other test, and quietly buries new content.
+    const root = await makeVault({
+      'n.md': '# Note\n\n## Intro\n\nAlpha compaction.\n\n## Detail\n\nBeta compaction.\n',
+    });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+
+    const raw = store.db
+      .prepare(`SELECT anchor, stability, last_accessed FROM blocks WHERE note_path='n.md'`)
+      .all() as { anchor: string; stability: number; last_accessed: string | null }[];
+    // the model's own answer for a block that has never been read
+    for (const b of raw) {
+      expect(b.last_accessed).toBeNull();
+      expect(retrievability(daysBetween(b.last_accessed, new Date()), b.stability)).toBe(0);
+    }
+
+    const config = ConfigSchema.parse({});
+    let cached: LoreGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => { cached = null; },
+      close: () => store.close(),
+    };
+    // …but the ranker reports the neutral value it actually used
+    const hits = await search(ctx, 'compaction', { k: 3, noLog: true });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]!.parts.retrievability).toBe(0.5);
+    ctx.close();
+  });
+});

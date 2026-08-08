@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.5 — 2026-08-08
+
+No defects found this pass. One subtle deliberate choice is now guarded.
+
+- **A never-read block is not treated as forgotten.** Search substitutes a
+  neutral `0.5` when a block has no access history, rather than the model's
+  literal answer of `R = 0`. Applied literally, the retrievability boost is
+  multiplied by zero for every note the user has not already read — exactly the
+  material a search is usually for. Nothing pinned this: replacing it with a
+  plain `retrievability(days, stability)` reads as a simplification, passes
+  every other test, and quietly buries new content.
+
+Also examined and deliberately left alone: the per-note block swap leaves
+`lexicalScore` and `parts` describing the ranked block while `anchor`,
+`snippet` and `coverage` describe the shown one. That is coherent rather than
+inconsistent — `score` and `parts` explain why the *note* ranked where it did,
+and `importance` is computed per note so it cannot differ between a note's
+blocks anyway.
+
 ## 0.6.4 — 2026-08-08
 
 Threw nineteen hostile and malformed queries at search — unbalanced quotes, FTS
