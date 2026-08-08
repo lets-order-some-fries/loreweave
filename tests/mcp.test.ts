@@ -285,3 +285,48 @@ describe('context pack says when it is showing a sample', () => {
     small.close();
   });
 });
+
+describe('the tool contracts describe what the tools do', () => {
+  // An agent reads these to decide what to call and cannot notice when one is
+  // stale. Two had drifted: aggregate_facts changed shape and gained a cap,
+  // and context_pack gained the `truncated` field that exists precisely so a
+  // caller knows a list is a sample — neither said so.
+  it('aggregate_facts documents its shape, its cap, and offers the knob', async () => {
+    const tools = (await client.listTools()).tools;
+    const agg = tools.find((t) => t.name === 'lore_aggregate_facts')!;
+    expect(agg.description).toContain('totalGroups');
+    expect(agg.description).toContain('limit');
+    // and the knob it names actually exists
+    expect(Object.keys((agg.inputSchema as { properties?: object }).properties ?? {})).toContain(
+      'limit',
+    );
+  });
+
+  it('raising the limit really returns more groups', async () => {
+    for (let i = 0; i < 120; i++) {
+      await client.callTool({
+        name: 'lore_assert_fact',
+        arguments: {
+          subject: `Bulk ${i}`, predicate: 'kind', object: `value ${i}`, validFrom: '2026-01-01',
+        },
+      });
+    }
+    const capped = parseText(
+      await client.callTool({ name: 'lore_aggregate_facts', arguments: { predicate: 'kind' } }),
+    );
+    expect(capped.groups.length).toBe(100);
+    expect(capped.totalGroups).toBeGreaterThan(100);
+
+    const wider = parseText(
+      await client.callTool({
+        name: 'lore_aggregate_facts', arguments: { predicate: 'kind', limit: 500 },
+      }),
+    );
+    expect(wider.groups.length).toBe(wider.totalGroups);
+  }, 60_000);
+
+  it('context_pack tells the caller that its lists are samples', async () => {
+    const pack = (await client.listTools()).tools.find((t) => t.name === 'lore_context_pack')!;
+    expect(pack.description).toContain('truncated');
+  });
+});

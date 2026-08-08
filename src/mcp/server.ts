@@ -73,7 +73,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.8.3' });
+  const server = new McpServer({ name: 'loreweave', version: '0.8.4' });
 
   server.registerTool(
     'lore_search',
@@ -104,7 +104,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Session context pack',
       description:
-        'Progressive-disclosure primer: vault stats, top entities, recently modified notes, currently-valid facts, and (if topic given) top search hits. Call once at session start to orient; then drill down with lore_search / lore_read_note.',
+        'Progressive-disclosure primer: vault stats, top entities, recently modified notes, currently-valid facts, and (if topic given) top search hits. Call once at session start to orient; then drill down with lore_search / lore_read_note. Every list here is a sample: when one is cut, a `truncated` field names it with { shown, of, rest } and the tool to call for the remainder — so treat a missing item as "not in this sample", never as "not in the vault".',
       inputSchema: {
         topic: z.string().max(2000).optional().describe('optional focus topic'),
       },
@@ -244,13 +244,20 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Count facts',
       description:
-        'Deterministic aggregation over fact history — counts grouped by object/subject/predicate with date-range filters. Use for "how many X", "which Y most often" questions; similarity search cannot answer these reliably.',
+        'Deterministic aggregation over fact history — counts grouped by object/subject/predicate with date-range filters. Use for "how many X", "which Y most often" questions; similarity search cannot answer these reliably. Returns { groups, totalGroups, limit }: `groups` is the top `limit` (default 100), so read `totalGroups` for "how many distinct values are there" rather than counting `groups`, and raise `limit` if you need the tail.',
       inputSchema: {
         subject: z.string().optional(),
         predicate: z.string().optional(),
         groupBy: z.enum(['object', 'subject', 'predicate']).optional(),
         since: z.string().optional(),
         until: z.string().optional(),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(5000)
+          .optional()
+          .describe('max groups returned (default 100); totalGroups always reports the real count'),
       },
     },
     safe((q) => aggregateFacts(ctx.store, q)),
@@ -261,7 +268,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Capture a note',
       description:
-        'Append a timestamped line to lore/inbox.md (or another vault note). Use for fleeting observations worth keeping that are not atomic facts. Never overwrites anything.',
+        'Append a timestamped line to lore/inbox.md (or another vault note). Use for fleeting observations worth keeping that are not atomic facts. Never overwrites anything, and never writes outside the vault — a path that escapes it, including through a symlink, is refused.',
       inputSchema: {
         text: z.string().min(1).max(100_000),
         to: z.string().max(1024).optional().describe('target .md path (default lore/inbox.md)'),
@@ -291,7 +298,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Consolidation report',
       description:
-        'Run the consolidation pass: duplicate passages, contradicting/recently-changed facts, stale knowledge needing review, suggested missing links, orphan notes. Read-only unless apply=true (which writes a digest + review queue under lore/).',
+        'Run the consolidation pass: duplicate passages, contradicting/recently-changed facts, stale knowledge needing review, suggested missing links, orphan notes. Leaves the vault untouched unless apply=true (which writes a digest + review queue under lore/); it does perform index maintenance either way, which changes no results. Findings are a summary — pass verbose:true for every one.',
       inputSchema: {
         apply: z.boolean().optional(),
         verbose: z.boolean().optional().describe('return every finding rather than a summary'),
@@ -405,7 +412,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Reindex the vault',
       description:
-        'Incrementally sync the markdown vault into the index. Call after writing files to the vault outside lore_* tools.',
+        'Incrementally sync the markdown vault into the index. Call after writing files to the vault outside lore_* tools — lore_capture and lore_assert_fact write to the vault but do not reindex, so their content is not searchable until this runs.',
       inputSchema: { full: z.boolean().optional() },
     },
     safe(async ({ full }) => {

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.4 — 2026-08-08
+
+- **The MCP tool contracts describe what the tools do now.** Descriptions are
+  the contract an agent reads, and an agent cannot notice when one is stale.
+  Two had drifted in exactly the shape this project keeps finding in its data —
+  a silent cap:
+
+  - `lore_aggregate_facts` returns `{ groups, totalGroups, limit }` and caps at
+    100 groups since 0.6.0; its description mentioned neither, so "how many
+    distinct X" would be answered by counting `groups` — i.e. 100. It now says
+    to read `totalGroups`, **and the schema gained the `limit` parameter** it
+    refers to.
+  - `lore_context_pack`'s description now explains the `truncated` field: treat
+    a missing item as "not in this sample", never as "not in the vault".
+
+  Plus three smaller drifts: `dream_report` no longer claims to be read-only
+  (index maintenance runs either way; results are unchanged), `capture` states
+  its symlink containment, and `lore_index` names the write tools whose output
+  is not searchable until it runs.
+
+Contract tests pin the big two — including that raising `limit` actually
+returns more groups, not merely that the description claims so.
+
 ## 0.8.3 — 2026-08-08
 
 - **`graph export` is byte-identical whether the index was grown or rebuilt.**
