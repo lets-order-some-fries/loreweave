@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.8 — 2026-08-08
+
+- **`ask` no longer prints the same facts twice.** Tested on a vault that
+  actually has facts — every vault it had been tried on was factless, so half
+  of "top passages + current facts" had never been exercised. The facts section
+  works; underneath it, the top passage was the journal line recording those
+  same facts, in the syntax the engine writes for itself, and the line it chose
+  was about a different predicate than the question asked. This grows with use:
+  every assert appends another line to a journal that is indexed on purpose.
+
+  `ask` now drops passages that are nothing but fact records, and only when the
+  facts are being shown anyway. `search` is untouched — searching for a record
+  should find the record — with a test for each half.
+- **`- [fact]` lines count as machine text when quoting part of a block,** the
+  same rule already applied to fenced source.
+
 ## 0.6.7 — 2026-08-08
 
 - **Search no longer slows down the longer a vault is used.** Every edit

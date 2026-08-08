@@ -163,3 +163,49 @@ describe('cli', () => {
     expect(r.out).toMatch(/reinforced \d+ block/);
   });
 });
+
+describe('ask does not print the facts twice', () => {
+  it('suppresses journal records when the facts are already shown', async () => {
+    // The journal writes `- [fact] S :: p :: o {…}` on every assert and is
+    // indexed on purpose, so it matches the same entity names as the prose.
+    // Measured, `ask "who leads project atlas"` returned a journal line about
+    // the project's STATUS as its top passage, directly beneath a Facts
+    // section that had already said it in words — and it grows, because every
+    // assert appends another line.
+    const root = await makeVault({
+      'atlas.md':
+        '---\ntitle: Project Atlas\n---\n\n# Project Atlas\n\n' +
+        'Atlas is the ingestion rewrite led by Priya Sharma.\n',
+    });
+    const out: string[] = [];
+    const prog = buildProgram({ out: (s) => out.push(s), err: () => {} });
+    const run = (...args: string[]) =>
+      prog.parseAsync(['node', 'lore', '--vault', root, ...args]);
+
+    await run('index');
+    await run('assert', 'Project Atlas', 'lead', 'Priya Sharma', '--valid-from', '2025-06-01');
+    await run('index');
+
+    out.length = 0;
+    await run('ask', 'who', 'leads', 'project', 'atlas');
+    const text = out.join('\n');
+    expect(text).toContain('Facts (currently valid)');
+    expect(text).toContain('Priya Sharma');
+    expect(text).not.toContain('[fact]'); // not the raw record, twice over
+  }, 30_000);
+
+  it('search still returns the journal, because searching for a record should find it', async () => {
+    const root = await makeVault({ 'a.md': '# A\n\nSome prose about widgets.\n' });
+    const out: string[] = [];
+    const prog = buildProgram({ out: (s) => out.push(s), err: () => {} });
+    const run = (...args: string[]) =>
+      prog.parseAsync(['node', 'lore', '--vault', root, ...args]);
+    await run('index');
+    await run('assert', 'Widget', 'status', 'shipped', '--valid-from', '2026-01-01');
+    await run('index');
+
+    out.length = 0;
+    await run('search', 'fact', 'widget', 'status', 'shipped');
+    expect(out.join('\n')).toContain('lore/journal/');
+  }, 30_000);
+});

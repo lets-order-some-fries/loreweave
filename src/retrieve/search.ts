@@ -56,21 +56,36 @@ export function matchQueryEntities(
 
 
 
-/** Per-line mask of which lines sit inside (or open/close) a code fence. */
+/**
+ * A `- [fact] S :: p :: o {…}` line: this project's own record syntax, which
+ * the journal writes on every assert.
+ *
+ * It is machine text for the same reason a fenced diagram is. It restates the
+ * vocabulary of the prose it records, so it competes on term coverage with the
+ * notes that actually explain the thing — and it grows: every fact asserted
+ * appends another line to a journal that is indexed on purpose, so the more
+ * the fact store is used the more search fills with the record of using it.
+ * Measured, `ask "who leads project atlas"` returned a journal line about the
+ * project's STATUS above the prose note naming the lead, directly below a
+ * "Facts (currently valid)" section that had already said it properly.
+ */
+const RECORD_LINE = /^\s*[-*+]\s*\[(fact|invalidate)\]/i;
+
+/** Per-line mask of lines that are machine text: code fences and record lines. */
 function fencedMask(lines: string[]): boolean[] {
   const mask: boolean[] = [];
   let fenced = false;
   for (const l of lines) {
     const marker = /^\s*(```|~~~)/.test(l);
     if (marker) fenced = !fenced;
-    mask.push(fenced || marker);
+    mask.push(fenced || marker || RECORD_LINE.test(l));
   }
   return mask;
 }
 
 /**
- * True when a block is nothing but fenced source — a mermaid or graphviz
- * diagram, a JSON dump, a config listing.
+ * True when a block is nothing but machine text — a mermaid or graphviz
+ * diagram, a JSON dump, a config listing, or a run of `- [fact]` record lines.
  *
  * Such a block is a trap for term coverage: generated source restates the
  * vocabulary of the prose it illustrates, so it matches as well as the prose

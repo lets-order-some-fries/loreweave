@@ -22,6 +22,19 @@ import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
 import { exportGraph } from './export.js';
 import { watchVault } from '../watch.js';
 
+/**
+ * True when a passage is nothing but this project's own fact-record syntax.
+ * Used only by `ask`, and only when the facts themselves are being shown —
+ * `search` still returns journals, because searching for a record should find
+ * the record.
+ */
+function isFactRecord(snippet: string): boolean {
+  const lines = snippet.split(/\n|(?= - \[(?:fact|invalidate)\])/i)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.length > 0 && lines.every((l) => /^[-*+]?\s*\[(fact|invalidate)\]/i.test(l));
+}
+
 /** Label absolute match strength so a bullseye and a miss don't look alike. */
 function strength(r: { coverage: number; lexicalScore: number }): string {
   if (r.coverage >= 0.99) return 'all terms';
@@ -85,7 +98,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.6.7')
+    .version('0.6.8')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -276,11 +289,21 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           }
           io.out('');
         }
-        if (passages.length) {
+        // When the facts are already printed above, the journal lines that
+        // RECORD those facts are not a second answer — they are the same
+        // answer in the syntax the engine writes for itself. Measured, `ask`
+        // showed `- [fact] Project Atlas :: status :: shipped {valid_from=…,
+        // recorded_at=…, confidence=0.9}` as its top passage, directly beneath
+        // a Facts section that had already said it in words. This grows with
+        // use: every assert appends another line to an indexed journal.
+        const shown = relevantFacts.length
+          ? passages.filter((p) => !isFactRecord(p.snippet))
+          : passages;
+        if (shown.length) {
           io.out('Passages:');
-          io.out(passages.map(fmtResult).join('\n'));
+          io.out(shown.map(fmtResult).join('\n'));
         }
-        if (!relevantFacts.length && !passages.length) io.out('nothing found');
+        if (!relevantFacts.length && !shown.length) io.out('nothing found');
       }, { autoIndex: true });
     });
 
