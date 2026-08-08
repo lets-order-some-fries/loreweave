@@ -604,7 +604,16 @@ export async function search(
   const byBlock = new Map(rows.map((r) => [`${r.note_path} ${r.anchor}`, r.id]));
   const isExpansion = (r: SearchResult) =>
     linkedOnly.has(byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1);
-  const primary = results.filter((r) => !isExpansion(r)).sort((a, b) => b.score - a.score);
+  // A stable, content-derived tie-break so a result set is a function of the
+  // vault and not of how the index happened to be built. Array.sort is stable,
+  // so without this the order fell through to insertion order, which traces
+  // back to block rowids.
+  const byPath = (a: SearchResult, b: SearchResult) =>
+    a.notePath < b.notePath ? -1 : a.notePath > b.notePath ? 1
+      : a.anchor < b.anchor ? -1 : a.anchor > b.anchor ? 1 : 0;
+  const primary = results
+    .filter((r) => !isExpansion(r))
+    .sort((a, b) => b.score - a.score || byPath(a, b));
   const linked = results
     .filter(isExpansion)
     .sort((a, b) => {
@@ -616,7 +625,7 @@ export async function search(
         const g = graphRanks.get(id);
         return g !== undefined ? 1000 + g : 1e9;
       };
-      return rank(a) - rank(b);
+      return rank(a) - rank(b) || byPath(a, b);
     });
   const merged: SearchResult[] = primary.slice(0, cfg.expansionPromoteAfter);
   let pi = cfg.expansionPromoteAfter;

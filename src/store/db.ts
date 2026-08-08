@@ -330,7 +330,7 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
            FROM blocks_fts
            JOIN blocks b ON b.id = blocks_fts.rowid
            WHERE blocks_fts MATCH ? ${includeArchived ? '' : 'AND b.archived = 0'}
-           ORDER BY rank LIMIT ?`,
+           ORDER BY rank, b.note_path, b.anchor LIMIT ?`,
         )
         .all(expr, k)
         .map((r: any) => ({

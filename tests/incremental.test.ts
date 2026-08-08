@@ -3,6 +3,11 @@ import { mkdtemp, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { openStore, type Store } from '../src/store/db.js';
+import { search } from '../src/retrieve/search.js';
+import { ConfigSchema } from '../src/config.js';
+import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph, type NoteLinkGraph } from '../src/retrieve/expand.js';
+import type { LoreContext } from '../src/context.js';
 import { indexVault } from '../src/index/indexer.js';
 
 /**
@@ -209,4 +214,80 @@ describe('incremental indexing under generated mutation sequences', () => {
       fresh.close();
     }
   }, 120_000);
+});
+
+describe('answers do not depend on how the index was built', () => {
+  // The disposability claim in the user's terms: `rm -rf .lore` must not change
+  // what a search returns. The table-level comparison above cannot see this —
+  // it orders rows by path, which normalises away exactly the thing that
+  // differed. Block ids are autoincrement, so an index grown through edits
+  // numbers its rows nothing like a fresh one, and ties were falling through to
+  // that order. Measured before the fix: 3 of 6 queries came back different,
+  // and the incremental index returned only the notes that had never been
+  // edited.
+  const QUERIES = [
+    'compaction ingestion throughput',
+    'riverbed protocol',
+    'who is amara osei',
+    'ledger pipeline batching',
+    'streaming compactor retries',
+  ];
+
+  const answers = async (root: string, store: Store) => {
+    const config = ConfigSchema.parse({});
+    let cached: LoreGraph | null = null;
+    let links: NoteLinkGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => (links ??= buildNoteLinkGraph(store)),
+      invalidateGraph: () => { cached = null; links = null; },
+      close: () => store.close(),
+    };
+    const out: string[] = [];
+    for (const q of QUERIES) {
+      const hits = await search(ctx, q, { k: 8, noLog: true });
+      out.push(hits.map((h) => `${h.notePath}#${h.anchor}`).join(' | '));
+    }
+    return out;
+  };
+
+  it('an index grown through edits answers like a fresh one', async () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 24; i++) {
+      files[`bulk/n${i}.md`] =
+        `# Note ${i}\n\nCompaction and ingestion throughput for the ledger pipeline.\n` +
+        `Discusses batching, retries and the streaming compactor.\n`;
+    }
+    files['people/amara.md'] = '# Amara Osei\n\nWorks on the riverbed protocol.\n';
+    const root = await mkdtemp(join(tmpdir(), 'lw-stable-'));
+    await build(root, files);
+
+    const incremental = openStore(':memory:');
+    await indexVault(incremental, root);
+    // churn half the notes so their rows are renumbered, then restore the bytes
+    for (let round = 0; round < 4; round++) {
+      for (let i = 0; i < 24; i += 2) {
+        await writeFile(join(root, `bulk/n${i}.md`), `${files[`bulk/n${i}.md`]!}Revision ${round}.\n`);
+      }
+      await indexVault(incremental, root);
+    }
+    for (let i = 0; i < 24; i += 2) {
+      await writeFile(join(root, `bulk/n${i}.md`), files[`bulk/n${i}.md`]!);
+    }
+    await rm(join(root, 'bulk/n1.md'));
+    await indexVault(incremental, root);
+
+    const fresh = openStore(':memory:');
+    await indexVault(fresh, root);
+
+    // the ids really are different, or this proves nothing
+    const idsOf = (s: Store) =>
+      s.db.prepare(`SELECT MIN(id) lo, MAX(id) hi FROM blocks`).get() as { lo: number; hi: number };
+    expect(idsOf(incremental).hi).not.toBe(idsOf(fresh).hi);
+
+    expect(await answers(root, incremental)).toEqual(await answers(root, fresh));
+    incremental.close();
+    fresh.close();
+  }, 60_000);
 });

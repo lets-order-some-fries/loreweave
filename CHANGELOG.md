@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.1 — 2026-08-08
+
+- **Deleting the index no longer changes the answers.** The disposability claim
+  has been property-tested for three releases at the level of database tables —
+  an incremental index equals a rebuild, row for row. That comparison orders
+  rows by path, which normalises away the one thing that differed.
+
+  Block ids are autoincrement, so an index grown through edits numbers its rows
+  nothing like a fresh one (measured: 4..91 against 1..30 for the same 30
+  blocks), and ties fell through to that order. Comparing **answers** instead
+  of tables, 3 of 6 queries came back different for identical vault bytes — the
+  incremental index returning only the notes that had never been edited,
+  because those kept low ids.
+
+  Two places: the lexical query ordered by BM25 alone, and with `LIMIT` that
+  decides which blocks become candidates at all; the final ranking then relied
+  on `Array.sort` being stable, preserving the same order. Both now break ties
+  by note path and anchor.
+
+Both eval corpora unchanged, as expected — the benchmark indexes each corpus
+once, so it never had two build histories to disagree about.
+
 ## 0.8.0 — 2026-08-08
 
 - **`graph export --out` no longer silently overwrites.** Audited every write
