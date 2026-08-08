@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.1 — 2026-08-08
+
+- **Re-confirming a value no longer leaves the slot with two current answers.**
+
+  ```
+  $ lore facts --subject Ledger
+  Ledger :: status :: final  (2026-08-01 → now)
+  Ledger :: status :: draft  (2026-01-01 → now)
+  ```
+
+  Supersession compared each record only with its immediate neighbour, and a
+  same-value successor was linked `extends` and left **open**. With
+  draft(Jan), draft(Mar), final(Aug): Aug closed Mar, and nothing ever closed
+  Jan, because Aug was not its neighbour. Re-confirming a value is ordinary,
+  and doing it once broke the slot permanently and silently — one current value
+  per slot is the invariant the fact store rests on.
+
+  Every record is now closed by the one after it; only the link type says
+  whether the value changed. Nothing is lost: the value is continuous across
+  both records, so point-in-time queries land on whichever covers the date.
+
+  The report stays honest separately — re-asserting a value still says nothing
+  was superseded, because telling you `superseded: "draft"` when you just wrote
+  "draft" describes a change that did not happen.
+
 ## 0.7.0 — 2026-08-08
 
 - **The record-time axis is queryable: `--as-known-at` / `asKnownAt`.**

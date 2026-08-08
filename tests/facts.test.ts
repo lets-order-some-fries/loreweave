@@ -345,3 +345,73 @@ describe('record-time travel', () => {
     ctx.close();
   });
 });
+
+describe('re-asserting a value does not break the slot', () => {
+  it('leaves exactly one current fact after a value is re-confirmed', async () => {
+    // Supersession only compared each record with its immediate neighbour, and
+    // a same-value successor was linked 'extends' and left OPEN. So with
+    // draft(Jan), draft(Mar), final(Aug): Aug closed Mar, and nothing ever
+    // closed Jan, because Aug was not its neighbour. The slot was left
+    // permanently with two current answers — `lore facts` printed
+    // "final (2026-08-01 → now)" and "draft (2026-01-01 → now)" together — and
+    // re-confirming a value is an ordinary thing to do.
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-01-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-03-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'final', validFrom: '2026-08-01' });
+
+    const current = queryFacts(ctx.store, { subject: 'Ledger', predicate: 'status' });
+    expect(current).toHaveLength(1);
+    expect(current[0]!.object).toBe('final');
+    ctx.close();
+  });
+
+  it('two assertions of the same value still leave one current', async () => {
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'same', validFrom: '2026-01-01' });
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'same', validFrom: '2026-03-01' });
+    const current = queryFacts(ctx.store, { subject: 'S', predicate: 'p' });
+    expect(current).toHaveLength(1);
+    expect(current[0]!.validFrom).toBe('2026-03-01');
+    ctx.close();
+  });
+
+  it('point-in-time lands on whichever record covers the date', async () => {
+    // Closing on a re-assertion must not lose the earlier period: the value is
+    // continuous across the two records.
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-01-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-03-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'final', validFrom: '2026-08-01' });
+    for (const [date, want] of [
+      ['2026-02-01', 'draft'],
+      ['2026-05-01', 'draft'],
+      ['2026-09-01', 'final'],
+    ] as const) {
+      const at = queryFacts(ctx.store, { subject: 'Ledger', asOf: date });
+      expect(at, `as of ${date}`).toHaveLength(1);
+      expect(at[0]!.object, `as of ${date}`).toBe(want);
+    }
+    ctx.close();
+  });
+
+  it('records whether a successor changed the value or re-confirmed it', async () => {
+    // fact_links was computed on every recompute and read by nothing.
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-01-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'draft', validFrom: '2026-03-01' });
+    assertFact(ctx, { subject: 'Ledger', predicate: 'status', object: 'final', validFrom: '2026-08-01' });
+    const links = ctx.store.db
+      .prepare(
+        `SELECT l.type, a.object AS src, b.object AS dst FROM fact_links l
+         JOIN facts a ON a.id = l.src_fact JOIN facts b ON b.id = l.dst_fact
+         ORDER BY l.type`,
+      )
+      .all() as { type: string; src: string; dst: string }[];
+    expect(links).toEqual([
+      { type: 'extends', src: 'draft', dst: 'draft' },
+      { type: 'updates', src: 'final', dst: 'draft' },
+    ]);
+    ctx.close();
+  });
+});

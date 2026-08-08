@@ -181,17 +181,25 @@ export function recomputeSupersessions(store: Store): void {
         valid_until: string | null;
         recorded_at: string;
       }[];
+      // Every record is closed by the one after it; only the LINK TYPE says
+      // whether the value changed. Re-asserting the same value used to `continue`
+      // without closing, which broke the chain rather than extending it: with
+      // draft(Jan), draft(Mar), final(Aug), Aug closed Mar and nothing ever
+      // closed Jan, because Aug was not its immediate neighbour. The slot was
+      // then permanently left with two current answers — `lore facts` returned
+      // "final (2026-08-01 → now)" and "draft (2026-01-01 → now)" together —
+      // and re-confirming a value is an ordinary thing to do.
+      //
+      // Closing on a re-assertion loses nothing: the value is continuous across
+      // the two records, so a point-in-time query lands on whichever record
+      // covers the date, and the slot keeps exactly one open row.
       for (let i = 0; i < rows.length - 1; i++) {
         const cur = rows[i]!;
         const next = rows[i + 1]!;
-        if (normalizeKey(next.object) === normalizeKey(cur.object)) {
-          linkStmt.run(next.id, cur.id, 'extends');
-          continue;
-        }
-        // different object, later validity → supersession
+        const sameValue = normalizeKey(next.object) === normalizeKey(cur.object);
         const closeAt = next.valid_from ?? next.recorded_at;
         closeStmt.run(closeAt, next.recorded_at, next.id, cur.id);
-        linkStmt.run(next.id, cur.id, 'updates');
+        linkStmt.run(next.id, cur.id, sameValue ? 'extends' : 'updates');
       }
     }
   });

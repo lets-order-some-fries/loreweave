@@ -142,10 +142,16 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
 
   const id = Number(info.lastInsertRowid);
   const fact = rowToFact(db.prepare(`SELECT * FROM facts WHERE id=?`).get(id) as any);
+  // Records this assertion CLOSED, minus the ones it merely re-confirmed. The
+  // chain closes every predecessor so a slot keeps exactly one current value,
+  // but re-asserting the same value did not supersede anything in the sense a
+  // reader cares about — reporting `superseded: "draft"` when you just wrote
+  // "draft" again describes a change that did not happen.
   const superseded = before
     .map((b) => db.prepare(`SELECT * FROM facts WHERE id=? AND superseded_by=?`).get(b.id, id))
     .filter(Boolean)
-    .map((r) => rowToFact(r as any));
+    .map((r) => rowToFact(r as any))
+    .filter((f) => normalizeKey(f.object) !== normalizeKey(input.object));
   return { fact, superseded, journalPath };
 }
 
