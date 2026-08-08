@@ -168,3 +168,27 @@ describe('config', () => {
     expect(cfg.retrieval.k).toBe(12);
   });
 });
+
+describe('README examples show real output', () => {
+  // The README's example outputs are the human-facing contract, the same way
+  // the tool descriptions are the agent-facing one — and they had drifted the
+  // same way: the search example still showed the `#Heading@0` anchor display
+  // that was replaced by `› Heading` long ago. A reader comparing their real
+  // output against the README would conclude their install was broken.
+  it('never shows the dead anchor display format in example output', async () => {
+    const readme = await readFile(join(import.meta.dirname, '..', 'README.md'), 'utf8');
+    // Result bullets in examples must use the live `path › Heading` display —
+    // the old `path#Heading@0` form only ever appears for review-queue
+    // duplicate lines, which genuinely print anchors.
+    const badBullets = readme
+      .split('\n')
+      .filter((l) => l.trimStart().startsWith('• ') && /#[^\s]+@\d/.test(l));
+    expect(badBullets).toEqual([]);
+  });
+
+  it('the assert example includes the journal line the command prints', async () => {
+    const readme = await readFile(join(import.meta.dirname, '..', 'README.md'), 'utf8');
+    const assertBlock = readme.slice(readme.indexOf('$ lore assert'));
+    expect(assertBlock.slice(0, 400)).toContain('journal: lore/journal/');
+  });
+});

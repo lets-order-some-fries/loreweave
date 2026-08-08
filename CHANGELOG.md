@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 — 2026-08-08
+
+- **The README's example outputs match the real ones again.** Ran every
+  `$ lore` example verbatim against a scratch vault. Most match exactly; three
+  had drifted: the search example still showed the `#Standup@0` anchor display
+  replaced by `› Standup` many releases ago — a reader comparing their real
+  output against the README's would conclude their install was broken — and the
+  `assert`/`--as-of` examples omitted lines the commands print. A conformance
+  test now fails on the dead format.
+
 ## 0.9.1 — 2026-08-08
 
 - **The MCP server watches the vault.** `lore serve --mcp` runs for a whole

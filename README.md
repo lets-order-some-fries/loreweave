@@ -113,6 +113,7 @@ $ lore assert "Ledger Format" status draft --valid-from 2026-01-01
 $ lore assert "Ledger Format" status final --valid-from 2026-08-01
 ✓ Ledger Format :: status :: final
   superseded: "draft" (now valid until 2026-08-01)
+  journal: lore/journal/2026-08-01.md
 
 $ lore facts --subject "Ledger Format"
 Ledger Format :: status :: final  (2026-08-01 → now)
@@ -120,6 +121,7 @@ Ledger Format :: status :: final  (2026-08-01 → now)
 
 $ lore facts --subject "Ledger Format" --as-of 2026-03-01
 Ledger Format :: status :: draft  (2026-01-01 → 2026-08-01)  [superseded]
+    asserted · lore/journal/2026-08-01.md
 ```
 
 Both axes are queryable, which is the part that makes it bitemporal rather than
@@ -192,7 +194,8 @@ file mtime only when a note carries no date of its own:
 
 ```bash
 $ lore search ledger --since 2025-01-01 --until 2025-12-31
-• 2025-03-14-standup.md#Standup@0  [all terms]
+• 2025-03-14-standup.md › Standup  [all terms]
+  Discussed the ledger migration.
 ```
 
 Both files were written seconds ago, so an mtime filter could not tell them
