@@ -241,9 +241,14 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
       )
       .all() as { notePath: string; anchor: string; ord: number; text: string }[];
     const ins = db.prepare(
+      // user_valid_until comes straight back from the journal line's own
+      // `valid_until` attr. Without it a rebuild from markdown produced
+      // different facts than the live path — the column lived only in the
+      // database, which is precisely what the vault-is-the-truth claim forbids.
       `INSERT INTO facts(subject, predicate, object, subject_display, valid_from, valid_until,
-                         recorded_at, source_type, note_path, block_anchor, confidence)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                         recorded_at, source_type, note_path, block_anchor, confidence,
+                         user_valid_until)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     );
     const seen = new Set<string>();
     for (const r of rows) {
@@ -253,6 +258,16 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
       for (const f of parseFactLines(r.text)) {
         if (f.kind === 'invalidate') {
           const until = f.attrs.valid_until ?? dateFromPath ?? new Date().toISOString();
+          // Bring the slot up to date before asking what is open.
+          //
+          // The live path recomputes supersessions after every assert, so by
+          // the time an invalidate runs, facts already superseded are closed
+          // and it correctly finds nothing to close. Replay batches its
+          // inserts, so without this it saw rows that were still open only
+          // because the recompute had not happened yet, and closed the wrong
+          // one — giving a rebuilt vault different bookkeeping than the live
+          // one for the same journal.
+          recomputeSupersessions(store);
           // Close only the current winner of the slot; older open facts get
           // closed by the supersession recompute at their successor's date.
           // (Closing all open facts here would diverge from the live path,
@@ -269,7 +284,21 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
         const predicate = normalizeKey(f.predicate);
         const recordedAt =
           f.attrs.recorded_at ?? (dateFromPath ? `${dateFromPath}T00:00:00.000Z` : new Date().toISOString());
-        const dedupe = `${subject}|${predicate}|${normalizeKey(f.object ?? '')}|${f.attrs.valid_from ?? ''}`;
+        // Identity of a FACT: same slot, same value, same validity window.
+        // `recorded_at` is deliberately not part of it — logging the identical
+        // claim twice is one fact stated twice, not two facts. `valid_until`
+        // is, because "final from June until January" and "final from June" are
+        // a bounded claim and an open-ended one, and collapsing them made a
+        // rebuild produce facts the live path never had.
+        //
+        // assertFact applies the same key, so the two paths agree.
+        const dedupe = [
+          subject,
+          predicate,
+          normalizeKey(f.object ?? ''),
+          f.attrs.valid_from ?? '',
+          f.attrs.valid_until ?? '',
+        ].join('|');
         if (seen.has(dedupe)) continue;
         seen.add(dedupe);
         const rawSource = f.attrs.source ?? (journal ? 'stated' : 'extracted');
@@ -287,6 +316,7 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
           r.notePath,
           r.anchor,
           Number.isFinite(conf) ? Math.max(0, Math.min(1, conf)) : 0.9,
+          f.attrs.valid_until ?? null,
         );
         count++;
       }

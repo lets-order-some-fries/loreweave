@@ -96,6 +96,14 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
   const subject = normalizeKey(input.subject);
   const predicate = normalizeKey(input.predicate);
 
+  // Same rule as invalidate: a fact cannot stop being true before it started.
+  // Accepted silently this produced intervals like (2025-01-01 → 2024-06-01),
+  // which no query can answer and nothing flags.
+  if (input.validUntil && validFrom && input.validUntil < validFrom) {
+    throw new Error(
+      `validUntil ${input.validUntil} is before validFrom ${validFrom}`,
+    );
+  }
   const journalPath = appendJournalLine(
     ctx.root,
     renderFactLine({
@@ -119,6 +127,35 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
       `SELECT id FROM facts WHERE subject=? AND predicate=? AND superseded_by IS NULL`,
     )
     .all(subject, predicate) as { id: number }[];
+  // Same identity as the journal replay: slot, value, validity window. Without
+  // this the live path inserted a second row for an identical assertion and
+  // then closed the first AT ITS OWN START — a zero-length fact — while a
+  // rebuild from the journal collapsed the pair into one. Two answers to the
+  // same question depending on whether you had reindexed.
+  //
+  // The journal line is still appended: it is a log of what was said, and
+  // saying the same thing twice is a fact about the log, not about the world.
+  //
+  // Compared against user_valid_until, never valid_until: by the time a
+  // duplicate arrives, supersession has usually already closed the original at
+  // some later fact's start, so matching on the computed value never fires and
+  // the duplicate is inserted anyway. The journal line records what the user
+  // claimed, so that is what identity has to be built from.
+  const identical = db
+    .prepare(
+      `SELECT id FROM facts WHERE subject=? AND predicate=? AND object=?
+         AND COALESCE(valid_from,'') = COALESCE(?,'')
+         AND COALESCE(user_valid_until,'') = COALESCE(?,'')`,
+    )
+    .get(subject, predicate, input.object.trim(), validFrom, input.validUntil ?? null) as
+    | { id: number }
+    | undefined;
+  if (identical) {
+    recomputeSupersessions(ctx.store);
+    const kept = rowToFact(db.prepare(`SELECT * FROM facts WHERE id=?`).get(identical.id) as any);
+    return { fact: kept, superseded: [], journalPath };
+  }
+
   const info = db
     .prepare(
       `INSERT INTO facts(subject, predicate, object, subject_display, valid_from, valid_until,

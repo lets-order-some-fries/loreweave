@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.4 — 2026-08-08
+
+The last load-bearing claim to get generated histories instead of hand-picked
+ones: the vault is the source of truth, so deleting the index and replaying the
+journal must reproduce the same facts. One hand-written example passed;
+**68 of 120 generated histories did not.** Four causes:
+
+- **`user_valid_until` lived only in the database.** Added two releases ago, it
+  was written but never read back from the journal, so an explicit
+  `--valid-until` was lost on rebuild — a fact that survives only if you never
+  delete the cache, which is precisely what this claim forbids.
+- **Replay's dedupe key ignored `valid_until`,** collapsing "final from June
+  until January" and "final from June" into whichever came first.
+- **The live path had no dedupe,** so two identical assertions became two rows
+  and the chain closed the first at its own start — a zero-length fact — while
+  replay collapsed them. Both paths now share one identity: slot, value,
+  validity window; deliberately not `recorded_at`, since logging the same claim
+  twice is one fact stated twice.
+- **`invalidate` found different rows in each path.** Live recomputes after
+  every assert, so superseded facts are already closed and it correctly finds
+  nothing open; replay batched its inserts and saw rows open only because the
+  recompute had not run.
+
+Zero of 200 now, and the histories are a test.
+
 ## 0.7.3 — 2026-08-08
 
 The other central claim — incremental indexing equals a rebuild — rested on
