@@ -41,11 +41,30 @@ function filenameDate(path: string): { from: string; to: string } | null {
   return m ? parseDateExpression(m[1]!) : null;
 }
 
+/**
+ * Upper bound on terms in one MATCH expression.
+ *
+ * Only a guard against pathological input, not a tuning knob: measured on a
+ * 400-note vault, 512 OR-terms cost 4 ms, so the previous limit of 32 was
+ * roughly an order of magnitude below anything the engine minds. It was low
+ * enough to matter — a long question whose decisive word came 41st lost that
+ * word entirely and returned a note matching only the preamble, which is the
+ * shape of query an agent produces when it pastes context and puts the actual
+ * ask at the end.
+ */
+const MAX_FTS_TERMS = 256;
+
 /** Turn free text into a safe FTS5 MATCH expression (quoted tokens). */
 export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
   // Content words only: with AND semantics, one stray "what" in the question
   // is enough to miss the block that literally answers it.
-  const tokens = contentTerms(segmentCJK(text)).slice(0, 32);
+  //
+  // Deduplicated, as the coverage path already does: a repeated word tells
+  // FTS nothing it does not know from the first occurrence, and prose repeats
+  // constantly — "the compaction strategy for compaction of the streaming
+  // compaction pipeline" is seven terms and four distinct ones. Under a cap,
+  // duplicates spend the budget on nothing.
+  const tokens = [...new Set(contentTerms(segmentCJK(text)))].slice(0, MAX_FTS_TERMS);
   if (tokens.length === 0) return null;
   return tokens.map((t) => `"${t}"`).join(joiner);
 }

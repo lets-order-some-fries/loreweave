@@ -170,3 +170,50 @@ describe('block selection', () => {
     ctx.close();
   });
 });
+
+describe('a long query keeps its tail', () => {
+  it('finds a note whose only matching word comes after the 32nd term', async () => {
+    // The FTS expression was capped at 32 terms, so a long question lost
+    // everything after it. That is the shape an agent produces when it pastes
+    // context and puts the actual ask at the end.
+    //
+    // The decisive word is lowercase and ordinary on purpose. An all-caps one
+    // is extracted as an entity and found by graph seeding whether or not FTS
+    // saw it, which masks the defect entirely — the first two versions of this
+    // probe were confounded that way.
+    const root = await makeVault({
+      'answer.md': '# Answer\n\nthe decisive detail is quokkaflange, recorded here and nowhere else.\n',
+      'other.md': '# Other\n\nUnrelated material about scheduling and meetings.\n',
+    });
+    const config = ConfigSchema.parse({});
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    let cached: LoreGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => { cached = null; },
+      close: () => store.close(),
+    };
+    // nothing in the vault matches the filler, so only the last word can decide
+    const isEntity = store.db
+      .prepare(`SELECT COUNT(*) c FROM entities WHERE key='quokkaflange'`)
+      .get() as { c: number };
+    expect(isEntity.c).toBe(0);
+
+    const filler = Array.from({ length: 50 }, (_, i) => `zzq${i}`).join(' ');
+    const hits = await search(ctx, `${filler} quokkaflange`, { k: 3, noLog: true });
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]!.notePath).toBe('answer.md');
+    ctx.close();
+  });
+
+  it('a repeated word does not spend the term budget twice', async () => {
+    const { ftsQuery } = await import('../src/store/db.js');
+    const q = 'the compaction strategy for compaction of the streaming compaction pipeline';
+    const terms = ftsQuery(q, ' OR ')!.split(' OR ');
+    expect(terms).toHaveLength(new Set(terms).size);
+    expect(terms).toHaveLength(4); // compaction, strategy, streaming, pipeline
+  });
+});

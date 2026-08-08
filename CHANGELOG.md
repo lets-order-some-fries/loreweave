@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 — 2026-08-08
+
+- **A long query no longer loses everything after its 32nd word.** The FTS
+  expression was capped at 32 terms and truncated with no signal, so a note
+  containing the one word that mattered was not returned at all — not ranked
+  low, absent. That is the shape of query an agent produces: paste context, put
+  the ask at the end. Measured on a 400-note vault, 512 OR-terms cost 4 ms, so
+  the cap was about an order of magnitude below anything the engine minds; it
+  is now 256, a guard against pathological input rather than a tuning knob.
+- **Query terms are deduplicated,** as the coverage path already did. Prose
+  repeats constantly — "the compaction strategy for compaction of the streaming
+  compaction pipeline" is seven terms and four distinct ones — so under any cap
+  duplicates spend budget on nothing.
+
 ## 0.6.0 — 2026-08-07
 
 - **A long list of `- [fact]` lines no longer loses all but one of them.** An
