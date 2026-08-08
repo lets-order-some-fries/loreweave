@@ -98,7 +98,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.6.9')
+    .version('0.7.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -313,12 +313,14 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .option('--subject <s>')
     .option('--predicate <p>')
     .option('--as-of <date>', 'what was true on this date')
+    .option('--as-known-at <date>', 'what we BELIEVED on this date (record time)')
     .option('--history', 'include superseded facts')
     .option('--json', 'JSON output')
     .action(async (opts: {
       subject?: string;
       predicate?: string;
       asOf?: string;
+      asKnownAt?: string;
       history?: boolean;
       json?: boolean;
     }) => {
@@ -327,6 +329,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           subject: opts.subject,
           predicate: opts.predicate,
           asOf: opts.asOf,
+          asKnownAt: opts.asKnownAt,
           includeHistory: opts.history,
         });
         if (opts.json) {

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.7.0 — 2026-08-08
+
+- **The record-time axis is queryable: `--as-known-at` / `asKnownAt`.**
+  `recorded_at` and `superseded_at` were written on every fact, returned in
+  every result, used for supersession bookkeeping — and impossible to query.
+  Half the bitemporal model was write-only, in the feature the README leads
+  with.
+
+  `asOf` alone rewrites the past whenever something is backdated:
+
+  ```
+  $ lore facts --subject Vendor --as-of 2024-06-01
+  Vendor :: reliability :: poor — outage postmortem
+
+  $ lore facts --subject Vendor --as-known-at 2024-06-01
+  Vendor :: reliability :: good
+  ```
+
+  Both are correct answers to different questions. The first is what we now
+  believe was true in June 2024; the second is what anyone deciding something
+  in June 2024 actually had. A postmortem written afterwards makes the first
+  useless for explaining that decision — which is exactly the case a store with
+  only history cannot express.
+
+  *Known at T* means recorded by then and not yet superseded by then: a fact
+  asserted afterwards was not available to anyone reasoning at T, however early
+  its validity was backdated. The two axes combine for "what was true then, as
+  far as we knew then".
+
+Verified first that valid-time travel was already correct on a vault with real
+history — the role held in 2025, nothing before any fact was valid, and the full
+chain under `--history`.
+
 ## 0.6.9 — 2026-08-08
 
 Ran `dream` against a vault with real fact history — on the vault audited

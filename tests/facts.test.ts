@@ -269,3 +269,79 @@ describe('assert / supersede / time-travel', () => {
     ctx.close();
   });
 });
+
+describe('record-time travel', () => {
+  // The store has always kept both axes and only ever let you query one.
+  // `asOf` alone rewrites the past every time something is backdated, so it
+  // cannot answer why a decision made in March looked right in March.
+  const backdateRecord = (ctx: LoreContext, object: string, recordedAt: string) =>
+    ctx.store.db
+      .prepare(`UPDATE facts SET recorded_at=? WHERE object=?`)
+      .run(recordedAt, object);
+
+  it('shows what was believed then, not what is believed now', async () => {
+    const ctx = await emptyCtx();
+    assertFact(ctx, {
+      subject: 'Vendor',
+      predicate: 'reliability',
+      object: 'good',
+      validFrom: '2024-01-01',
+    });
+    backdateRecord(ctx, 'good', '2024-01-05T00:00:00.000Z');
+    // learned much later, but backdated to the same period
+    assertFact(ctx, {
+      subject: 'Vendor',
+      predicate: 'reliability',
+      object: 'poor',
+      validFrom: '2024-01-01',
+    });
+
+    const trueThen = queryFacts(ctx.store, {
+      subject: 'Vendor',
+      asOf: '2024-06-01',
+    });
+    expect(trueThen[0]!.object).toBe('poor'); // what we now believe was true
+
+    const knownThen = queryFacts(ctx.store, {
+      subject: 'Vendor',
+      asKnownAt: '2024-06-01',
+    });
+    expect(knownThen[0]!.object).toBe('good'); // what the decision was based on
+    ctx.close();
+  });
+
+  it('excludes facts recorded after the date, however early they are valid from', async () => {
+    const ctx = await emptyCtx();
+    assertFact(ctx, {
+      subject: 'S',
+      predicate: 'p',
+      object: 'learned late',
+      validFrom: '2020-01-01',
+    });
+    expect(queryFacts(ctx.store, { subject: 'S', asOf: '2021-01-01' })).toHaveLength(1);
+    expect(queryFacts(ctx.store, { subject: 'S', asKnownAt: '2021-01-01' })).toHaveLength(0);
+    ctx.close();
+  });
+
+  it('combines with asOf for "true then, as far as we knew then"', async () => {
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'first', validFrom: '2024-01-01' });
+    backdateRecord(ctx, 'first', '2024-01-02T00:00:00.000Z');
+    assertFact(ctx, { subject: 'S', predicate: 'p', object: 'second', validFrom: '2025-01-01' });
+    backdateRecord(ctx, 'second', '2025-01-02T00:00:00.000Z');
+
+    const both = queryFacts(ctx.store, {
+      subject: 'S',
+      asOf: '2024-06-01',
+      asKnownAt: '2024-06-01',
+    });
+    expect(both.map((f) => f.object)).toEqual(['first']);
+    ctx.close();
+  });
+
+  it('rejects a malformed date', async () => {
+    const ctx = await emptyCtx();
+    expect(() => queryFacts(ctx.store, { asKnownAt: 'last tuesday' })).toThrow(/ISO date/);
+    ctx.close();
+  });
+});

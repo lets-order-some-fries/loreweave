@@ -73,7 +73,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.6.9' });
+  const server = new McpServer({ name: 'loreweave', version: '0.7.0' });
 
   server.registerTool(
     'lore_search',
@@ -222,11 +222,17 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
     {
       title: 'Query facts',
       description:
-        'Query the bitemporal fact store. Default: currently-valid facts. asOf answers "what was true on DATE"; includeHistory shows the full supersession chain. Prefer this over lore_search for factual slots (status, location, role, preference).',
+        'Query the bitemporal fact store. Default: currently-valid facts. asOf answers "what was true on DATE", asKnownAt answers "what did we know on DATE"; includeHistory shows the full supersession chain. Prefer this over lore_search for factual slots (status, location, role, preference).',
       inputSchema: {
         subject: z.string().optional(),
         predicate: z.string().optional(),
-        asOf: z.string().optional().describe('ISO date for point-in-time queries'),
+        asOf: z.string().optional().describe('ISO date: what was TRUE on this date'),
+        asKnownAt: z
+          .string()
+          .optional()
+          .describe(
+            'ISO date: what was KNOWN on this date. Facts recorded later are excluded however far back their validity was backdated — use it to reconstruct what a past decision was based on. Combine with asOf for "what was true then, as far as we knew then".',
+          ),
         includeHistory: z.boolean().optional(),
       },
     },

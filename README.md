@@ -122,6 +122,20 @@ $ lore facts --subject "Ledger Format" --as-of 2026-03-01
 Ledger Format :: status :: draft  (2026-01-01 → 2026-08-01)  [superseded]
 ```
 
+Both axes are queryable, which is the part that makes it bitemporal rather than
+merely historical. `--as-of` asks what was *true* then; `--as-known-at` asks what
+was *believed* then, excluding anything recorded later however far back it was
+backdated. They disagree exactly when you learn something after the fact — which
+is when you most need to reconstruct what a past decision was actually based on:
+
+```bash
+$ lore facts --subject Vendor --as-of 2024-06-01
+Vendor :: reliability :: poor — outage postmortem  (2024-01-01 → now)
+
+$ lore facts --subject Vendor --as-known-at 2024-06-01
+Vendor :: reliability :: good  (2024-01-01 → 2024-01-01)  [superseded]
+```
+
 Which fact wins is decided **deterministically** (newest valid-time, provenance as
 tiebreak) — never by asking a language model which one looks fresher.
 
@@ -197,7 +211,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 | `lore index [--full] [--no-nlp] [--rebuild-similar]` | incremental sync of vault → index |
 | `lore search <q> [-k] [--since] [--until] [--json]` | hybrid retrieval with provenance |
 | `lore ask <q>` | extractive answer: current facts + top passages (no LLM needed) |
-| `lore facts [--subject] [--predicate] [--as-of] [--history]` | query the fact store |
+| `lore facts [--subject] [--predicate] [--as-of] [--as-known-at] [--history]` | query the fact store |
 | `lore assert <s> <p> <o…> [--valid-from]` | record a fact (journalled, supersedes) |
 | `lore invalidate <s> <p>` | close the current fact in a slot |
 | `lore count [--predicate] [--group-by] [--since]` | aggregate over fact history |

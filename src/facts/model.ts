@@ -182,6 +182,17 @@ export interface FactQuery {
   predicate?: string;
   /** Point-in-time: facts valid at this date ("what was true then"). */
   asOf?: string;
+  /**
+   * Record-time travel: facts as they were KNOWN at this date ("what did we
+   * believe then"), independent of what was true.
+   *
+   * The store has always kept both axes and only ever let you query one. That
+   * is the difference between a fact store with history and a bitemporal one:
+   * `asOf` alone rewrites the past every time something is backdated, so it
+   * cannot answer why a decision made in March looked right in March. Combine
+   * the two for the full question — what was true then, as far as we knew then.
+   */
+  asKnownAt?: string;
   /** Include superseded/closed facts (full history). */
   includeHistory?: boolean;
   limit?: number;
@@ -193,6 +204,7 @@ export interface FactQuery {
  */
 export function queryFacts(store: Store, q: FactQuery = {}): Fact[] {
   checkDate('asOf', q.asOf);
+  checkDate('asKnownAt', q.asKnownAt);
   const clauses: string[] = [];
   const params: unknown[] = [];
   if (q.subject) {
@@ -208,8 +220,17 @@ export function queryFacts(store: Store, q: FactQuery = {}): Fact[] {
     params.push(`${q.asOf}~`); // '~' sorts after any time suffix, making date-only asOf inclusive
     clauses.push(`(valid_until IS NULL OR valid_until > ?)`);
     params.push(q.asOf);
-  } else if (!q.includeHistory) {
+  } else if (!q.includeHistory && !q.asKnownAt) {
     clauses.push(`valid_until IS NULL AND superseded_by IS NULL`);
+  }
+  if (q.asKnownAt) {
+    // Known at T: recorded by then, and not yet superseded by then. A fact
+    // asserted afterwards was not available to anyone reasoning at T, however
+    // early its validity was backdated to start.
+    clauses.push(`recorded_at <= ?`);
+    params.push(`${q.asKnownAt}~`);
+    clauses.push(`(superseded_at IS NULL OR superseded_at > ?)`);
+    params.push(`${q.asKnownAt}~`);
   }
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const rows = store.db
