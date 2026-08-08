@@ -3,9 +3,24 @@ import type { LoreContext } from '../context.js';
 interface GraphDump {
   nodes: { id: string; label: string; type: 'note' | 'entity' }[];
   edges: { source: string; target: string; type: string; weight: number }[];
+  /** What the dump left out, so a viewer is not read as the whole vault. */
+  meta: { notes: number; entities: number; entitiesShown: number; minEntityUses: number };
 }
 
-/** Note-level graph for visualization: notes + entities, aggregated edges. */
+/**
+ * Note-level graph for visualization: notes, entities, and the links between
+ * notes.
+ *
+ * The link edges are the point and were missing: the export carried only
+ * note→entity mentions, so a vault's explicit `[[wiki links]]` — the structure
+ * the whole design leans on — appeared nowhere, and opening the file in a
+ * graph tool showed no connections between notes at all unless two happened to
+ * share an entity.
+ *
+ * Entities are still filtered to those used at least twice, because a
+ * once-mentioned entity is a leaf that clutters a picture without adding a
+ * path. That filter is reported in `meta` rather than applied in silence.
+ */
 function dumpGraph(ctx: LoreContext): GraphDump {
   const db = ctx.store.db;
   const notes = db.prepare(`SELECT path, title FROM notes`).all() as {
@@ -17,6 +32,9 @@ function dumpGraph(ctx: LoreContext): GraphDump {
      JOIN mentions m ON m.entity_id = e.id GROUP BY e.id HAVING uses >= 2`,
   ).all() as { id: number; display: string; uses: number }[];
   const keep = new Set(entities.map((e) => e.id));
+  const allEntities = (
+    db.prepare(`SELECT COUNT(*) c FROM entities`).get() as { c: number }
+  ).c;
 
   const nodes: GraphDump['nodes'] = [
     ...notes.map((n) => ({ id: `note:${n.path}`, label: n.title, type: 'note' as const })),
@@ -36,7 +54,30 @@ function dumpGraph(ctx: LoreContext): GraphDump {
       weight: 1,
     });
   }
-  return { nodes, edges: [...edgeAgg.values()] };
+  // Note → note, resolved the same way retrieval resolves them, so an
+  // ambiguous name points at the same note in the picture and in the search.
+  for (const [from, tos] of ctx.noteLinks().out) {
+    for (const to of tos) {
+      const k = `${from}⇢${to}`;
+      if (edgeAgg.has(k)) continue;
+      edgeAgg.set(k, {
+        source: `note:${from}`,
+        target: `note:${to}`,
+        type: 'links',
+        weight: 2,
+      });
+    }
+  }
+  return {
+    nodes,
+    edges: [...edgeAgg.values()],
+    meta: {
+      notes: notes.length,
+      entities: allEntities,
+      entitiesShown: entities.length,
+      minEntityUses: 2,
+    },
+  };
 }
 
 function xmlEscape(s: string): string {

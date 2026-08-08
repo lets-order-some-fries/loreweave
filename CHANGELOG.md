@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.7.8 — 2026-08-08
+
+- **`lore graph export` now contains the links between notes.** It emitted
+  notes, entities and note→entity mention edges — and no note→note edges at
+  all, so a vault's explicit `[[wiki links]]`, the structure this project
+  treats as its highest-precision signal, appeared nowhere in the file. Opening
+  the export in a graph tool showed a vault with no connections unless two
+  notes happened to share an entity. Link edges are resolved through the same
+  function retrieval uses, so an ambiguous name points at the same note in the
+  picture as in the search.
+- **The export says what it left out.** Entities used only once are dropped —
+  reasonable for a picture, a leaf adds clutter without adding a path — but
+  3 entity nodes out of 13 reads as the whole vault. The dump now carries a
+  `meta` block with the real counts.
+
+Also checked and sound: fact lines round-trip exactly. 600 generated fields
+built from the characters that carry meaning in the format — `::`, braces,
+commas, backslashes, newlines, emoji — all survive being written and read back.
+That property is now a test, and it was verified to fail when the `::` escape
+is removed.
+
 ## 0.7.7 — 2026-08-08
 
 - **`dream` no longer calls a linked note an orphan.** It carried two more

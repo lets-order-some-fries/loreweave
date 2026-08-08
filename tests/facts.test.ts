@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { renderFactLine, parseFactLines } from '../src/facts/journal.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { openStore } from '../src/store/db.js';
@@ -413,5 +414,57 @@ describe('re-asserting a value does not break the slot', () => {
       { type: 'updates', src: 'final', dst: 'draft' },
     ]);
     ctx.close();
+  });
+});
+
+describe('a fact line survives being written and read back', () => {
+  // The journal is the source of truth, so anything that does not round-trip
+  // is data loss in the one place that cannot be re-derived. Verified against
+  // generated fields built from the characters that carry meaning in the
+  // format — `::`, braces, commas, backslashes, newlines — rather than from
+  // tidy examples.
+  function rng(seed: number) {
+    let s = seed >>> 0;
+    return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  }
+  const PIECES = [
+    'Atlas', 'status', 'shipped', 'Priya Sharma', 'v2.0',
+    '::', '{', '}', ',', '=', '[', ']', '|', '\\', '"', "'",
+    '- [fact]', '\n', '\t', '  ', '中文', '😀', 'a::b', '{k=v}',
+    'valid_from=2026-01-01', '#tag', '[[link]]', '`code`',
+  ];
+
+  it('round-trips 300 generated fact lines exactly', () => {
+    const pick = (rand: () => number, n: number) =>
+      Array.from({ length: n }, () => PIECES[Math.floor(rand() * PIECES.length)]).join('');
+    for (let seed = 1; seed <= 300; seed++) {
+      const rand = rng(seed);
+      const subject = pick(rand, 1 + Math.floor(rand() * 3)).trim() || 'S';
+      const predicate = pick(rand, 1 + Math.floor(rand() * 2)).trim() || 'p';
+      const object = pick(rand, 1 + Math.floor(rand() * 3)).trim() || 'o';
+
+      const line = renderFactLine({
+        kind: 'fact', subject, predicate, object,
+        attrs: { valid_from: '2026-01-01' },
+      });
+      const back = parseFactLines(line);
+      expect(back, `seed ${seed}: ${JSON.stringify({ subject, predicate, object })}`).toHaveLength(1);
+      expect(back[0]!.subject).toBe(subject);
+      expect(back[0]!.predicate).toBe(predicate);
+      expect(back[0]!.object).toBe(object);
+    }
+  });
+
+  it('a subject containing the field delimiter does not re-parse into other fields', () => {
+    // Without escaping, subject "a::b" comes back as subject "a", predicate
+    // "b", and the real predicate and object fused into one string.
+    const line = renderFactLine({
+      kind: 'fact', subject: 'a::b', predicate: 'p', object: 'o', attrs: {},
+    });
+    const back = parseFactLines(line);
+    expect(back).toHaveLength(1);
+    expect(back[0]!.subject).toBe('a::b');
+    expect(back[0]!.predicate).toBe('p');
+    expect(back[0]!.object).toBe('o');
   });
 });
