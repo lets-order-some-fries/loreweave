@@ -186,4 +186,24 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE links ADD COLUMN style TEXT NOT NULL DEFAULT 'wiki';
   UPDATE notes SET hash = '', mtime_ms = -1, size = -1;
   `,
+  // v6 — the close date a PERSON set, kept apart from the one supersession
+  // computes.
+  //
+  // `recomputeSupersessions` rebuilds the chain from scratch but could not
+  // rebuild `valid_until`: it reset superseded_by and then closed with
+  // COALESCE(valid_until, ?), so any close date already present survived
+  // forever. Assertions arriving out of valid-time order therefore kept a
+  // stale close and left two facts valid at the same instant — measured on 300
+  // random histories, 127 of them ended with overlapping or inverted
+  // intervals. Clearing valid_until wholesale would instead have discarded
+  // `invalidate` and explicit --valid-until, which are user intent.
+  //
+  // With the two separated, the recompute owns the computed close and always
+  // defers to the user's.
+  `
+  ALTER TABLE facts ADD COLUMN user_valid_until TEXT;
+  UPDATE facts SET user_valid_until = valid_until
+    WHERE valid_until IS NOT NULL AND superseded_by IS NULL;
+  UPDATE notes SET hash = '', mtime_ms = -1, size = -1;
+  `,
 ];

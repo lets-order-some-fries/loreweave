@@ -122,8 +122,9 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
   const info = db
     .prepare(
       `INSERT INTO facts(subject, predicate, object, subject_display, valid_from, valid_until,
-                         recorded_at, source_type, note_path, block_anchor, confidence)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+                         recorded_at, source_type, note_path, block_anchor, confidence,
+                         user_valid_until)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       subject,
@@ -137,6 +138,7 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
       `${journalPath}`,
       null,
       conf,
+      input.validUntil ?? null, // user_valid_until: an explicit close is intent
     );
   recomputeSupersessions(ctx.store);
 
@@ -162,6 +164,22 @@ export function invalidateFact(
 ): { closed: number; journalPath: string } {
   checkDate('validUntil', input.validUntil);
   const until = input.validUntil ?? new Date().toISOString().slice(0, 10);
+  // "It stopped being true before it started" is not a fact, it is a typo.
+  // Accepted silently, it produced an interval like (2025-06-01 → 2025-01-01)
+  // that no query can answer sensibly and nothing ever flags.
+  const target = ctx.store.db
+    .prepare(
+      `SELECT valid_from FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
+       ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1`,
+    )
+    .get(normalizeKey(input.subject), normalizeKey(input.predicate)) as
+    | { valid_from: string | null }
+    | undefined;
+  if (target?.valid_from && until < target.valid_from) {
+    throw new Error(
+      `validUntil ${until} is before the fact became valid (${target.valid_from})`,
+    );
+  }
   const journalPath = appendJournalLine(
     ctx.root,
     renderFactLine({
@@ -174,12 +192,12 @@ export function invalidateFact(
   // Same semantics as replay: close only the slot's current winner.
   const res = ctx.store.db
     .prepare(
-      `UPDATE facts SET valid_until=? WHERE id IN (
+      `UPDATE facts SET valid_until=?, user_valid_until=? WHERE id IN (
          SELECT id FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
          ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1
        )`,
     )
-    .run(until, normalizeKey(input.subject), normalizeKey(input.predicate));
+    .run(until, until, normalizeKey(input.subject), normalizeKey(input.predicate));
   return { closed: res.changes, journalPath };
 }
 

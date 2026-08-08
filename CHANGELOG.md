@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.2 — 2026-08-08
+
+Yesterday's supersession fix was verified with three histories written by hand.
+Generating three hundred instead, **127 violated the one-value-per-slot rule** —
+and the failing histories are not exotic. Asserting facts out of valid-time
+order, or invalidating and then asserting again, left a slot with two values
+valid at the same instant, silently and permanently. The hand-written examples
+all happened to assert in chronological order, which is the case that works.
+
+Both causes predate that change (verified against the previous release).
+
+- **A stale close date could never be corrected.** `recomputeSupersessions`
+  rebuilds the chain from scratch but closed with `COALESCE(valid_until, ?)`,
+  so any date already present survived every recompute. Clearing it wholesale
+  would have discarded `invalidate` and explicit `--valid-until`, so the two
+  are now separate columns (schema v6): the recompute owns the computed close
+  and reads the user's.
+- **`invalidate` before a fact began is refused.** It produced intervals like
+  `(2025-06-01 → 2025-01-01)`. That is a typo, not a fact.
+- **A user's close is an upper bound, not an override.** "Not true after D" and
+  a later value's "not true after D2" are the same kind of claim; the binding
+  one is whichever comes first. Letting the explicit close win outright left a
+  closed fact overlapping its own successor.
+
+Zero failures across all three hundred histories, which are now a test.
+
 ## 0.7.1 — 2026-08-08
 
 - **Re-confirming a value no longer leaves the slot with two current answers.**

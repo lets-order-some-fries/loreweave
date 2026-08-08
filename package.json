@@ -1,6 +1,6 @@
 {
   "name": "loreweave",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "A temporal knowledge engine for markdown vaults \u2014 indexes, links, remembers, forgets, and dreams. Local-first, agent-ready (MCP).",
   "type": "module",
   "license": "MIT",

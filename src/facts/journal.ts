@@ -154,9 +154,13 @@ export function recomputeSupersessions(store: Store): void {
   const db = store.db;
   const tx = db.transaction(() => {
     db.prepare(`DELETE FROM fact_links WHERE type IN ('updates','extends')`).run();
+    // Reset what this function owns — the computed close — and nothing else.
+    // A user's close (`invalidate`, or an explicit --valid-until) lives in
+    // user_valid_until and is restored below, so the chain can be rebuilt from
+    // scratch without discarding intent.
     db.prepare(
-      `UPDATE facts SET superseded_at=NULL, superseded_by=NULL
-       WHERE superseded_by IS NOT NULL`,
+      `UPDATE facts SET superseded_at=NULL, superseded_by=NULL,
+                        valid_until=user_valid_until`,
     ).run();
     const slots = db
       .prepare(`SELECT DISTINCT subject, predicate FROM facts`)
@@ -164,8 +168,20 @@ export function recomputeSupersessions(store: Store): void {
     const linkStmt = db.prepare(
       `INSERT OR IGNORE INTO fact_links(src_fact, dst_fact, type) VALUES (?,?,?)`,
     );
+    // A user's close is an upper BOUND, not an override: "it was not true
+    // after D". A later fact with a different value is the same kind of claim
+    // — "it was not true after D2" — so the binding one is whichever comes
+    // first, and MIN satisfies both. Letting the user's close simply win
+    // instead left a closed fact overlapping its own successor whenever
+    // someone invalidated at one date and then asserted a different value
+    // starting earlier.
+    //
+    // Never COALESCE against the existing valid_until, which is what made a
+    // stale computed close permanent.
     const closeStmt = db.prepare(
-      `UPDATE facts SET valid_until=COALESCE(valid_until, ?), superseded_at=?, superseded_by=? WHERE id=?`,
+      `UPDATE facts SET valid_until=MIN(COALESCE(user_valid_until, ?), ?),
+                        superseded_at=?, superseded_by=?
+       WHERE id=?`,
     );
     for (const slot of slots) {
       const rows = db
@@ -198,7 +214,7 @@ export function recomputeSupersessions(store: Store): void {
         const next = rows[i + 1]!;
         const sameValue = normalizeKey(next.object) === normalizeKey(cur.object);
         const closeAt = next.valid_from ?? next.recorded_at;
-        closeStmt.run(closeAt, next.recorded_at, next.id, cur.id);
+        closeStmt.run(closeAt, closeAt, next.recorded_at, next.id, cur.id);
         linkStmt.run(next.id, cur.id, sameValue ? 'extends' : 'updates');
       }
     }
@@ -242,11 +258,11 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
           // (Closing all open facts here would diverge from the live path,
           // where supersession has already closed the older ones.)
           db.prepare(
-            `UPDATE facts SET valid_until=? WHERE id IN (
+            `UPDATE facts SET valid_until=?, user_valid_until=? WHERE id IN (
                SELECT id FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
                ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1
              )`,
-          ).run(until, normalizeKey(f.subject), normalizeKey(f.predicate));
+          ).run(until, until, normalizeKey(f.subject), normalizeKey(f.predicate));
           continue;
         }
         const subject = normalizeKey(f.subject);
