@@ -15,6 +15,7 @@ import { dream } from '../dream/dream.js';
 import { capture, readNoteRaw } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { findVaultRoot } from '../config.js';
+import { watchVault } from '../watch.js';
 import { extractFactsFromNote } from '../facts/extract.js';
 import { normalizeKey } from '../normalize.js';
 
@@ -73,7 +74,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.9.0' });
+  const server = new McpServer({ name: 'loreweave', version: '0.9.1' });
 
   server.registerTool(
     'lore_search',
@@ -433,6 +434,16 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
     console.error(`[loreweave mcp] first run: indexing ${n} notes…`),
   );
   const server = createLoreMcpServer(ctx);
+  // Watch the vault for the whole life of the server. This process runs for a
+  // session, and the user edits notes in their editor while an agent searches
+  // through it: without the watcher, those searches answered from whatever the
+  // vault looked like at startup — measured, a note saved while the server ran
+  // was simply unfindable, indefinitely, with nothing to say so. The watch
+  // module's own rationale ("a question an agent cannot think about at all")
+  // applies to no process more than this one.
+  const watcher = watchVault(ctx, {
+    onError: (err) => console.error(`[loreweave mcp] watch: ${err.message}`),
+  });
   const transport = new StdioServerTransport();
   // Without these the server goes permanently deaf on a malformed or
   // oversized message, with an empty stderr and exit code 0 — the worst
@@ -440,6 +451,7 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
   transport.onerror = (err: Error) => {
     console.error(`[loreweave mcp] transport error: ${err.message}`);
     try {
+      watcher.close();
       ctx.close();
     } finally {
       process.exit(1);
@@ -447,6 +459,7 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
   };
   transport.onclose = () => {
     try {
+      watcher.close();
       ctx.close();
     } finally {
       process.exit(0);
@@ -456,6 +469,7 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
   // keep process alive; close store on exit
   const shutdown = () => {
     try {
+      watcher.close();
       ctx.close();
     } finally {
       process.exit(0);

@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.1 — 2026-08-08
+
+- **The MCP server watches the vault.** `lore serve --mcp` runs for a whole
+  session with the user's editor open beside it, and it never watched — a note
+  saved in Obsidian mid-session was unfindable over MCP, indefinitely, with
+  nothing to say so. This is the exact scenario the watch module's rationale
+  describes ("a question an agent cannot think about at all"), and the one
+  long-running process was the one place it was not wired in.
+
+  `startMcpServer` attaches `watchVault` for the life of the process and closes
+  it on every exit path. All the 0.4.4 watcher hardening applies: the three
+  editor save patterns, and the max-wait ceiling for vaults under continuous
+  sync. Verified in-process and over a real stdio transport.
+
+Interactions checked rather than assumed: a `capture`/`assert` now triggers
+both its self-index and a watch reindex — the second sees matching mtime/size
+and reports unchanged; `dream --apply`'s outputs are already filtered by the
+watcher, so no reindex loop.
+
 ## 0.9.0 — 2026-08-08
 
 - **What the engine writes is searchable the moment it writes it.** The natural

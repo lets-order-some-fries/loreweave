@@ -335,3 +335,50 @@ describe('the tool contracts describe what the tools do', () => {
     expect(pack.description).toContain('truncated');
   });
 });
+
+describe('the server stays fresh while the user edits', () => {
+  it('an editor write becomes searchable without calling lore_index', async () => {
+    // `lore serve --mcp` runs for a whole session with the user's editor open
+    // beside it. Without a watcher, every search answered from whatever the
+    // vault looked like at startup: a note saved mid-session was unfindable,
+    // indefinitely, with nothing to say so. startMcpServer now attaches
+    // watchVault; this test runs the same composition in-process.
+    const root2 = await makeVault({ 'seed.md': '# Seed\n\nInitial note.\n' });
+    const store2 = openStore(':memory:');
+    await indexVault(store2, root2);
+    const config2 = ConfigSchema.parse({});
+    let g2: LoreGraph | null = null;
+    const ctx2: LoreContext = {
+      root: root2, config: config2, store: store2, provider: null,
+      graph: () => (g2 ??= buildGraph(store2, config2)),
+      noteLinks: () => buildNoteLinkGraph(store2),
+      invalidateGraph: () => { g2 = null; },
+      close: () => store2.close(),
+    };
+    const { watchVault } = await import('../src/watch.js');
+    const watcher = watchVault(ctx2, { debounceMs: 100 });
+    const srv = createLoreMcpServer(ctx2);
+    const [c2, s2] = InMemoryTransport.createLinkedPair();
+    const cli2 = new Client({ name: 'fresh', version: '0' });
+    await Promise.all([cli2.connect(c2), srv.connect(s2)]);
+    await new Promise((r) => setTimeout(r, 150)); // let the OS watcher attach
+
+    const { writeFile } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    await writeFile(join(root2, 'editor.md'), '# Editor\n\nNUMBAT decision saved mid-session.\n');
+
+    let found = false;
+    for (let i = 0; i < 40 && !found; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+      const res = parseText(
+        await cli2.callTool({ name: 'lore_search', arguments: { query: 'NUMBAT' } }),
+      );
+      found = res.length > 0;
+    }
+    expect(found).toBe(true);
+
+    watcher.close();
+    await cli2.close();
+    ctx2.close();
+  }, 20_000);
+});
