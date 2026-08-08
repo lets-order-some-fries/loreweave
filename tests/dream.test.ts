@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
@@ -420,6 +420,87 @@ describe('a linked note is not called an orphan', () => {
     });
     const r = dream(ctx);
     expect(r.orphans).toContain('stranded.md');
+    ctx.close();
+  });
+});
+
+describe('the review queue is a function of the vault', () => {
+  it('is byte-identical whether the index was grown or rebuilt', async () => {
+    // `lore/review-queue.md` is written into the user's vault and dream already
+    // goes to trouble to regenerate it stably, carrying ticked items forward.
+    // But findings tie constantly — every exact duplicate scores 1 — and the
+    // fallback ordering was row order, which follows edit history. The same
+    // vault produced a different file depending on how the index was built,
+    // which in a git-tracked vault is a diff you have to read to learn it says
+    // nothing.
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 12; i++) {
+      files[`bulk/n${i}.md`] =
+        `# Note ${i}\n\nCompaction and ingestion throughput for the ledger pipeline.\n` +
+        `Discusses batching, retries and the streaming compactor.\n`;
+    }
+    const root = await makeVault(files);
+    const config = ConfigSchema.parse({});
+    const ctxFor = (store: ReturnType<typeof openStore>): LoreContext => {
+      let cached: LoreGraph | null = null;
+      let links: NoteLinkGraph | null = null;
+      return {
+        root, config, store, provider: null,
+        graph: () => (cached ??= buildGraph(store, config)),
+        noteLinks: () => (links ??= buildNoteLinkGraph(store)),
+        invalidateGraph: () => { cached = null; links = null; },
+        close: () => store.close(),
+      };
+    };
+
+    // grown through churn, then restored to the original bytes
+    const incremental = openStore(':memory:');
+    await indexVault(incremental, root);
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < 12; i += 2) {
+        await writeFile(join(root, `bulk/n${i}.md`), `${files[`bulk/n${i}.md`]!}Revision ${round}.\n`);
+      }
+      await indexVault(incremental, root);
+    }
+    for (let i = 0; i < 12; i += 2) {
+      await writeFile(join(root, `bulk/n${i}.md`), files[`bulk/n${i}.md`]!);
+    }
+    await indexVault(incremental, root);
+
+    const grownCtx = ctxFor(incremental);
+    dream(grownCtx, { apply: true });
+    const grown = await readFile(join(root, 'lore/review-queue.md'), 'utf8');
+    await rm(join(root, 'lore/review-queue.md'));
+
+    const rebuilt = openStore(':memory:');
+    await indexVault(rebuilt, root);
+    const rebuiltCtx = ctxFor(rebuilt);
+    dream(rebuiltCtx, { apply: true });
+    const fromRebuild = await readFile(join(root, 'lore/review-queue.md'), 'utf8');
+
+    // the ids really do differ, or this proves nothing
+    const hi = (s: ReturnType<typeof openStore>) =>
+      (s.db.prepare(`SELECT MAX(id) hi FROM blocks`).get() as { hi: number }).hi;
+    expect(hi(incremental)).not.toBe(hi(rebuilt));
+
+    expect(grown).toBe(fromRebuild);
+    grownCtx.close();
+    rebuiltCtx.close();
+  }, 60_000);
+
+  it('reports a duplicate pair the same way round every time', async () => {
+    // "n0 duplicates n1" and "n1 duplicates n0" are one finding; which side
+    // came first followed row order.
+    const ctx = await ctxWith({
+      'a.md': `${DUP_TEXT}\n`,
+      'b.md': `${DUP_TEXT}\n`,
+    });
+    const r = dream(ctx);
+    const pair = r.duplicates.find(
+      (d) => [d.a.notePath, d.b.notePath].includes('a.md') && [d.a.notePath, d.b.notePath].includes('b.md'),
+    );
+    expect(pair).toBeDefined();
+    expect(pair!.a.notePath).toBe('a.md'); // lexicographically first, always
     ctx.close();
   });
 });

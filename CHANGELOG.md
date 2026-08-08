@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.8.2 — 2026-08-08
+
+- **`dream` writes the same review queue whether the index was grown or
+  rebuilt.** Yesterday's fix made search answers a function of the vault;
+  `lore/review-queue.md` was not, and it matters more there — that file goes
+  into the vault, and people keep vaults in git, so an unchanged vault could
+  still produce a diff you have to read to learn it says nothing.
+
+  Three causes: findings tie constantly (every exact duplicate scores 1) and
+  fell through to row order, which follows edit history; a duplicate *pair* had
+  an orientation, so the same finding could be written either way round; and a
+  group of identical blocks emitted its pairs against whichever member came
+  first, so twelve identical notes gave one run n0 as the anchor and the other
+  n1 — a different set of findings, not just a different order.
+
+  Duplicates, link suggestions, contradictions, stale items and orphans now all
+  order deterministically, pairs are canonicalised, and the rows are sorted
+  before any of it runs.
+
+Fact ordering was checked in the same pass and is stable, live and replayed.
+
 ## 0.8.1 — 2026-08-08
 
 - **Deleting the index no longer changes the answers.** The disposability claim

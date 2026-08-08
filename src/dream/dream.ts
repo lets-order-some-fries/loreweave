@@ -85,6 +85,26 @@ export interface DreamReport {
   inactive: string[];
 }
 
+/**
+ * A duplicate is a pair, not an ordered one — "n0 duplicates n1" and "n1
+ * duplicates n0" are the same finding. Which side came first followed row
+ * order, so the same vault reported the same pairs written the other way
+ * round, and sorting them afterwards produced a different sequence.
+ */
+function orientedPair(
+  x: { notePath: string; anchor: string },
+  y: { notePath: string; anchor: string },
+  jaccard: number,
+): DuplicateFinding {
+  const swap = cmp(x.notePath, y.notePath) > 0 || (x.notePath === y.notePath && cmp(x.anchor, y.anchor) > 0);
+  return swap ? { a: y, b: x, jaccard } : { a: x, b: y, jaccard };
+}
+
+/** Lexicographic compare, for making tied findings deterministic. */
+function cmp(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 const SHINGLE = 8;
 /**
  * Real prose rarely exceeds ~0.3 Jaccard even when two passages plainly say
@@ -151,7 +171,14 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
   // them reported "The Process" ≈ "The Process" at Jaccard 1.0 for two
   // unrelated skills; 40 of 501 blocks in a real docs vault are echoes and
   // they produced most of the duplicate findings.
-  const rows = all.filter((r) => !isHeadingEcho(r.heading, r.text));
+  // Sorted, because everything below depends on the order: an exact-duplicate
+  // group emits its pairs against whichever member comes first, and the LSH
+  // banding walks candidates in this order too. Unsorted that is row order,
+  // which follows edit history, so the same vault reported a different SET of
+  // pairs depending on how the index was built.
+  const rows = all
+    .filter((r) => !isHeadingEcho(r.heading, r.text))
+    .sort((x, y) => cmp(x.note_path, y.note_path) || cmp(x.anchor, y.anchor));
   const out: DuplicateFinding[] = [];
   const emitted = new Set<string>();
   const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
@@ -166,11 +193,13 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
   for (const group of byHash.values()) {
     for (let i = 1; i < group.length; i++) {
       if (group[0]!.note_path === group[i]!.note_path) continue;
-      out.push({
-        a: { notePath: group[0]!.note_path, anchor: group[0]!.anchor },
-        b: { notePath: group[i]!.note_path, anchor: group[i]!.anchor },
-        jaccard: 1,
-      });
+      out.push(
+        orientedPair(
+          { notePath: group[0]!.note_path, anchor: group[0]!.anchor },
+          { notePath: group[i]!.note_path, anchor: group[i]!.anchor },
+          1,
+        ),
+      );
       emitted.add(pairKey(group[0]!.id, group[i]!.id));
     }
   }
@@ -211,14 +240,28 @@ function findDuplicates(ctx: LoreContext): DuplicateFinding[] {
     const J = sigSimilarity(A.sig, B.sig);
     if (J >= JACCARD_THRESHOLD && J < 1) {
       emitted.add(pairKey(A.r.id, B.r.id));
-      out.push({
-        a: { notePath: A.r.note_path, anchor: A.r.anchor },
-        b: { notePath: B.r.note_path, anchor: B.r.anchor },
-        jaccard: Number(J.toFixed(3)),
-      });
+      out.push(
+        orientedPair(
+          { notePath: A.r.note_path, anchor: A.r.anchor },
+          { notePath: B.r.note_path, anchor: B.r.anchor },
+          Number(J.toFixed(3)),
+        ),
+      );
     }
   }
-  out.sort((x, y) => y.jaccard - x.jaccard);
+  // Ties broken by path so the report is a function of the vault, not of the
+  // order rows happen to sit in. Findings are frequently tied — every exact
+  // duplicate scores 1 — and the fallback was block id, which follows edit
+  // history: the same vault indexed incrementally and from scratch wrote
+  // different review queues, into a file people keep in git.
+  out.sort(
+    (x, y) =>
+      y.jaccard - x.jaccard ||
+      cmp(x.a.notePath, y.a.notePath) ||
+      cmp(x.a.anchor, y.a.anchor) ||
+      cmp(x.b.notePath, y.b.notePath) ||
+      cmp(x.b.anchor, y.b.anchor),
+  );
   return out;
 }
 
@@ -455,7 +498,7 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
       score: Number((acc.score / denom).toFixed(4)),
     });
   }
-  ranked.sort((x, y) => y.score - x.score);
+  ranked.sort((x, y) => y.score - x.score || cmp(x.from, y.from) || cmp(x.to, y.to));
 
   // Suppress suggestions that carry no signal.
   //
@@ -505,7 +548,10 @@ function findOrphans(ctx: LoreContext): string[] {
     const dst = resolveNoteName(names, l.target_norm, l.note_path);
     if (dst) hasLink.add(dst);
   }
-  return notes.map((n) => n.path).filter((p) => !hasLink.has(p) && !p.startsWith('lore/'));
+  return notes
+    .map((n) => n.path)
+    .filter((p) => !hasLink.has(p) && !p.startsWith('lore/'))
+    .sort(cmp);
 }
 
 const DISPLAY_CAP = 50;
@@ -535,8 +581,14 @@ export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamRe
   }
 
   const duplicates = findDuplicates(ctx);
-  const contradictions = findContradictions(ctx);
-  const stale = findStale(ctx);
+  // Every list is ordered deterministically before it is reported or written:
+  // the review queue lands in the user's vault, and a report that reshuffles
+  // itself on an unchanged vault is a diff they have to read to find out it
+  // says nothing.
+  const contradictions = findContradictions(ctx).sort(
+    (a, b) => cmp(a.kind, b.kind) || cmp(a.subject, b.subject) || cmp(a.predicate, b.predicate) || cmp(a.detail, b.detail),
+  );
+  const stale = findStale(ctx).sort((a, b) => cmp(a.kind, b.kind) || cmp(a.ref, b.ref));
   const linkSuggestions = findLinkSuggestions(ctx);
   const orphans = findOrphans(ctx);
 
