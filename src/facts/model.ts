@@ -5,6 +5,7 @@ import type { LoreContext } from '../context.js';
 import type { Store } from '../store/db.js';
 import type { Fact } from '../types.js';
 import { normalizeKey } from '../normalize.js';
+import { assertIsoDate } from '../temporal/dates.js';
 import { JOURNAL_DIR, recomputeSupersessions, renderFactLine } from './journal.js';
 
 export interface AssertFactInput {
@@ -25,13 +26,9 @@ export interface AssertFactResult {
   journalPath: string;
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/;
+const checkDate = assertIsoDate;
 
-function checkDate(name: string, v: string | undefined): void {
-  if (v !== undefined && !ISO_DATE_RE.test(v)) {
-    throw new Error(`${name} must be an ISO date (YYYY-MM-DD) or datetime, got: ${v}`);
-  }
-}
+const GROUP_BY_COLUMNS = { object: 'object', subject: 'subject', predicate: 'predicate' } as const;
 
 function rowToFact(r: Record<string, unknown>): Fact {
   return {
@@ -351,7 +348,16 @@ export function aggregateFacts(store: Store, q: AggregateQuery = {}): FactAggreg
   checkDate('since', q.since);
   checkDate('until', q.until);
   const groupBy = q.groupBy ?? 'object';
-  const col = { object: 'object', subject: 'subject', predicate: 'predicate' }[groupBy];
+  // A group-by column arrives from the CLI (`count --group-by X`) unchecked; an
+  // unknown value used to index to `undefined` and reach SQLite as
+  // `GROUP BY undefined`, surfacing "no such column: undefined" — an internal
+  // error leaked as if it were the user's fault. Reject it by name instead.
+  const col = GROUP_BY_COLUMNS[groupBy as keyof typeof GROUP_BY_COLUMNS];
+  if (!col) {
+    throw new Error(
+      `group-by must be one of ${Object.keys(GROUP_BY_COLUMNS).join(', ')}, got: ${groupBy}`,
+    );
+  }
   const clauses: string[] = [];
   const params: unknown[] = [];
   if (q.subject) {

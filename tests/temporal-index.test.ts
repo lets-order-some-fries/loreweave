@@ -65,6 +65,21 @@ describe('content time', () => {
     expect(recent.map((r) => r.notePath)).toContain('undated.md');
     ctx.close();
   });
+
+  it('rejects a malformed window instead of silently returning nothing', async () => {
+    // `to < 'garbage'` is a string comparison that drops or keeps rows by ASCII
+    // accident, so `lore search --since not-a-date` used to answer "no results"
+    // as if the vault were empty. A bad date must be a hard error, like the
+    // fact store's own date arguments.
+    const ctx = await ctxFor();
+    await expect(search(ctx, 'ledger', { since: 'not-a-date', noLog: true })).rejects.toThrow(
+      /since must be an ISO date/,
+    );
+    await expect(search(ctx, 'ledger', { until: '2026/01/01', noLog: true })).rejects.toThrow(
+      /until must be an ISO date/,
+    );
+    ctx.close();
+  });
 });
 
 describe('content time comes from the block, not just the frontmatter', () => {

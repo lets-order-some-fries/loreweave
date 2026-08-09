@@ -26,6 +26,24 @@ export interface DateRange {
   to: string; // inclusive ISO date
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/;
+
+/**
+ * Reject a date argument that is not an ISO date/datetime, loudly.
+ *
+ * A malformed `--since`/`--until`/`--as-of` must fail, not silently mis-filter:
+ * a string comparison against `not-a-date` sorts however ASCII happens to fall,
+ * so the window quietly drops or keeps the wrong rows and the caller reads an
+ * authoritative-looking empty result. The fact store already guarded its own
+ * date inputs this way; retrieval did not, so `lore search --since garbage`
+ * returned "no results" as if the vault were empty.
+ */
+export function assertIsoDate(name: string, v: string | undefined): void {
+  if (v !== undefined && !ISO_DATE_RE.test(v)) {
+    throw new Error(`${name} must be an ISO date (YYYY-MM-DD) or datetime, got: ${v}`);
+  }
+}
+
 /** Parse a single date expression into an inclusive range. */
 export function parseDateExpression(text: string): DateRange | null {
   const s = text.trim().toLowerCase();

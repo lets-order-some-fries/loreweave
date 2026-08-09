@@ -5,6 +5,7 @@ import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 import { expandNotes, seedNotes } from './expand.js';
+import { assertIsoDate } from '../temporal/dates.js';
 
 export interface SearchOptions {
   k?: number;
@@ -314,6 +315,12 @@ export async function search(
   query: string,
   opts: SearchOptions = {},
 ): Promise<SearchResult[]> {
+  // A malformed window silently mis-filters: `to < 'garbage'` is a string
+  // comparison that drops or keeps rows by ASCII accident, so the caller gets
+  // an authoritative-looking empty result instead of an error. Fail loudly,
+  // the same way the fact store validates its own date arguments.
+  assertIsoDate('since', opts.since);
+  assertIsoDate('until', opts.until);
   const cfg = ctx.config.retrieval;
   const k = opts.k ?? cfg.k;
   const cand = cfg.candidates;

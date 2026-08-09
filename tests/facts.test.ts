@@ -256,6 +256,24 @@ describe('assert / supersede / time-travel', () => {
     ctx.close();
   });
 
+  it('rejects an unknown group-by instead of leaking a SQL error', async () => {
+    // `lore count --group-by X` forwards X straight through; an unknown value
+    // used to index to `undefined`, reach SQLite as `GROUP BY undefined`, and
+    // surface as "no such column: undefined" — an internal error masquerading
+    // as the user's mistake. A malformed since/until is likewise a hard error.
+    const ctx = await emptyCtx();
+    assertFact(ctx, { subject: 's', predicate: 'p', object: 'o', validFrom: '2026-01-01' });
+    expect(() =>
+      aggregateFacts(ctx.store, { predicate: 'p', groupBy: 'nonsense' as never }),
+    ).toThrow(/group-by must be one of/);
+    expect(() => aggregateFacts(ctx.store, { since: 'not-a-date' })).toThrow(/ISO date/);
+    // the three real columns still work
+    for (const groupBy of ['object', 'subject', 'predicate'] as const) {
+      expect(aggregateFacts(ctx.store, { predicate: 'p', groupBy }).totalGroups).toBe(1);
+    }
+    ctx.close();
+  });
+
   it('validates inputs', async () => {
     const ctx = await emptyCtx();
     expect(() =>

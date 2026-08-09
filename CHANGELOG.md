@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.10.1 — 2026-08-09
+
+Two CLI-validation gaps the same audit surfaced but did not rank into its
+verified top six — both let a malformed argument produce a confidently wrong
+answer instead of an error. Fixed at the core functions, so the MCP tools are
+covered too, not just the CLI (350 → 352).
+
+- **`count --group-by X` leaked a raw SQL error.** An unknown group-by column
+  arrived from the CLI unchecked, indexed to `undefined`, reached SQLite as
+  `GROUP BY undefined`, and surfaced as "no such column: undefined" — an
+  internal error masquerading as the user's mistake. It now rejects by name,
+  listing the valid columns.
+- **`search --since/--until` silently mis-filtered a malformed date.** The window
+  is a string comparison, so `--since not-a-date` sorted by ASCII accident and
+  returned "no results" as if the vault were empty. A bad date is now a hard
+  error, the same way the fact store already validates `--as-of`. A shared
+  `assertIsoDate` is the single source of truth for all three.
+
 ## 0.10.0 — 2026-08-09
 
 Six correctness defects found by a fan-out audit — seven probes across surfaces
