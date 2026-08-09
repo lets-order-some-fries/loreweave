@@ -281,10 +281,16 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     stmts.delBlocks.run(note.path);
     stmts.delLinks.run(note.path);
     const ids = new Map<string, number>();
-    // Content dates: the block's own, else the note's (frontmatter/filename).
+    // Content dates: the block's own prose date, else the note's
+    // (frontmatter/filename). extractDates checks frontmatter FIRST and returns
+    // on the first hit, so passing note.frontmatter here stamped EVERY block
+    // with the single frontmatter date and ignored the dates written in the
+    // block itself — a `--since/--until` window for an event dated in the prose
+    // then dropped the very block that mentions it. Pass {} so block prose wins;
+    // noteDates already carries the frontmatter/filename fallback.
     const noteDates = extractDates('', note.frontmatter) ?? filenameDate(note.path);
     for (const b of note.blocks) {
-      const d = extractDates(b.text, note.frontmatter) ?? noteDates;
+      const d = extractDates(b.text, {}) ?? noteDates;
       const info = stmts.insBlock.run(
         note.path,
         b.anchor,

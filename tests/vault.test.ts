@@ -155,3 +155,46 @@ describe('oversized sections keep their line structure', () => {
     for (const b of blocks) expect(b.text.split(/\s+/).length).toBeLessThanOrEqual(350);
   });
 });
+
+describe('code fences do not leak into the graph or the outline', () => {
+  it('does not extract links from inside a fence split across blocks', async () => {
+    // maskCode runs per block, but chunkText splits an oversized fenced block
+    // into several once it passes the size cap. Every block after the first
+    // lost its opening ```, so maskCode could no longer blank the code and a
+    // [[wikilink]] written inside a code SAMPLE became a real graph edge.
+    const filler = 'word '.repeat(400).trim();
+    const n = parseNote(
+      'n.md',
+      '```md\n' + filler + '\n\nExample: [[SecretPhantom]] and also [clickme](./phantom.md)\n```\n',
+      1,
+    );
+    expect(n.blocks.length).toBeGreaterThan(1); // the fence really did split
+    expect(n.links).toEqual([]); // nothing from inside the code
+  });
+
+  it('still extracts real links around a code block', async () => {
+    const n = parseNote(
+      'n.md',
+      'See [[RealTarget]] here.\n\n```\ncode with [[InCode]]\n```\n\nAnd [[AlsoReal]].\n',
+      1,
+    );
+    const targets = n.links.map((l) => l.target).sort();
+    expect(targets).toEqual(['AlsoReal', 'RealTarget']);
+  });
+
+  it('a ~~~ line inside a ``` fence does not turn code into a heading', async () => {
+    // splitSections tracked a single inFence boolean and flipped it on ANY
+    // fence marker, so a lone ~~~ inside a ``` block turned fence state OFF and
+    // the `# ...` code lines after it were parsed as real headings, mis-filing
+    // the prose that followed the block.
+    const n = parseNote(
+      'n.md',
+      'Intro.\n\n```\n~~~\n# This is code, not a heading\nmore code\n```\n\nOutro paragraph.\n',
+      1,
+    );
+    const headings = n.blocks.map((b) => b.heading);
+    expect(headings).not.toContain('This is code, not a heading');
+    // and the real outro prose is findable, not swallowed into a code heading
+    expect(n.blocks.some((b) => b.text.includes('Outro paragraph'))).toBe(true);
+  });
+});

@@ -104,8 +104,25 @@ export function pruneOrphanEntities(store: Store): number {
 export function indexState(store: Store): 'clean' | 'interrupted' | 'running' {
   const marker = store.getMeta('index_in_progress');
   if (marker === null || marker === '0') return 'clean';
-  return isRunning(marker) ? 'running' : 'interrupted';
+  const alive = marker === String(process.pid) ? indexInFlight : isRunning(marker);
+  return alive ? 'running' : 'interrupted';
 }
+
+/**
+ * True while an index is genuinely in flight IN THIS PROCESS.
+ *
+ * `process.kill(pid, 0)` cannot distinguish "I set this marker and then died
+ * mid-run" from "I am running right now" — a process can always signal itself.
+ * So a marker equal to our own PID is ambiguous, and the only thing that
+ * resolves it is knowing whether an index is actually executing. Without this,
+ * a mid-run throw (SQLITE_FULL, an IO error) inside a long-lived process —
+ * `lore watch` or the MCP server, which both catch the error and keep running —
+ * left the own-PID marker behind, the next index read it as "running" not
+ * "interrupted", the half-built facts/mentions were never repaired, and the
+ * marker was then cleared to 0 so no later run could self-heal either. Exactly
+ * the "+0 ~0 -0 forever" failure the marker exists to prevent.
+ */
+let indexInFlight = false;
 
 function isRunning(marker: string): boolean {
   const pid = Number(marker);
@@ -143,20 +160,32 @@ export async function indexVault(
   opts: IndexOptions = {},
 ): Promise<IndexReport> {
   const attempts = opts.lockRetries ?? 5;
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await indexVaultOnce(store, root, opts);
-    } catch (err) {
-      if (!isBusy(err) || attempt >= attempts) {
-        if (isBusy(err)) {
-          throw new Error(
-            'another loreweave process is indexing this vault (is `lore watch` running?) — try again in a moment',
-          );
+  // Was an index already running in this process when we were called? If so, a
+  // leftover own-PID marker is genuinely live, not stale. Captured before we
+  // mark ourselves in flight so a fresh index after a crash sees `false`.
+  const alreadyInFlight = indexInFlight;
+  indexInFlight = true;
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        // On a retry the marker is one WE set on the failed attempt, so it is
+        // live too — do not let a transient lock force a needless full rebuild.
+        return await indexVaultOnce(store, root, opts, alreadyInFlight || attempt > 0);
+      } catch (err) {
+        if (!isBusy(err) || attempt >= attempts) {
+          if (isBusy(err)) {
+            throw new Error(
+              'another loreweave process is indexing this vault (is `lore watch` running?) — try again in a moment',
+            );
+          }
+          throw err;
         }
-        throw err;
+        await sleep(120 * 2 ** attempt + Math.floor(attempt * 37)); // backoff
       }
-      await sleep(120 * 2 ** attempt + Math.floor(attempt * 37)); // backoff
     }
+  } finally {
+    // Only the outermost call clears the flag (guards nested indexVault calls).
+    if (!alreadyInFlight) indexInFlight = false;
   }
 }
 
@@ -164,6 +193,7 @@ async function indexVaultOnce(
   store: Store,
   root: string,
   opts: IndexOptions = {},
+  ownMarkerLive = false,
 ): Promise<IndexReport> {
   const started = Date.now();
   const useNlp = opts.nlp !== false;
@@ -178,7 +208,15 @@ async function indexVaultOnce(
   // two concurrent indexes each declared the other crashed and forced a
   // needless full rebuild.
   const marker = store.getMeta('index_in_progress');
-  const interrupted = marker !== null && marker !== '0' && !isRunning(marker);
+  // An own-PID marker is "alive" only if an index is actually in flight (see
+  // indexInFlight); otherwise it is the residue of a crashed run in this same
+  // process and must be treated as interrupted. A foreign PID is resolved by
+  // liveness. isRunning is never asked about our own PID because it would
+  // always say yes.
+  const interrupted =
+    marker !== null &&
+    marker !== '0' &&
+    !(marker === String(process.pid) ? ownMarkerLive : isRunning(marker));
   const full = opts.full || interrupted;
   store.setMeta('index_in_progress', String(process.pid));
 

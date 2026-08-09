@@ -18,6 +18,23 @@ function maskCode(text: string): string {
     .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
 }
 
+/**
+ * The fence delimiter still open at the end of `text`, starting from `open`.
+ * Same delimiter-aware toggle as splitSections: a non-matching marker inside a
+ * fence is code, not a close.
+ */
+function fenceStateAfter(text: string, open: string | null): string | null {
+  let cur = open;
+  for (const line of text.split('\n')) {
+    const m = line.match(/^(```|~~~)/);
+    if (!m) continue;
+    const marker = m[1]!;
+    if (cur === null) cur = marker;
+    else if (marker === cur) cur = null;
+  }
+  return cur;
+}
+
 /** Decode %20-style escapes in markdown link targets; tolerate bad encoding. */
 function decodeTarget(s: string): string {
   try {
@@ -33,9 +50,14 @@ function decodeTarget(s: string): string {
  * outside Obsidian use the markdown form exclusively — ignoring it leaves the
  * knowledge graph with almost no edges.
  */
-function extractLinks(rawText: string, blockAnchor: string): WikiLink[] {
+function extractLinks(rawText: string, blockAnchor: string, openFence: string | null = null): WikiLink[] {
   const out: WikiLink[] = [];
-  const text = maskCode(rawText);
+  // If this chunk begins inside a fence opened in an earlier chunk, its opening
+  // delimiter is gone (chunkText split the fence apart once it exceeded the
+  // block-size cap), so maskCode alone cannot blank the leading code. Prepend
+  // the missing opener so the code up to its real close is masked — otherwise a
+  // [[wikilink]] written inside a large code sample became a real graph edge.
+  const text = maskCode(openFence ? `${openFence}\n${rawText}` : rawText);
 
   // --- markdown links: [alias](target.md#heading) ---
   // Only relative links to .md files (or bare relative paths without a
@@ -124,10 +146,20 @@ function splitSections(body: string): RawSection[] {
   const lines = body.split(/\r?\n/);
   const sections: RawSection[] = [{ headingPath: [], lines: [] }];
   const stack: { level: number; title: string }[] = [];
-  let inFence = false;
+  // The delimiter that opened the current fence, or null. Tracking WHICH
+  // delimiter opened it matters: a lone `~~~` inside a ``` block used to flip a
+  // single boolean and turn fence state OFF, so `# ...` lines inside the code
+  // were parsed as real headings and the prose after the block was mis-filed
+  // under a heading that was actually a line of source.
+  let fenceMarker: string | null = null;
   for (const line of lines) {
-    const fence = line.match(/^(```|~~~)/);
-    if (fence) inFence = !inFence;
+    const m = line.match(/^(```|~~~)/);
+    if (m) {
+      const marker = m[1]!;
+      if (fenceMarker === null) fenceMarker = marker; // open
+      else if (marker === fenceMarker) fenceMarker = null; // matching close only
+    }
+    const inFence = fenceMarker !== null;
     const h = !inFence ? line.match(/^(#{1,6})\s+(.*)$/) : null;
     if (h) {
       const level = (h[1] ?? '').length;
@@ -359,6 +391,10 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
     if (chunks.length === 0 && sec.headingPath.length > 0) {
       chunks = [sec.headingPath[sec.headingPath.length - 1] ?? ''];
     }
+    // A fence never spans a section boundary (a heading inside a fence is not a
+    // heading — see splitSections), so fence state resets per section. It CAN
+    // span chunk boundaries within a section, which is what this carries.
+    let openFence: string | null = null;
     for (const chunk of chunks) {
       if (!chunk) continue;
       const seq = anchorCounts.get(headingKey) ?? 0;
@@ -371,8 +407,9 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
         text: chunk,
         hash: sha1(chunk),
       });
-      links.push(...extractLinks(chunk, anchor));
+      links.push(...extractLinks(chunk, anchor, openFence));
       for (const t of extractInlineTags(chunk)) tagSet.add(t);
+      openFence = fenceStateAfter(chunk, openFence);
     }
     // heading-only sections still contribute their heading as context for
     // link extraction in the heading line itself (rare, skip otherwise)

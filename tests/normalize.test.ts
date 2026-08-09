@@ -12,14 +12,29 @@ describe('singularizeKey', () => {
   });
 
   it('still merges clear plurals', () => {
-    expect(singularizeKey('notes')).toBe('note');
-    expect(singularizeKey('widgets')).toBe('widget');
-    expect(singularizeKey('branches')).toBe('branch');
-    expect(singularizeKey('stories')).toBe('story');
+    expect(singularizeKey('widgets')).toBe('widget'); // consonant + s
+    expect(singularizeKey('branches')).toBe('branch'); // -ches
+    expect(singularizeKey('stories')).toBe('story'); // consonant + ies
+    expect(singularizeKey('boxes')).toBe('box'); // -xes
   });
 
   it('only touches the final word', () => {
-    expect(singularizeKey('release notes')).toBe('release note');
+    expect(singularizeKey('quarterly reports')).toBe('quarterly report');
+  });
+
+  it('leaves proper nouns ending in vowel + es alone', () => {
+    // "James"+s and "note"+s have the SAME surface form (a stem ending in 'e',
+    // plus 's'), so no rule can singularize "notes"->"note" without also
+    // shredding "James"->"jame". This function's only caller is the NLP
+    // entity-key path, where the input is a proper noun far more often than a
+    // common-noun plural — and mangling a name (splitting it from its own
+    // [[wiki-link]] into two graph nodes) is worse than missing a merge. So
+    // vowel + es is deliberately preserved.
+    for (const name of ['james', 'jones', 'charles', 'holmes', 'naples', 'wales', 'hermes']) {
+      expect(singularizeKey(name)).toBe(name);
+    }
+    // consonant + es is likewise left as-is (not treated as a plural here)
+    expect(singularizeKey('notes')).toBe('notes');
   });
 });
 

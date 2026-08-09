@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.10.0 — 2026-08-09
+
+Six correctness defects found by a fan-out audit — seven probes across surfaces
+the incremental work had not stress-tested, then an adversarial pass that tried
+to *refute* each candidate by running code. Twelve candidates, six survived
+refutation, none were false positives. All fixed with regression tests
+(339 → 350).
+
+- **HIGH — interrupted-index self-heal was defeated by an own-PID marker.** A
+  mid-loop throw leaves `index_in_progress` holding the crashing process's PID;
+  `process.kill(self, 0)` always succeeds, so the next index in that *same*
+  still-alive process read it as "running", never rebuilt the half-built
+  facts/mentions, and then cleared the marker so no later run could self-heal.
+  It bit the two long-lived callers, `lore watch` and the MCP server. Fixed with
+  an in-process in-flight flag; the old test only ever used a foreign dead PID.
+- **Frontmatter date shadowed every block's own prose date.** `extractDates`
+  returns on the first frontmatter hit, so a note with any frontmatter date
+  stamped *all* its blocks with it — a `--since/--until` window then dropped the
+  block whose prose dates the event. Block prose dates win now.
+- **Phantom graph links from inside split code fences.** An oversized fenced
+  block is chunked past its opening ```, so `maskCode` could no longer blank it
+  and a `[[link]]` inside a code sample became a real edge. Fence state is
+  carried across chunks.
+- **`singularizeKey` shredded `-es` proper nouns** (James→jame, Jones→jone,
+  Naples→naple), splitting each from its own `[[wiki-link]]` into two graph
+  nodes. Dropped the `/es$/` branch that contradicted the rule's own comment.
+- **A past-dated question with no past-tense verb** ("where did I live in
+  2023") was answered with today's facts; it now scopes to the window end, like
+  its past-tense twin already did.
+- **A `~~~` line inside a ``` fence** mis-toggled fence state, promoting code
+  lines to headings; `splitSections` now tracks which delimiter opened the
+  fence.
+
+Three existing tests asserted the old behavior and were corrected on their
+merits. Both eval corpora unchanged.
+
 ## 0.9.2 — 2026-08-08
 
 - **The README's example outputs match the real ones again.** Ran every

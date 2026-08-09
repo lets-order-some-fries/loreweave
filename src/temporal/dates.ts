@@ -116,10 +116,14 @@ export function parseQueryTime(query: string): TemporalIntent {
     }
     return { kind: 'asOf', date: range.to, phrase: 'at that time' };
   }
-  // A bare date with no tense cue is still a scoping signal, but only when
-  // the date is clearly in the past.
+  // A bare past date with no tense cue ("where did I live in 2023") is still a
+  // scoping signal. Answer as of the end of that window: the only consumer,
+  // `ask`, maps asOf but not range, so returning `range` here left it with no
+  // scope and it answered from CURRENT facts — the exact thing this branch
+  // exists to prevent, and flipping to the right answer only when a past-tense
+  // verb happened to be present ("what WAS my role in 2023").
   if (range && range.to < new Date().toISOString().slice(0, 10)) {
-    return { kind: 'range', from: range.from, to: range.to, phrase: 'dated' };
+    return { kind: 'asOf', date: range.to, phrase: 'dated' };
   }
   return { kind: 'none' };
 }

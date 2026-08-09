@@ -119,3 +119,28 @@ describe('capitalisation lies that a docs vault tells constantly', () => {
     expect(names.join(' ')).toContain("D'Angelo");
   });
 });
+
+describe('proper nouns ending in -es are one graph node, not two', () => {
+  it('an NLP mention of a -es name shares its key with a wiki-link to it', () => {
+    // singularizeKey used to strip the 's' from any vowel+es word, so an NLP
+    // mention of "Indiana Jones" keyed as "indiana jone" while a [[Indiana
+    // Jones]] link keyed as "indiana jones" — two nodes for one entity, the
+    // opposite of the merge the function exists for.
+    const note = parseNote(
+      'n.md',
+      'Discussed [[Indiana Jones]] today. Later, Indiana Jones met Sherlock Holmes in Naples.\n',
+      1,
+    );
+    const keys = new Set(extractEntities(note).map((e) => e.key));
+    // the link key and the prose-mention key must coincide
+    expect(keys.has('indiana jones')).toBe(true);
+    expect(keys.has('indiana jone')).toBe(false);
+    // the other -es names survive intact too
+    const nlp = extractEntities(note)
+      .filter((e) => e.source === 'nlp')
+      .map((e) => e.key);
+    expect(nlp).toContain('sherlock holmes');
+    expect(nlp).toContain('naples');
+    expect(nlp.some((k) => /jone$|holme$|naple$/.test(k))).toBe(false);
+  });
+});

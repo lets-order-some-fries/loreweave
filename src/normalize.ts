@@ -55,8 +55,15 @@ export function singularizeKey(key: string): string {
   else if (/(ches|shes|sses|xes|zes)$/.test(last)) singular = last.slice(0, -2);
   // Only a consonant (never a vowel, never another s) may precede the plural
   // 's'. Without this, ordinary names ending in a vowel + s were mangled:
-  // atlas -> atla, chris -> chri, basis -> basi, osiris -> osiri.
-  else if (/[bcdfghjklmnpqrtvwxyz]s$/.test(last) || /es$/.test(last)) {
+  // atlas -> atla, chris -> chri, basis -> basi, osiris -> osiri. The former
+  // `|| /es$/` alternative allowed exactly the vowel 'e' before 's', which
+  // contradicted this rule and shredded a huge class of proper nouns —
+  // James -> jame, Jones -> jone, Holmes -> holme, Naples -> naple — and split
+  // each into a graph node separate from its own [[wiki-link]]. Dropping it
+  // costs only some genuine -oes plurals (heroes -> hero), the documented
+  // conservative side: a missed merge only leaves two nodes; a wrong one
+  // corrupts an entity permanently.
+  else if (/[bcdfghjklmnpqrtvwxyz]s$/.test(last)) {
     singular = last.slice(0, -1);
   }
   if (singular === last || singular.length < 3) return key;

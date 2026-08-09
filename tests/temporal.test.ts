@@ -35,6 +35,21 @@ describe('parseQueryTime', () => {
     expect(parseQueryTime('where do I live').kind).toBe('none');
     expect(parseQueryTime('what is the current status').kind).toBe('none');
   });
+
+  it('scopes a bare past date even without a past-tense verb', () => {
+    // "where did I live in 2023" has no past-tense cue ('did'/'live' are not in
+    // PAST_RE), so it used to return kind:'range' — which the only consumer,
+    // `ask`, maps to no scope, answering from CURRENT facts. The near-identical
+    // "what WAS my role in 2023" hit PAST_RE and answered correctly, so the
+    // result flipped on the presence of a past-tense verb.
+    for (const q of ['where did I live in 2023', 'where did I live during 2023']) {
+      const t = parseQueryTime(q);
+      expect(t.kind, q).toBe('asOf');
+      if (t.kind === 'asOf') expect(t.date).toBe('2023-12-31');
+    }
+    // a present-tense question with no date is still not scoped
+    expect(parseQueryTime('where do I live now').kind).toBe('none');
+  });
 });
 
 describe('extractDates', () => {

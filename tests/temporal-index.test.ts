@@ -4,7 +4,7 @@ import { indexVault } from '../src/index/indexer.js';
 import { search } from '../src/retrieve/search.js';
 import { ConfigSchema } from '../src/config.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
-import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
+import { buildNoteLinkGraph, type NoteLinkGraph } from '../src/retrieve/expand.js';
 import type { LoreContext } from '../src/context.js';
 import { makeVault } from './helpers.js';
 
@@ -64,5 +64,54 @@ describe('content time', () => {
     const recent = await search(ctx, 'ledger', { since: '2020-01-01', noLog: true });
     expect(recent.map((r) => r.notePath)).toContain('undated.md');
     ctx.close();
+  });
+});
+
+describe('content time comes from the block, not just the frontmatter', () => {
+  it('a --since/--until window keeps a block whose prose dates the event', async () => {
+    // extractDates checks frontmatter first and returns on the first hit, so
+    // passing the note frontmatter stamped EVERY block with the one frontmatter
+    // date and ignored the dates in the block prose — a date-window search for
+    // an event dated in the text then dropped the very block that mentions it.
+    const root = await makeVault({
+      'timeline.md':
+        '---\ndate: 2020-01-01\n---\n\n# Launch\n\n' +
+        'The zephyr launch event happened on 2026-08-05 with production traffic.\n',
+    });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const block = store.db
+      .prepare(`SELECT event_from FROM blocks WHERE note_path='timeline.md' AND heading LIKE '%Launch%'`)
+      .get() as { event_from: string };
+    expect(block.event_from).toBe('2026-08-05'); // prose date, not 2020-01-01
+
+    const config = ConfigSchema.parse({});
+    let cached: LoreGraph | null = null;
+    let links: NoteLinkGraph | null = null;
+    const ctx: LoreContext = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => (links ??= buildNoteLinkGraph(store)),
+      invalidateGraph: () => { cached = null; links = null; },
+      close: () => store.close(),
+    };
+    const windowed = await search(ctx, 'zephyr launch event production traffic', {
+      since: '2026-08-01', until: '2026-08-31', noLog: true,
+    });
+    expect(windowed.some((h) => h.notePath === 'timeline.md')).toBe(true);
+    store.close();
+  });
+
+  it('a block with no prose date still inherits the frontmatter date', async () => {
+    const root = await makeVault({
+      'note.md': '---\ndate: 2024-03-10\n---\n\n# Body\n\nNo dates written in this prose at all.\n',
+    });
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const block = store.db
+      .prepare(`SELECT event_from FROM blocks WHERE note_path='note.md' AND heading LIKE '%Body%'`)
+      .get() as { event_from: string };
+    expect(block.event_from).toBe('2024-03-10'); // fallback still works
+    store.close();
   });
 });
