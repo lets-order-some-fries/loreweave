@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { extractDates, parseDateExpression, parseQueryTime } from '../src/temporal/dates.js';
+import {
+  extractDates,
+  parseDateExpression,
+  parseQueryTime,
+  queryContentWindow,
+} from '../src/temporal/dates.js';
 
 describe('parseDateExpression', () => {
   it('parses ISO dates, months, quarters and years into ranges', () => {
@@ -49,6 +54,37 @@ describe('parseQueryTime', () => {
     }
     // a present-tense question with no date is still not scoped
     expect(parseQueryTime('where do I live now').kind).toBe('none');
+  });
+});
+
+describe('queryContentWindow', () => {
+  it('reads the window a query names, including one-sided scoping words', () => {
+    expect(queryContentWindow('ledger work in March 2025')).toEqual({
+      from: '2025-03-01',
+      to: '2025-03-31',
+      phrase: 'in',
+    });
+    expect(queryContentWindow('meetings before Q3 2026')).toEqual({
+      to: '2026-06-30',
+      phrase: 'before',
+    });
+    expect(queryContentWindow('everything until 2025-03-14')).toEqual({
+      to: '2025-03-14',
+      phrase: 'until',
+    });
+    expect(queryContentWindow('releases after August 2025')).toEqual({
+      from: '2025-09-01',
+      phrase: 'after',
+    });
+    expect(queryContentWindow('progress since 2024')).toEqual({
+      from: '2024-01-01',
+      phrase: 'since',
+    });
+  });
+
+  it('names no window when the query names no date', () => {
+    expect(queryContentWindow('where do I live')).toBeNull();
+    expect(queryContentWindow('may I search this')).toBeNull();
   });
 });
 

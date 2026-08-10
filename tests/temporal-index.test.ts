@@ -66,6 +66,38 @@ describe('content time', () => {
     ctx.close();
   });
 
+  it('a window named in the query itself lifts content dated inside it', async () => {
+    // "ledger July 2026": neither "july" nor "2026" appears in any indexed
+    // text, so lexically the three ledger notes are on equal footing — only
+    // the temporal boost can put the 2026-07-01 note first. Same in reverse
+    // for March 2025. The window is emphasis, not membership: every ledger
+    // note is still returned.
+    const ctx = await ctxFor();
+    const july = await search(ctx, 'ledger July 2026', { noLog: true });
+    expect(july.length).toBeGreaterThanOrEqual(3);
+    expect(july[0]!.notePath).toBe('planning.md');
+
+    const march = await search(ctx, 'ledger March 2025', { noLog: true });
+    expect(march.length).toBeGreaterThanOrEqual(3);
+    expect(march[0]!.notePath).toBe('2025-03-14-standup.md');
+    ctx.close();
+  });
+
+  it('an explicit --since/--until wins over the query text window', async () => {
+    // The caller's explicit scope IS the temporal intent; the query-text
+    // window must not double-scope it. Here the explicit window contradicts
+    // the query's words — the filter must rule.
+    const ctx = await ctxFor();
+    const r = await search(ctx, 'ledger July 2026', {
+      since: '2025-01-01',
+      until: '2025-12-31',
+      noLog: true,
+    });
+    expect(r.map((x) => x.notePath)).toContain('2025-03-14-standup.md');
+    expect(r.map((x) => x.notePath)).not.toContain('planning.md');
+    ctx.close();
+  });
+
   it('rejects a malformed window instead of silently returning nothing', async () => {
     // `to < 'garbage'` is a string comparison that drops or keeps rows by ASCII
     // accident, so `lore search --since not-a-date` used to answer "no results"

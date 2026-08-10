@@ -5,7 +5,7 @@ import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 import { expandNotes, seedNotes } from './expand.js';
-import { assertIsoDate } from '../temporal/dates.js';
+import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
 
 export interface SearchOptions {
   k?: number;
@@ -545,6 +545,12 @@ export async function search(
   const noContentWords = qTerms.length > 0 && qTerms.every((t) => STOPWORDS.has(t));
   const lexSnippets = new Map(lexical.map((h) => [h.blockId, h.snippet]));
 
+  // The window the query itself names ("in March 2025", "before Q3 2026") —
+  // a soft scoring signal, never a filter, and only when the caller has not
+  // scoped explicitly (an explicit --since/--until IS the temporal intent).
+  const qWindow =
+    opts.since || opts.until || cfg.boosts.temporal <= 0 ? null : queryContentWindow(query);
+
   const results: SearchResult[] = [];
   for (const r of rows) {
     if (!opts.includeArchived && r.archived) continue;
@@ -558,8 +564,20 @@ export async function search(
     const days = daysBetween(r.last_accessed, now);
     const R = r.last_accessed ? retrievability(days, r.stability) : 0.5;
     const base = fused.get(r.id)!;
+    // Temporal emphasis rewards evidence only: a block with a REAL content
+    // date overlapping the query's window. Undated blocks stay neutral —
+    // mtime says when a file was touched, not when its events happened, and
+    // boosting on it would reward recently-edited notes for naming no date.
+    const inWindow =
+      qWindow !== null &&
+      r.event_from !== null &&
+      (qWindow.to === undefined || r.event_from <= qWindow.to) &&
+      (qWindow.from === undefined || (r.event_to ?? r.event_from) >= qWindow.from);
     const score =
-      base + cfg.boosts.retrievability * R * base + cfg.boosts.importance * r.importance * base;
+      base +
+      cfg.boosts.retrievability * R * base +
+      cfg.boosts.importance * r.importance * base +
+      (inWindow ? cfg.boosts.temporal * base : 0);
 
     // explanation: matched entities adjacent to this block in the graph
     const via: string[] = [];

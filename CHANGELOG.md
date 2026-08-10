@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.11.0 — 2026-08-09
+
+Search now honours the time window a query itself names. Grounded in a
+six-probe research sweep over current memory/retrieval literature (LongMemEval,
+TempRALM, MRAG, Mem0, Zep, HippoRAG 2) — which also confirmed loreweave already
+ships the graph mechanisms those papers ablate as most valuable (IDF-weighted
+PPR seeds, hybrid entity+block seeding, co-occurrence edges).
+
+- **Query-derived temporal scoping.** "ledger work in March 2025" now lifts
+  content *dated* March 2025; before/until/after/since words produce one-sided
+  windows ("meetings before Q3 2026"). It is a soft boost, never a filter — a
+  query naming a year is not always about that year, so it decides emphasis,
+  not membership, and reach cannot regress. Only blocks with a REAL content
+  date are boosted: mtime says when a file was touched, not when its events
+  happened. An explicit `--since/--until` is the caller's temporal intent and
+  disables query-text scoping. Literature: LongMemEval measures +6.8–11.3%
+  recall for exactly this; temporal reasoning was Mem0's largest 2026 gain and
+  is where agent-memory products differentiate. New `boosts.temporal` config
+  (default 0.3, 0 disables). 352 → 356 tests.
+
 ## 0.10.1 — 2026-08-09
 
 Two CLI-validation gaps the same audit surfaced but did not rank into its

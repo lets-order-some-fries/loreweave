@@ -98,6 +98,43 @@ export function parseDateExpression(text: string): DateRange | null {
   return null;
 }
 
+/** A possibly one-sided inclusive window derived from a query's own words. */
+export interface QueryWindow {
+  from?: string;
+  to?: string;
+  /** The reading of the query that produced the window (for explanations). */
+  phrase: 'before' | 'until' | 'after' | 'since' | 'in';
+}
+
+const shiftDay = (iso: string, days: number): string => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+};
+
+/**
+ * The content-time window a query asks about, or null when it names no date.
+ *
+ * "what happened in March 2025" carries its own retrieval window, but search
+ * treated the words "March 2025" as mere terms: a block dated 2025-03 ranked
+ * no better than an equally-worded block from a different year. The caller is
+ * expected to use this as a soft SCORING signal, not a filter — a query
+ * mentioning a year is not always about that year ("error 2019"), and the
+ * conservative reading is emphasis, not membership.
+ */
+export function queryContentWindow(query: string): QueryWindow | null {
+  const q = query.toLowerCase();
+  const range = parseDateExpression(q);
+  if (!range) return null;
+  // one-sided readings, mirroring how people scope: strict "before" excludes
+  // the named window, "until/by" includes it; same split on the other side
+  if (/\b(before|prior to)\b/.test(q)) return { to: shiftDay(range.from, -1), phrase: 'before' };
+  if (/\b(until|up to|through)\b/.test(q)) return { to: range.to, phrase: 'until' };
+  if (/\bafter\b/.test(q)) return { from: shiftDay(range.to, 1), phrase: 'after' };
+  if (/\b(since|starting)\b/.test(q)) return { from: range.from, phrase: 'since' };
+  return { from: range.from, to: range.to, phrase: 'in' };
+}
+
 export type TemporalIntent =
   | { kind: 'none' }
   | { kind: 'asOf'; date: string; phrase: string }

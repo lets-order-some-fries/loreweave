@@ -59,6 +59,10 @@ export const ConfigSchema = z
           .object({
             retrievability: z.number().default(0.15),
             importance: z.number().default(0.15),
+            /** Boost for blocks whose content time overlaps a window the query
+             *  itself names ("in March 2025"). Soft emphasis, never a filter:
+             *  a query mentioning a year is not always about that year. */
+            temporal: z.number().default(0.3),
           })
           .default({}),
       })
