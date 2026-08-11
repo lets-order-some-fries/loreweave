@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.17.0 — 2026-08-11
+
+The forgetting curve is now the vault's own, not a hard-coded guess.
+
+- **FSRS-6 trainable decay, fitted per vault.** Retrievability was pinned to
+  the FSRS-4.5 shape (decay 0.5); FSRS-6's headline change is that the curve
+  SHAPE is a parameter, and it predicts recall better than the fixed shape
+  for 88% of users on the open 700M-review benchmark. `lore dream` now fits
+  the decay from the vault's own history — each retrieved-then-used event is
+  a success, retrieved-and-ignored a miss, stability replayed per block, log
+  loss ranks candidate shapes — and stores it for every retrievability
+  consumer (search boosts, importance, stale detection). The invariant
+  R(S,S)=0.9 holds for every shape, decay 0.5 reproduces the old constants
+  to floating-point precision (existing vaults rank identically until a fit
+  says otherwise), and thin history (<50 events) refuses to fit rather than
+  fitting noise. Everything derived, rebuildable, zero LLM. 376 → 384 tests.
+
 ## 0.16.0 — 2026-08-11
 
 Same-as edges: one thing under several names is one graph node's worth of

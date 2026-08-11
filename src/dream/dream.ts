@@ -6,6 +6,7 @@ import { normalizeKey } from '../normalize.js';
 import { buildNameIndex, resolveNoteName } from '../retrieve/expand.js';
 import { safeVaultPath } from '../capture.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
+import { fitDecay, storeDecay, vaultDecay, type DecayFit } from '../dynamics/fit.js';
 
 /**
  * Idle-time consolidation ("dreaming"): the engine reviews its own state and
@@ -67,6 +68,8 @@ export interface DreamReport {
   linkSuggestions: LinkSuggestion[];
   orphans: string[];
   written: string[];
+  /** Present when this pass fitted the vault's forgetting-curve shape. */
+  decayFit?: DecayFit;
   /**
    * True totals before display truncation, so the CLI never presents a
    * `.slice(0, 50)` length as if it were the real count.
@@ -332,6 +335,7 @@ function findContradictions(ctx: LoreContext): ContradictionFinding[] {
 
 function findStale(ctx: LoreContext): StaleFinding[] {
   const now = new Date();
+  const decay = vaultDecay(ctx.store);
   const out: StaleFinding[] = [];
   const blocks = ctx.store.db
     .prepare(
@@ -347,7 +351,7 @@ function findStale(ctx: LoreContext): StaleFinding[] {
   }[];
   for (const b of blocks) {
     if (!b.last_accessed) continue; // never accessed → nothing decayed yet
-    const R = retrievability(daysBetween(b.last_accessed, now), b.stability);
+    const R = retrievability(daysBetween(b.last_accessed, now), b.stability, decay);
     if (R < 0.3) {
       out.push({
         kind: 'block',
@@ -625,6 +629,16 @@ export function dream(ctx: LoreContext, opts: { apply?: boolean } = {}): DreamRe
     },
     inactive,
   };
+
+  // Fit the vault's forgetting-curve shape from its own retrieved→used
+  // history (FSRS-6's trainable decay; see dynamics/fit.ts). Idle-time work
+  // in the sleep-time-compute sense: off the query path, into the cache —
+  // the fitted value is derived state in .lore, rebuildable like the rest.
+  const fit = fitDecay(ctx.store);
+  if (fit !== null) {
+    storeDecay(ctx.store, fit.decay);
+    report.decayFit = fit;
+  }
 
   if (opts.apply) {
     const date = report.generatedAt.slice(0, 10);

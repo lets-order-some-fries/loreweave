@@ -2,6 +2,7 @@ import type { Store } from '../store/db.js';
 import { normalizeKey } from '../normalize.js';
 import { buildNameIndex, resolveNoteName } from '../retrieve/expand.js';
 import { daysBetween, reinforce, retrievability } from './fsrs.js';
+import { vaultDecay } from './fit.js';
 
 /**
  * Mark blocks as actually USED (cited in an answer, followed by the user).
@@ -12,6 +13,7 @@ export function markUsed(store: Store, blockIds: number[]): number {
   const nowIso = now.toISOString();
   let updated = 0;
   const tx = store.db.transaction(() => {
+    const decay = vaultDecay(store);
     const get = store.db.prepare(`SELECT stability, last_accessed FROM blocks WHERE id=?`);
     const set = store.db.prepare(
       `UPDATE blocks SET stability=?, last_accessed=?, access_count=access_count+1, archived=0 WHERE id=?`,
@@ -20,7 +22,7 @@ export function markUsed(store: Store, blockIds: number[]): number {
       const row = get.get(id) as { stability: number; last_accessed: string | null } | undefined;
       if (!row) continue;
       const days = daysBetween(row.last_accessed, now);
-      const R = row.last_accessed ? retrievability(days, row.stability) : 0.9;
+      const R = row.last_accessed ? retrievability(days, row.stability, decay) : 0.9;
       set.run(reinforce(row.stability, R), nowIso, id);
       store.logAccess('used', id);
       updated++;

@@ -375,7 +375,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 376 tests
+npm test          # 384 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

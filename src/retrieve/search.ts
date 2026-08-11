@@ -4,6 +4,7 @@ import { STOPWORDS, contentTerms, normalizeKey } from '../normalize.js';
 import { denseTopK } from '../embed/index.js';
 import { ppr } from '../graph/ppr.js';
 import { daysBetween, retrievability } from '../dynamics/fsrs.js';
+import { vaultDecay } from '../dynamics/fit.js';
 import { expandNotes, seedNotes } from './expand.js';
 import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
 
@@ -573,6 +574,8 @@ export async function search(
     return true;
   };
   const now = new Date();
+  // The vault's fitted forgetting-curve shape (dream fits it; default 0.5).
+  const decay = vaultDecay(store);
   // Coverage = fraction of the query's distinct terms that actually appear in
   // the block. Unlike a fused rank (near-constant without access history) or
   // raw BM25 (unbounded, corpus-dependent), this is directly interpretable:
@@ -717,7 +720,7 @@ export async function search(
       if (opts.until && from > opts.until) continue;
     }
     const days = daysBetween(r.last_accessed, now);
-    const R = r.last_accessed ? retrievability(days, r.stability) : 0.5;
+    const R = r.last_accessed ? retrievability(days, r.stability, decay) : 0.5;
     const base = fused.get(r.id)!;
     // Temporal emphasis rewards evidence only: a block with a REAL content
     // date overlapping the query's window. Undated blocks stay neutral —
