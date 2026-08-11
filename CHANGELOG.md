@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.0 — 2026-08-11
+
+`lore timeline` — an entity's whole history in one call.
+
+- **New command + MCP tool (`lore_timeline`).** Merges the two records the
+  engine keeps and no single query could see together: the bitemporal fact
+  store's supersede chains, rendered as change-points ("status: planning →
+  active", with what each value replaced and when it stopped holding), and
+  content-dated blocks mentioning the entity — the prose record, verbatim,
+  placed at when it happened. Windowed with `--since/--until`; `--json` for
+  machines. "What happened to X" / "what was X before it changed" used to
+  take `facts --history` plus repeated windowed searches merged by hand —
+  and the systems that market that exact query pay an LLM at ingestion to
+  build the change graph the supersede chain already holds. Here it is a
+  read-side join: no LLM, no network, reproducible.
+- Journal record blocks (`- [fact] …` lines) are excluded from the mention
+  stream — they are the WRITE that produced a change entry, and echoing them
+  narrated every change twice. 362 tests (+6).
+- CI note: the suite is green on Windows for the first time — a containment
+  test had been comparing path separators instead of containment since the
+  workflow existed (test-only fix, shipped untagged).
+
 ## 0.11.1 — 2026-08-11
 
 A third eval corpus that measures TIME — and the three refinements it forced

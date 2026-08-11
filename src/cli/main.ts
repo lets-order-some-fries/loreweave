@@ -7,6 +7,7 @@ import { verifyOrReset } from '../store/db.js';
 import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
+import { buildTimeline } from '../temporal/timeline.js';
 import { indexVault, indexState } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -98,7 +99,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.11.1')
+    .version('0.12.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -351,6 +352,41 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         }
       });
     });
+
+  program
+    .command('timeline')
+    .description('chronological history of an entity: fact changes merged with dated mentions')
+    .argument('<subject...>', 'entity name')
+    .option('--since <date>', 'only entries on/after this ISO date')
+    .option('--until <date>', 'only entries on/before this ISO date')
+    .option('--json', 'JSON output')
+    .action(
+      async (subjectWords: string[], opts: { since?: string; until?: string; json?: boolean }) => {
+        await withCtx((ctx) => {
+          const subject = subjectWords.join(' ');
+          const tl = buildTimeline(ctx.store, subject, { since: opts.since, until: opts.until });
+          if (opts.json) {
+            io.out(JSON.stringify(tl, null, 2));
+            return;
+          }
+          if (!tl.length) {
+            io.out(`no history for "${subject}" — no facts recorded and no dated mentions`);
+            return;
+          }
+          for (const e of tl) {
+            if (e.kind === 'change') {
+              const arrow = e.previous ? `${e.previous} → ${e.value}` : String(e.value);
+              const until = e.until === null ? '' : `  (until ${e.until})`;
+              io.out(`${e.date}  ${e.predicate}: ${arrow}${until}`);
+            } else {
+              const firstLine = (e.text ?? '').split('\n').find((l) => l.trim()) ?? '';
+              const snip = firstLine.length > 100 ? `${firstLine.slice(0, 100)}…` : firstLine;
+              io.out(`${e.date}  • ${snip}  [${e.notePath}]`);
+            }
+          }
+        });
+      },
+    );
 
   program
     .command('assert')

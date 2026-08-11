@@ -17,6 +17,7 @@ import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { findVaultRoot } from '../config.js';
 import { watchVault } from '../watch.js';
 import { extractFactsFromNote } from '../facts/extract.js';
+import { buildTimeline } from '../temporal/timeline.js';
 import { normalizeKey } from '../normalize.js';
 
 function text(data: unknown): { content: { type: 'text'; text: string }[] } {
@@ -74,7 +75,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.11.1' });
+  const server = new McpServer({ name: 'loreweave', version: '0.12.0' });
 
   server.registerTool(
     'lore_search',
@@ -216,6 +217,21 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       },
     },
     safe((input) => invalidateFact(ctx, input)),
+  );
+
+  server.registerTool(
+    'lore_timeline',
+    {
+      title: 'Entity timeline',
+      description:
+        'Chronological history of an entity in one call: every value change from the bitemporal fact store (with what each value replaced and when it stopped holding) merged with content-dated passages mentioning the entity. Use for "what happened to X", "what was X before it changed", "history of X" — instead of sampling repeated as-of fact queries and windowed searches.',
+      inputSchema: {
+        subject: z.string().min(1).max(2000).describe('entity name, e.g. "Project Atlas"'),
+        since: z.string().optional().describe('only entries on/after this ISO date'),
+        until: z.string().optional().describe('only entries on/before this ISO date'),
+      },
+    },
+    safe(({ subject, since, until }) => buildTimeline(ctx.store, subject, { since, until })),
   );
 
   server.registerTool(
