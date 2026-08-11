@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.16.0 — 2026-08-11
+
+Same-as edges: one thing under several names is one graph node's worth of
+reach, not three.
+
+- **Alias and acronym identity edges in the entity graph.** A person is "Bob"
+  in standups, "Robert Aldana" on their hub page; a company is both
+  "Motherson Technology Services" and "MTS". Those arrived as disconnected
+  entity nodes, and activation from one never reached content filed under the
+  others — HippoRAG's ablation prices exactly this edge class at 3.5 R@5
+  points, on a corpus with better name hygiene than any vault. Two
+  deterministic layers: the note's own frontmatter `aliases:` list (the
+  Obsidian convention), and acronym ↔ expansion pairs (initials of a
+  multi-word entity spelling another entity key; two-letter initials are
+  ignored — collisions, not identity). Both are identity claims rather than
+  co-occurrence evidence, so they carry a high weight (`edgeWeights.SAMEAS`,
+  default 0.9). Searching "Bob dredge calibration" now reaches the note that
+  only ever says [[Robert Aldana]]. 372 → 376 tests.
+
 ## 0.15.0 — 2026-08-11
 
 "What is the status NOW" finally ranks the newest account first.

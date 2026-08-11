@@ -80,6 +80,10 @@ export const ConfigSchema = z
             COOCCUR: z.number().default(0.4),
             SIMILAR: z.number().default(0.8),
             TAG: z.number().default(0.5),
+            /** Same-entity edges: declared frontmatter aliases and
+             *  acronym ↔ expansion pairs. High weight on purpose — these are
+             *  identity claims, not co-occurrence evidence. */
+            SAMEAS: z.number().default(0.9),
           })
           .default({}),
         maxEntitiesPerBlockCooccur: z.number().int().default(12),
