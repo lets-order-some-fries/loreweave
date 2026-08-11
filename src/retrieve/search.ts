@@ -115,6 +115,27 @@ function isAllFencedSource(text: string): boolean {
 }
 
 /**
+ * How much of the query's word ORDER a text preserves: the fraction of the
+ * query's adjacent term pairs that appear adjacent in the text too. "ledger
+ * migration" as a phrase is one claim; "the ledger, and later a migration"
+ * is two — coverage cannot tell them apart, and the sequential-dependence
+ * literature has priced that difference into every strong lexical ranker
+ * since Metzler & Croft (2005). Deterministic, no index changes: computed
+ * over the same normalized tokens coverage already uses.
+ */
+export function proximityScore(normalizedText: string, qTerms: string[]): number {
+  if (qTerms.length < 2) return 0;
+  const tokens = normalizedText.split(' ');
+  const pairs = new Set<string>();
+  for (let i = 0; i + 1 < tokens.length; i++) pairs.add(`${tokens[i]} ${tokens[i + 1]}`);
+  let hit = 0;
+  for (let i = 0; i + 1 < qTerms.length; i++) {
+    if (pairs.has(`${qTerms[i]} ${qTerms[i + 1]}`)) hit++;
+  }
+  return hit / (qTerms.length - 1);
+}
+
+/**
  * Collapse a block ranking to one entry per note, replacing each note's block
  * with whichever of ITS blocks best covers the query — including blocks that
  * never entered the candidate set.
@@ -147,7 +168,11 @@ function pickBestBlockPerNote(
         const cov = qTerms.filter((t) => hay.includes(t)).length;
         // Half a term of penalty, so a block of pure generated source has to
         // cover strictly MORE of the query than a readable one to be chosen.
-        const score = cov - (isAllFencedSource(b.text) ? 0.5 : 0);
+        // Proximity is worth slightly less than a full extra term: a block
+        // preserving the query's phrasing wins ties, but one more matched
+        // word still beats a nicer arrangement of fewer words.
+        const score =
+          cov + 0.9 * proximityScore(hay, qTerms) - (isAllFencedSource(b.text) ? 0.5 : 0);
         // ties keep the originally ranked block: it won on the full signal
         if (score > bestCov) {
           bestCov = score;
@@ -722,6 +747,8 @@ export async function search(
     const days = daysBetween(r.last_accessed, now);
     const R = r.last_accessed ? retrievability(days, r.stability, decay) : 0.5;
     const base = fused.get(r.id)!;
+    const hay = normalizeKey(r.text + ' ' + r.heading);
+    const prox = cfg.boosts.proximity > 0 ? proximityScore(hay, qTerms) : 0;
     // Temporal emphasis rewards evidence only: a block with a REAL content
     // date overlapping the query's window. Undated blocks stay neutral —
     // mtime says when a file was touched, not when its events happened, and
@@ -731,7 +758,8 @@ export async function search(
       cfg.boosts.retrievability * R * base +
       cfg.boosts.importance * r.importance * base +
       (temporalWeight > 0 && boostedBlocks!.has(r.id) ? temporalWeight * base : 0) +
-      (recencyOf !== null ? cfg.boosts.recency * (recencyOf.get(r.id) ?? 0) * base : 0);
+      (recencyOf !== null ? cfg.boosts.recency * (recencyOf.get(r.id) ?? 0) * base : 0) +
+      cfg.boosts.proximity * prox * base;
 
     // explanation: matched entities adjacent to this block in the graph
     const via: string[] = [];
@@ -759,12 +787,7 @@ export async function search(
       coverage: noContentWords
         ? 0
         : qTerms.length
-        ? Number(
-            (
-              qTerms.filter((t) => normalizeKey(r.text + ' ' + r.heading).includes(t)).length /
-              qTerms.length
-            ).toFixed(3),
-          )
+        ? Number((qTerms.filter((t) => hay.includes(t)).length / qTerms.length).toFixed(3))
         : 0,
       parts: {
         lexical: Number((lexicalRanks.has(r.id) ? 1 / (cfg.rrfK + lexicalRanks.get(r.id)!) : 0).toFixed(6)),

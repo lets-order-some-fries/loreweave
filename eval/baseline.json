@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3328,
-        "indexMs": 230,
+        "indexMs": 249,
         "warnings": 0
       },
       "overall": {
@@ -48,7 +48,7 @@
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.675,
-          "mrr": 0.537,
+          "mrr": 0.536,
           "ans@5": 0.45,
           "found": 0.975
         }
@@ -83,7 +83,7 @@
             "n": 10,
             "r@1": 0.6,
             "r@5": 0.8,
-            "mrr": 0.722,
+            "mrr": 0.721,
             "ans@5": 0.8,
             "found": 1
           }
@@ -219,7 +219,7 @@
             "n": 10,
             "r@1": 0.6,
             "r@5": 0.9,
-            "mrr": 0.739,
+            "mrr": 0.738,
             "ans@5": 0.8,
             "found": 1
           }
@@ -234,15 +234,15 @@
         "links": 25,
         "facts": 63,
         "edges": 131,
-        "indexMs": 36,
+        "indexMs": 48,
         "warnings": 0
       },
       "overall": {
         "hybrid": {
           "n": 24,
-          "r@1": 0.458,
+          "r@1": 0.5,
           "r@5": 0.875,
-          "mrr": 0.664,
+          "mrr": 0.685,
           "ans@5": 0.833,
           "found": 0.958
         },
@@ -264,17 +264,17 @@
         },
         "hybrid−graph": {
           "n": 24,
-          "r@1": 0.458,
+          "r@1": 0.5,
           "r@5": 0.833,
-          "mrr": 0.653,
+          "mrr": 0.674,
           "ans@5": 0.792,
           "found": 0.875
         },
         "hybrid−expand": {
           "n": 24,
-          "r@1": 0.458,
+          "r@1": 0.5,
           "r@5": 0.625,
-          "mrr": 0.545,
+          "mrr": 0.566,
           "ans@5": 0.583,
           "found": 0.708
         }
@@ -283,9 +283,9 @@
         "hybrid": {
           "simple": {
             "n": 8,
-            "r@1": 0.625,
+            "r@1": 0.75,
             "r@5": 0.875,
-            "mrr": 0.771,
+            "mrr": 0.833,
             "ans@5": 0.875,
             "found": 1
           },
@@ -385,9 +385,9 @@
         "hybrid−graph": {
           "simple": {
             "n": 8,
-            "r@1": 0.625,
+            "r@1": 0.75,
             "r@5": 0.875,
-            "mrr": 0.771,
+            "mrr": 0.833,
             "ans@5": 0.875,
             "found": 1
           },
@@ -419,9 +419,9 @@
         "hybrid−expand": {
           "simple": {
             "n": 8,
-            "r@1": 0.625,
+            "r@1": 0.75,
             "r@5": 0.875,
-            "mrr": 0.771,
+            "mrr": 0.833,
             "ans@5": 0.875,
             "found": 1
           },
@@ -460,7 +460,7 @@
         "links": 25,
         "facts": 0,
         "edges": 108,
-        "indexMs": 15,
+        "indexMs": 14,
         "warnings": 0
       },
       "overall": {
@@ -909,8 +909,8 @@
       "system": "hybrid",
       "id": "A4",
       "cat": "aggregate",
-      "rank": 20,
-      "answerRank": 20
+      "rank": 22,
+      "answerRank": 22
     },
     {
       "corpus": "kestrel",
@@ -1869,8 +1869,8 @@
       "system": "hybrid−graph",
       "id": "A4",
       "cat": "aggregate",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 20,
+      "answerRank": 20
     },
     {
       "corpus": "kestrel",
@@ -2005,8 +2005,8 @@
       "system": "hybrid−expand",
       "id": "M1",
       "cat": "multihop",
-      "rank": 23,
-      "answerRank": 23
+      "rank": 24,
+      "answerRank": 24
     },
     {
       "corpus": "kestrel",
@@ -2189,8 +2189,8 @@
       "system": "hybrid−expand",
       "id": "A4",
       "cat": "aggregate",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 21,
+      "answerRank": 21
     },
     {
       "corpus": "kestrel",
@@ -2269,8 +2269,8 @@
       "system": "hybrid",
       "id": "N-S4",
       "cat": "simple",
-      "rank": 2,
-      "answerRank": 2
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "corpus": "northwind",
@@ -2845,8 +2845,8 @@
       "system": "hybrid−graph",
       "id": "N-S4",
       "cat": "simple",
-      "rank": 2,
-      "answerRank": 2
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "corpus": "northwind",
@@ -3037,8 +3037,8 @@
       "system": "hybrid−expand",
       "id": "N-S4",
       "cat": "simple",
-      "rank": 2,
-      "answerRank": 2
+      "rank": 1,
+      "answerRank": 1
     },
     {
       "corpus": "northwind",

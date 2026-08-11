@@ -67,6 +67,10 @@ export const ConfigSchema = z
              *  status", "where does X live now"). Applies only to blocks with
              *  real content dates, newest scaled to the full boost. */
             recency: z.number().default(0.3),
+            /** Term-proximity bonus: blocks preserving the query's word
+             *  order ("ledger migration" as a phrase) outrank blocks with
+             *  the same words scattered (sequential-dependence signal). */
+            proximity: z.number().default(0.1),
           })
           .default({}),
       })

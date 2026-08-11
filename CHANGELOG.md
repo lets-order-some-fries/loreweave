@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.19.0 — 2026-08-12
+
+Word order is evidence: term-proximity joins the ranking.
+
+- **Sequential-dependence proximity signal.** "ledger migration" as a phrase
+  and the same two words a paragraph apart were indistinguishable to
+  coverage; now the fraction of the query's adjacent term pairs preserved in
+  a block boosts its score (`boosts.proximity`, default 0.1) and breaks ties
+  when choosing which block of a note to show. The weight was set by
+  measurement, not taste: 0.2 flipped one kestrel near-tie the wrong way,
+  0.1 keeps kestrel exactly at baseline while lifting northwind MRR
+  0.664 → 0.685 with meridian unchanged — the sweep is the point of having
+  three corpora. Zero dependencies, no index changes (Metzler & Croft 2005's
+  lesson, applied at reranking cost only). 387 → 389 tests.
+
 ## 0.18.0 — 2026-08-11
 
 `lore review` — the spaced-repetition loop, operable on demand.
