@@ -670,6 +670,41 @@ export async function search(
       ? cfg.boosts.temporal / (1 + Math.log2(boostedBlocks.size))
       : 0;
 
+  // "What is the status NOW" is the mirror image of a windowed query: the
+  // query names no window, but its tense does — the newest account of the
+  // entity is the answer, and lexically the entity's whole history ties.
+  // Recency is min-max normalized over the DATED candidates in this pool
+  // (newest → full boost, oldest → none), so it is scale-free: a vault whose
+  // changes span a decade and one whose changes span a month rank the same
+  // way. Undated blocks stay neutral for the usual reason — mtime says when
+  // a file was touched, not when its events happened — and record blocks are
+  // the log, not the account. A dated window in the query wins over the cue:
+  // "current status in 2024" is a 2024 question, however it is phrased.
+  const currentCue =
+    qWindow === null &&
+    !opts.since &&
+    !opts.until &&
+    !aggregateQuery &&
+    cfg.boosts.recency > 0 &&
+    /\b(current(ly)?|now|today|latest|these days|at the moment|at present)\b/i.test(query);
+  let recencyOf: Map<number, number> | null = null;
+  if (currentCue) {
+    const dated: { id: number; t: number }[] = [];
+    for (const r of rows) {
+      if (!opts.includeArchived && r.archived) continue;
+      if (!inScope(r)) continue;
+      if (r.event_from === null || isRecordBlock(r.text)) continue;
+      dated.push({ id: r.id, t: Date.parse(r.event_to ?? r.event_from) });
+    }
+    if (dated.length > 0) {
+      const lo = Math.min(...dated.map((d) => d.t));
+      const hi = Math.max(...dated.map((d) => d.t));
+      recencyOf = new Map(
+        dated.map((d) => [d.id, hi === lo ? 1 : (d.t - lo) / (hi - lo)]),
+      );
+    }
+  }
+
   const results: SearchResult[] = [];
   for (const r of rows) {
     if (!opts.includeArchived && r.archived) continue;
@@ -692,7 +727,8 @@ export async function search(
       base +
       cfg.boosts.retrievability * R * base +
       cfg.boosts.importance * r.importance * base +
-      (temporalWeight > 0 && boostedBlocks!.has(r.id) ? temporalWeight * base : 0);
+      (temporalWeight > 0 && boostedBlocks!.has(r.id) ? temporalWeight * base : 0) +
+      (recencyOf !== null ? cfg.boosts.recency * (recencyOf.get(r.id) ?? 0) * base : 0);
 
     // explanation: matched entities adjacent to this block in the graph
     const via: string[] = [];

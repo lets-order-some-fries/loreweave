@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.15.0 — 2026-08-11
+
+"What is the status NOW" finally ranks the newest account first.
+
+- **Recency preference for now-phrased queries.** A query with a present-tense
+  cue ("current status", "where does X live now", "latest") names no window,
+  but its tense does: the newest account is the answer, and lexically the
+  entity's whole history ties. Recency is min-max normalized over the DATED
+  candidates in the pool — newest gets the full boost, oldest none, so it is
+  scale-free across vaults whose changes span a decade or a month. Undated
+  blocks stay neutral (mtime is when a file was touched, not when its events
+  happened), record blocks are the log rather than the account, and a dated
+  window in the query wins over the cue ("current status in 2024" is a 2024
+  question). New `boosts.recency` config (default 0.3, 0 disables).
+- Measured: meridian `current` r@1 **0.25 → 0.75**, corpus MRR 0.883 → 0.952,
+  with temporal and flip categories still at 1.000 and zero regression on the
+  other corpora. The residual miss is honest vocabulary mismatch — a 2023
+  note literally claiming "infrastructure now runs at Foxglove" outscores the
+  newer note that avoids the query's words; that is embeddings territory, not
+  a ranking bug. 371 → 372 tests.
+
 ## 0.14.0 — 2026-08-11
 
 `lore resume` — session continuity as a query, not a paraphrase.

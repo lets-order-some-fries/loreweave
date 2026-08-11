@@ -98,6 +98,20 @@ describe('content time', () => {
     ctx.close();
   });
 
+  it('a NOW-phrased query prefers the newest dated account', async () => {
+    // "latest ledger status": no window is named, but the tense names one —
+    // the newest account is the answer, and lexically the ledger's history
+    // ties. Recency is min-max normalized over dated candidates (newest gets
+    // the full boost), undated blocks stay neutral, and a dated window in
+    // the query would win over the cue.
+    const ctx = await ctxFor();
+    for (const q of ['latest ledger status', 'ledger work now', 'current ledger plan']) {
+      const res = await search(ctx, q, { noLog: true });
+      expect(res[0]!.notePath, q).toBe('planning.md'); // 2026-07-01 beats 2025-03-14
+    }
+    ctx.close();
+  });
+
   it('rejects a malformed window instead of silently returning nothing', async () => {
     // `to < 'garbage'` is a string comparison that drops or keeps rows by ASCII
     // accident, so `lore search --since not-a-date` used to answer "no results"

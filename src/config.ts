@@ -63,6 +63,10 @@ export const ConfigSchema = z
              *  itself names ("in March 2025"). Soft emphasis, never a filter:
              *  a query mentioning a year is not always about that year. */
             temporal: z.number().default(0.3),
+            /** Recency preference when the query asks about NOW ("current
+             *  status", "where does X live now"). Applies only to blocks with
+             *  real content dates, newest scaled to the full boost. */
+            recency: z.number().default(0.3),
           })
           .default({}),
       })

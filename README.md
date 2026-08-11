@@ -86,7 +86,7 @@ lexical overlap.
 | | BM25 | 75% | 65% | 0.532 | 55% |
 | northwind (24 q) | **hybrid** | **96%** | **88%** | **0.664** | **83%** |
 | | BM25 | 63% | 58% | 0.521 | 54% |
-| meridian (18 q) | **hybrid** | **100%** | **94%** | **0.883** | **94%** |
+| meridian (18 q) | **hybrid** | **100%** | **94%** | **0.952** | **94%** |
 | | BM25 | 94% | 83% | 0.437 | 83% |
 
 Multi-hop is where the graph earns its keep: **BM25 finds 0% on both prose
@@ -375,7 +375,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 371 tests
+npm test          # 372 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
