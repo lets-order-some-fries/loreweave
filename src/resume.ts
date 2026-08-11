@@ -46,7 +46,7 @@ export function resumeDelta(store: Store, opts: { since?: string } = {}): Resume
   const sinceMs = Date.parse(since);
   const changedRows = store.db
     .prepare(`SELECT path, title, mtime_ms FROM notes WHERE mtime_ms > ? ORDER BY mtime_ms DESC`)
-    .all(sinceMs) as { path: string; title: string }[];
+    .all(sinceMs) as { path: string; title: string; mtime_ms: number }[];
   const notesChanged = changedRows.slice(0, LIST_CAP).map(({ path, title }) => ({ path, title }));
 
   const asserted = store.db
@@ -101,7 +101,17 @@ export function resumeDelta(store: Store, opts: { since?: string } = {}): Resume
   }
 
   // Advance only on the implicit call: this READ is the session boundary.
-  if (!explicit) store.setMeta(WATERMARK_KEY, now);
+  // The invariant is "a reported note never reappears unless re-edited", and
+  // `now` alone cannot guarantee it: file mtimes carry FRACTIONAL
+  // milliseconds while an ISO watermark is whole-ms, so a note written in
+  // the same millisecond (…123.456 > …123.0) resurfaced in the next,
+  // supposedly-empty delta. Advance past the fractional tail of everything
+  // just seen.
+  if (!explicit) {
+    const maxSeen = changedRows.reduce((m, r) => Math.max(m, r.mtime_ms), 0);
+    const advanceTo = Math.max(Date.parse(now), Math.ceil(maxSeen));
+    store.setMeta(WATERMARK_KEY, new Date(advanceTo).toISOString());
+  }
 
   return {
     since,
