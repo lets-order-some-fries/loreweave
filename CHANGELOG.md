@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.11.1 — 2026-08-11
+
+A third eval corpus that measures TIME — and the three refinements it forced
+on 0.11.0's temporal boost within the hour of existing.
+
+- **New corpus: meridian.** Facts change across dated notes (status flips,
+  office moves, vendor and licence changes); dates live only in frontmatter,
+  invisible to BM25. Categories: `temporal` (windowed queries — hybrid r@1
+  **1.000 vs BM25 0.000**), `flip` (TempRAGEval-style perturbation pairs: the
+  same question with a shifted window has a different correct answer — hybrid
+  **1.000 vs 0.167**), and `current` (knowledge-update; hybrid 0.25 r@1,
+  recorded as honest headroom — retrieval has no content-recency preference
+  yet). Now part of the regression gate.
+- **Correction: 0.11.0's "both eval corpora unchanged" was measured against a
+  stale build** — the gate was invoked directly instead of through the npm
+  script that rebuilds first. Freshly measured, the flat boost regressed
+  kestrel (r@5 0.75 → 0.70, MRR 0.54 → 0.514). This release fixes the
+  regression properly rather than papering it:
+  - **Rarity scaling** — temporal evidence is only as strong as it is rare
+    (the entityIdf logic applied to time): the boost divides by
+    1 + log2(in-window candidates), so "one note dated that June" is a strong
+    signal while "every 2022 log matches" distinguishes nothing.
+  - **Fact valid-time is temporal evidence too** — an undated hub page whose
+    superseded facts were valid inside the window is boosted like a dated
+    journal entry; reference-style vaults keep history on hub pages and got
+    demoted by a prose-date-only boost.
+  - **Record blocks are never boosted** — a block of `- [fact]` lines is the
+    log of assertions, not content about a period (RECORD_LINE's reasoning),
+    and counting questions ("how many traverses ran in 2022?") skip the boost
+    entirely: their window scopes the aggregate, which the computable layer
+    owns.
+
+  Result: kestrel fully restored, northwind improved (hybrid−BM25 MRR gap
+  +0.122 → +0.143), meridian's wins intact. Baseline re-recorded over all
+  three corpora.
+
 ## 0.11.0 — 2026-08-09
 
 Search now honours the time window a query itself names. Grounded in a

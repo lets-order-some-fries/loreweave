@@ -548,8 +548,84 @@ export async function search(
   // The window the query itself names ("in March 2025", "before Q3 2026") —
   // a soft scoring signal, never a filter, and only when the caller has not
   // scoped explicitly (an explicit --since/--until IS the temporal intent).
+  // A counting question is exempt: in "how many traverses ran in 2022?" the
+  // window scopes the AGGREGATE, not retrieval emphasis — boosting the dated
+  // instances buries the summary note that actually states the count, and
+  // the computable layer (`count`, fact aggregates) owns that window anyway.
+  const aggregateQuery = /\b(how many|how much|number of|count of|total)\b/i.test(query);
   const qWindow =
-    opts.since || opts.until || cfg.boosts.temporal <= 0 ? null : queryContentWindow(query);
+    opts.since || opts.until || cfg.boosts.temporal <= 0 || aggregateQuery
+      ? null
+      : queryContentWindow(query);
+  // A block is temporal evidence for the window in either of two ways: its
+  // prose is DATED inside it (a journal entry about that June), or it records
+  // a FACT whose valid time overlaps it (an undated entity page whose
+  // supersession history says what was true then). Vaults split cleanly on
+  // which shape they use — journal-style vaults date their notes, reference-
+  // style vaults keep history on hub pages — and boosting only the first
+  // shape demoted exactly the notes that answer "what was X before Y" in the
+  // second. A fact with no temporal bounds at all is evidence of nothing.
+  let factDated: Set<string> | null = null;
+  if (qWindow !== null) {
+    const hits = ctx.store.db
+      .prepare(
+        `SELECT DISTINCT note_path, block_anchor FROM facts
+         WHERE note_path IS NOT NULL AND block_anchor IS NOT NULL
+           AND NOT (valid_from IS NULL AND valid_until IS NULL)
+           AND (? IS NULL OR valid_from IS NULL OR valid_from <= ?)
+           AND (? IS NULL OR valid_until IS NULL OR valid_until >= ?)`,
+      )
+      .all(
+        qWindow.to ?? null,
+        qWindow.to ?? null,
+        qWindow.from ?? null,
+        qWindow.from ?? null,
+      ) as { note_path: string; block_anchor: string }[];
+    factDated = new Set(hits.map((h) => `${h.note_path} ${h.block_anchor}`));
+  }
+  const overlapsWindow = (r: (typeof rows)[number]): boolean =>
+    qWindow !== null &&
+    ((r.event_from !== null &&
+      (qWindow.to === undefined || r.event_from <= qWindow.to) &&
+      (qWindow.from === undefined || (r.event_to ?? r.event_from) >= qWindow.from)) ||
+      (factDated !== null && factDated.has(`${r.note_path} ${r.anchor}`)));
+  // Temporal evidence is only as strong as it is rare — the same logic
+  // entityIdf applies to hub entities. One candidate dated in the window is
+  // a strong signal ("the note about that June"); twenty candidates dated in
+  // the window ("how many traverses ran in 2022?", where every 2022 log
+  // matches) means being in-window distinguishes nothing, and a flat boost
+  // there shoves the undated summary note that actually holds the answer
+  // below a wall of dated bystanders. Measured on the kestrel corpus: a flat
+  // boost demoted exactly the fact-history and aggregate golds (their answer
+  // notes are undated) while the meridian corpus, whose answers ARE dated
+  // notes, wanted the boost at full strength. Rarity scaling serves both.
+  // A block that is mostly `- [fact]`/`- [invalidate]` record lines is the
+  // LOG of assertions, not content about a period — the same reasoning
+  // RECORD_LINE encodes for term coverage. Boosting record blocks put the
+  // dated fact journal above the prose pages that explain what those facts
+  // mean, on exactly the windowed queries where the prose is the answer.
+  const isRecordBlock = (text: string): boolean => {
+    let rec = 0;
+    let content = 0;
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      if (RECORD_LINE.test(line)) rec++;
+      else content++;
+    }
+    return rec > 0 && rec >= content;
+  };
+  let boostedBlocks: Set<number> | null = null;
+  if (qWindow !== null) {
+    boostedBlocks = new Set();
+    for (const r of rows) {
+      if (!opts.includeArchived && r.archived) continue;
+      if (overlapsWindow(r) && !isRecordBlock(r.text)) boostedBlocks.add(r.id);
+    }
+  }
+  const temporalWeight =
+    boostedBlocks !== null && boostedBlocks.size > 0
+      ? cfg.boosts.temporal / (1 + Math.log2(boostedBlocks.size))
+      : 0;
 
   const results: SearchResult[] = [];
   for (const r of rows) {
@@ -568,16 +644,11 @@ export async function search(
     // date overlapping the query's window. Undated blocks stay neutral —
     // mtime says when a file was touched, not when its events happened, and
     // boosting on it would reward recently-edited notes for naming no date.
-    const inWindow =
-      qWindow !== null &&
-      r.event_from !== null &&
-      (qWindow.to === undefined || r.event_from <= qWindow.to) &&
-      (qWindow.from === undefined || (r.event_to ?? r.event_from) >= qWindow.from);
     const score =
       base +
       cfg.boosts.retrievability * R * base +
       cfg.boosts.importance * r.importance * base +
-      (inWindow ? cfg.boosts.temporal * base : 0);
+      (temporalWeight > 0 && boostedBlocks!.has(r.id) ? temporalWeight * base : 0);
 
     // explanation: matched entities adjacent to this block in the graph
     const via: string[] = [];

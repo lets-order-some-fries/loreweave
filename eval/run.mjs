@@ -58,6 +58,16 @@ const CORPORA = [
     build: (await import('./gen/build-vault2.mjs')).buildVault2,
     questions: (await import('./questions2.mjs')).questions,
   },
+  // The third corpus measures TIME, not topicality: facts change across
+  // dated notes, dates live only in frontmatter (invisible to BM25), and
+  // the flip category perturbs each window so lexical pattern-matching can
+  // score at most half of it.
+  {
+    name: 'meridian',
+    dir: 'vault3',
+    build: (await import('./gen/build-vault3.mjs')).buildVault3,
+    questions: (await import('./questions3.mjs')).questions,
+  },
 ];
 
 // ── scoring ───────────────────────────────────────────────────────────────
@@ -322,7 +332,7 @@ if (asJson) {
   log('');
   log(
     winsAll
-      ? '  ✓ the same config beats BM25 on BOTH corpora — not tuned to one benchmark'
+      ? '  ✓ the same config beats BM25 on ALL corpora — not tuned to one benchmark'
       : '  ✗ the config wins on one corpus and loses on the other — that is overfitting',
   );
 }
@@ -355,5 +365,5 @@ if (gate) {
     }
   }
   if (failed) process.exit(1);
-  log('✓ no regression against eval/baseline.json (both corpora)');
+  log('✓ no regression against eval/baseline.json (all corpora)');
 }
