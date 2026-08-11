@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.14.0 — 2026-08-11
+
+`lore resume` — session continuity as a query, not a paraphrase.
+
+- **New command + MCP tool (`lore_resume`).** "What changed since this agent
+  last connected": notes edited, facts asserted, and knowledge updates
+  rendered as the changes they are ("status: planning → active") — computed
+  from record time, so the same watermark always yields the same delta. The
+  implicit call consumes the delta (advances the watermark); an explicit
+  `--since` is a pure read that never eats the next session's continuity.
+  First contact defaults to a week of context. The popular alternatives run
+  an LLM over the previous session at shutdown and inject the paraphrase;
+  this is the same capability with zero LLM, reproducible, and correct
+  exactly when the paraphrase would not be. 367 → 371 tests; 14 MCP tools.
+
 ## 0.13.0 — 2026-08-11
 
 Facets: search can now be scoped by tag and folder.

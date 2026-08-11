@@ -18,6 +18,7 @@ import { findVaultRoot } from '../config.js';
 import { watchVault } from '../watch.js';
 import { extractFactsFromNote } from '../facts/extract.js';
 import { buildTimeline } from '../temporal/timeline.js';
+import { resumeDelta } from '../resume.js';
 import { normalizeKey } from '../normalize.js';
 
 function text(data: unknown): { content: { type: 'text'; text: string }[] } {
@@ -75,7 +76,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.13.0' });
+  const server = new McpServer({ name: 'loreweave', version: '0.14.0' });
 
   server.registerTool(
     'lore_search',
@@ -221,6 +222,20 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       },
     },
     safe((input) => invalidateFact(ctx, input)),
+  );
+
+  server.registerTool(
+    'lore_resume',
+    {
+      title: 'Resume a session',
+      description:
+        'What changed since this tool was last called: notes edited, facts asserted, and knowledge updates (slot: old → new). Call once at session start to continue where the previous session left off — the delta is computed from record time, so the same watermark always yields the same answer. Calling with no `since` consumes the delta (advances the watermark); pass an explicit `since` for a pure read that does not.',
+      inputSchema: {
+        since: z.string().optional()
+          .describe('explicit ISO watermark — pure read, does not advance the session boundary'),
+      },
+    },
+    safe(({ since }) => resumeDelta(ctx.store, { since })),
   );
 
   server.registerTool(

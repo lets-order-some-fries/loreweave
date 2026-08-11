@@ -8,6 +8,7 @@ import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
 import { buildTimeline } from '../temporal/timeline.js';
+import { resumeDelta } from '../resume.js';
 import { indexVault, indexState } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -99,7 +100,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.13.0')
+    .version('0.14.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -365,6 +366,35 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           // this come from" is the first thing anyone asks of a fact an
           // engine produced rather than a human typed.
           io.out(`    ${provenance(f)}`);
+        }
+      });
+    });
+
+  program
+    .command('resume')
+    .description('what changed since the last resume: notes, facts, supersessions')
+    .option('--since <datetime>', 'explicit watermark (pure read; does not advance)')
+    .option('--json', 'JSON output')
+    .action(async (opts: { since?: string; json?: boolean }) => {
+      await withCtx((ctx) => {
+        const d = resumeDelta(ctx.store, { since: opts.since });
+        if (opts.json) {
+          io.out(JSON.stringify(d, null, 2));
+          return;
+        }
+        io.out(`since ${d.since.slice(0, 16).replace('T', ' ')}`);
+        const { notesChanged, factsAsserted, factsSuperseded } = d.counts;
+        if (!notesChanged && !factsAsserted && !factsSuperseded) {
+          io.out('nothing changed');
+          return;
+        }
+        for (const n of d.notesChanged) io.out(`~ ${n.path}`);
+        for (const f of d.factsAsserted) io.out(`+ ${f}`);
+        for (const s of d.factsSuperseded) io.out(`± ${s.slot}: ${s.old} → ${s.new}`);
+        if (d.truncated) {
+          for (const [k, t] of Object.entries(d.truncated)) {
+            io.out(`… ${k}: showing ${t.shown} of ${t.of}`);
+          }
         }
       });
     });

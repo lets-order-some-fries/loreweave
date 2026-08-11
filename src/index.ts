@@ -68,3 +68,4 @@ export {
 } from './facts/extract.js';
 export { parseQueryTime, parseDateExpression, extractDates } from './temporal/dates.js';
 export { buildTimeline, type TimelineEntry, type TimelineOptions } from './temporal/timeline.js';
+export { resumeDelta, type ResumeDelta } from './resume.js';

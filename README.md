@@ -202,7 +202,7 @@ Both files were written seconds ago, so an mtime filter could not tell them
 apart. `lore watch` keeps the index current so you never have to remember to
 reindex.
 
-**8. Built for agents.** An MCP server exposes 13 typed tools so Claude Code, Cursor, or
+**8. Built for agents.** An MCP server exposes 14 typed tools so Claude Code, Cursor, or
 any MCP client can use your vault as durable memory — with a session context pack,
 fact assertion, point-in-time queries, and a reinforcement signal.
 
@@ -216,6 +216,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 | `lore ask <q>` | extractive answer: current facts + top passages (no LLM needed) |
 | `lore facts [--subject] [--predicate] [--as-of] [--as-known-at] [--history]` | query the fact store |
 | `lore timeline <entity> [--since] [--until]` | chronological history: fact changes merged with dated mentions |
+| `lore resume [--since]` | what changed since the last resume: notes, facts, supersessions |
 | `lore assert <s> <p> <o…> [--valid-from]` | record a fact (journalled, supersedes) |
 | `lore invalidate <s> <p>` | close the current fact in a slot |
 | `lore count [--predicate] [--group-by] [--since]` | aggregate over fact history |
@@ -243,7 +244,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 ```
 
 Tools: `lore_search`, `lore_context_pack`, `lore_read_note`, `lore_assert_fact`,
-`lore_invalidate_fact`, `lore_query_facts`, `lore_timeline`, `lore_aggregate_facts`, `lore_capture`,
+`lore_invalidate_fact`, `lore_query_facts`, `lore_timeline`, `lore_resume`, `lore_aggregate_facts`, `lore_capture`,
 `lore_mark_used`, `lore_propose_facts`, `lore_dream_report`, `lore_index`.
 
 Facts asserted through MCP are written back to `lore/journal/YYYY-MM-DD.md` as readable
@@ -326,7 +327,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 367 tests
+npm test          # 371 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
