@@ -63,6 +63,7 @@ describe('mcp server', () => {
       'lore_query_facts',
       'lore_read_note',
       'lore_resume',
+      'lore_review',
       'lore_search',
       'lore_timeline',
     ]);

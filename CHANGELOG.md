@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.18.0 — 2026-08-11
+
+`lore review` — the spaced-repetition loop, operable on demand.
+
+- **New command + MCP tool (`lore_review`).** Important-but-fading knowledge:
+  blocks whose retrievability has decayed below the threshold despite
+  mattering, plus long-untouched open facts — sorted most-at-risk first,
+  computed from the vault's own fitted forgetting curve (0.17.0). The loop
+  closes with `mark-used`: review the list, reinforce what still matters,
+  and it stops surfacing — use is what feeds stability, so the queue is
+  self-clearing. The threshold is a parameter (`--threshold`, default 0.3).
+  `dream` and `review` share one definition of "fading" (the same exported
+  detector), so the idle pass and the on-demand surface can never disagree.
+  No other vault tool ships this deterministically. 384 → 387 tests;
+  15 MCP tools.
+
 ## 0.17.0 — 2026-08-11
 
 The forgetting curve is now the vault's own, not a hard-coded guess.

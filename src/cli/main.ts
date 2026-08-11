@@ -17,7 +17,7 @@ import {
   invalidateFact,
   queryFacts,
 } from '../facts/model.js';
-import { dream } from '../dream/dream.js';
+import { dream, findStale } from '../dream/dream.js';
 import { capture } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
@@ -100,7 +100,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.17.0')
+    .version('0.18.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -396,6 +396,34 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
             io.out(`… ${k}: showing ${t.shown} of ${t.of}`);
           }
         }
+      });
+    });
+
+  program
+    .command('review')
+    .description('important-but-fading knowledge: revisit it or archive it')
+    .option('--threshold <r>', 'retrievability below this is fading (default 0.3)', parseFloat)
+    .option('--limit <n>', 'max items (default 20)', (v: string) => parseInt(v, 10))
+    .option('--json', 'JSON output')
+    .action(async (opts: { threshold?: number; limit?: number; json?: boolean }) => {
+      await withCtx((ctx) => {
+        const items = findStale(ctx, { rThreshold: opts.threshold })
+          .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0) || (a.retrievability ?? 1) - (b.retrievability ?? 1))
+          .slice(0, opts.limit ?? 20);
+        if (opts.json) {
+          io.out(JSON.stringify(items, null, 2));
+          return;
+        }
+        if (!items.length) {
+          io.out('nothing is fading — everything important has been touched recently');
+          return;
+        }
+        for (const it of items) {
+          const r = it.retrievability !== undefined ? `  R=${it.retrievability}` : '';
+          io.out(`• ${it.ref}${r}\n  ${it.detail}`);
+        }
+        io.out('');
+        io.out('reinforce what still matters: lore mark-used <note> [anchor]');
       });
     });
 

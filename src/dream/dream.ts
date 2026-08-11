@@ -333,16 +333,27 @@ function findContradictions(ctx: LoreContext): ContradictionFinding[] {
   return out;
 }
 
-function findStale(ctx: LoreContext): StaleFinding[] {
+/**
+ * Important-but-fading knowledge: blocks whose retrievability has dropped
+ * below the threshold despite mattering, plus long-untouched open facts.
+ * Exported as the single definition of "needs review" — `lore review` and
+ * the dream pass must never disagree about what is fading.
+ */
+export function findStale(
+  ctx: LoreContext,
+  opts: { rThreshold?: number; importanceMin?: number } = {},
+): StaleFinding[] {
+  const rThreshold = opts.rThreshold ?? 0.3;
+  const importanceMin = opts.importanceMin ?? 0.6;
   const now = new Date();
   const decay = vaultDecay(ctx.store);
   const out: StaleFinding[] = [];
   const blocks = ctx.store.db
     .prepare(
       `SELECT note_path, anchor, importance, stability, last_accessed
-       FROM blocks WHERE archived=0 AND importance >= 0.6`,
+       FROM blocks WHERE archived=0 AND importance >= ?`,
     )
-    .all() as {
+    .all(importanceMin) as {
     note_path: string;
     anchor: string;
     importance: number;
@@ -352,7 +363,7 @@ function findStale(ctx: LoreContext): StaleFinding[] {
   for (const b of blocks) {
     if (!b.last_accessed) continue; // never accessed → nothing decayed yet
     const R = retrievability(daysBetween(b.last_accessed, now), b.stability, decay);
-    if (R < 0.3) {
+    if (R < rThreshold) {
       out.push({
         kind: 'block',
         ref: `${b.note_path}#${b.anchor}`,

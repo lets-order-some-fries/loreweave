@@ -11,7 +11,7 @@ import {
   invalidateFact,
   queryFacts,
 } from '../facts/model.js';
-import { dream } from '../dream/dream.js';
+import { dream, findStale } from '../dream/dream.js';
 import { capture, readNoteRaw } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { findVaultRoot } from '../config.js';
@@ -76,7 +76,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.17.0' });
+  const server = new McpServer({ name: 'loreweave', version: '0.18.0' });
 
   server.registerTool(
     'lore_search',
@@ -236,6 +236,30 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       },
     },
     safe(({ since }) => resumeDelta(ctx.store, { since })),
+  );
+
+  server.registerTool(
+    'lore_review',
+    {
+      title: 'What is fading',
+      description:
+        'Important-but-fading knowledge: blocks whose retrievability has decayed below the threshold despite mattering, plus long-untouched open facts. This is the spaced-repetition loop made operable: review the list, then call lore_mark_used on anything still relevant — use is what reinforces stability. Deterministic, computed from the vault\'s own fitted forgetting curve.',
+      inputSchema: {
+        threshold: z.number().min(0).max(1).optional()
+          .describe('retrievability below this counts as fading (default 0.3)'),
+        limit: z.number().int().min(1).max(100).optional().describe('max items (default 20)'),
+      },
+    },
+    safe(({ threshold, limit }) => {
+      const items = findStale(ctx, { rThreshold: threshold })
+        .sort(
+          (a, b) =>
+            (b.importance ?? 0) - (a.importance ?? 0) ||
+            (a.retrievability ?? 1) - (b.retrievability ?? 1),
+        )
+        .slice(0, limit ?? 20);
+      return { fading: items, reinforceWith: 'lore_mark_used' };
+    }),
   );
 
   server.registerTool(
