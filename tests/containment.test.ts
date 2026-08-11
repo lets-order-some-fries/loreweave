@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mkdtemp, mkdir, writeFile, symlink, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { capture, readNoteRaw, safeVaultPath } from '../src/capture.js';
 import { openStore } from '../src/store/db.js';
 import { ConfigSchema } from '../src/config.js';
@@ -70,8 +70,11 @@ describe('vault containment', () => {
     expect(() =>
       safeVaultPath(vault, 'linked/new/deep/note.md', { followSymlinks: false }),
     ).toThrow(/symlink/);
-    expect(safeVaultPath(vault, 'notes/new/deep/note.md', { followSymlinks: false })).toContain(
-      'notes/new/deep/note.md',
+    // Compare against the platform's own resolver: the returned path is an
+    // absolute filesystem path, so on Windows it carries backslashes and a
+    // POSIX-substring assertion fails on separators, not on containment.
+    expect(safeVaultPath(vault, 'notes/new/deep/note.md', { followSymlinks: false })).toBe(
+      resolve(vault, 'notes/new/deep/note.md'),
     );
   });
 });
