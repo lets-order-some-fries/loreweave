@@ -1,0 +1,24 @@
+name: Bug report
+description: Wrong results, a crash, or an MCP tool misbehaving
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Loreweave version
+      placeholder: "lore --version"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: A few markdown files (or a snippet) plus the exact command or MCP tool call
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed vs expected
+    validations:
+      required: true
