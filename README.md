@@ -6,6 +6,13 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/loreweave"><img src="https://img.shields.io/npm/v/loreweave" alt="npm"></a>
+  <a href="https://github.com/lets-order-some-fries/loreweave/actions/workflows/ci.yml"><img src="https://github.com/lets-order-some-fries/loreweave/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="node >= 20">
+  <img src="https://img.shields.io/npm/l/loreweave" alt="MIT">
+</p>
+
+<p align="center">
   <a href="#quickstart">Quickstart</a> ·
   <a href="#what-makes-it-different">Different how?</a> ·
   <a href="#the-cli">CLI</a> ·
@@ -60,39 +67,46 @@ character so it is searchable at all, and other scripts index as written.
 
 ## Measured, not asserted
 
-Loreweave ships its own benchmark — `npm run eval` — over **two** purpose-built
+Loreweave ships its own benchmark — `npm run eval` — over **three** purpose-built
 vaults, scored against a BM25 baseline and a graph-only baseline.
 
-The second corpus exists to catch overfitting. It is deliberately unlike the
-first in every dimension the config could have been tuned to: markdown links
-instead of `[[wiki links]]`, deep folder nesting, filenames unrelated to
-titles, and real engineering note shapes (ADRs, incidents, runbooks, meeting
-notes) rather than uniform entity pages. In both, multi-hop answers share **no
-vocabulary** with the query and are reachable only by following links.
+The second corpus exists to catch overfitting: it is deliberately unlike the
+first in every dimension the config could have been tuned to (markdown links
+instead of `[[wiki links]]`, deep nesting, filenames unrelated to titles, real
+engineering note shapes). The third measures **time** instead of topicality:
+facts change across dated notes, every date lives only in frontmatter where
+BM25 cannot see it, and each windowed question is paired with a
+shifted-window twin whose correct answer is a *different* note — the
+perturbation test that exposes systems faking temporal competence through
+lexical overlap.
 
 | corpus | system | finds the answer | in top 5 | MRR | answer shown |
 |---|---|---|---|---|---|
 | kestrel (40 q) | **hybrid** | **98%** | **75%** | **0.540** | **55%** |
 | | BM25 | 75% | 65% | 0.532 | 55% |
-| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.643** | **83%** |
+| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.664** | **83%** |
 | | BM25 | 63% | 58% | 0.521 | 54% |
+| meridian (18 q) | **hybrid** | **100%** | **94%** | **0.883** | **94%** |
+| | BM25 | 94% | 83% | 0.437 | 83% |
 
-Multi-hop is where the graph earns its keep: **BM25 finds 0% on both corpora**
-— it cannot reach a note that shares no words with your query, at any depth —
-while hybrid finds 90% and 100%. On the second corpus every multi-hop answer
-lands in the top 5.
+Multi-hop is where the graph earns its keep: **BM25 finds 0% on both prose
+corpora** — it cannot reach a note that shares no words with your query, at
+any depth — while hybrid finds 90% and 100%. Time is where the temporal
+machinery earns its keep: on meridian's windowed questions hybrid ranks the
+right note **first 100% of the time vs BM25's 0%**, and stays at 100% when
+every window is perturbed (BM25: 17%).
 
 "answer shown" is the strictest measure: not just the right note, but a
 returned passage that literally contains the answer. Results are one per note,
 showing whichever of that note's sections best covers your query — ranking
 decides which notes matter, coverage decides which part of them you see.
 
-The same shipped config wins on both corpora, and by more on the one it was
-never tuned against. If you prefer pure lexical behaviour, set
+The same shipped config wins on all three corpora, and by more on the ones it
+was never tuned against. If you prefer pure lexical behaviour, set
 `retrieval.weights.expansion: 0`.
 
 Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on any
-regression across either corpus, and CI enforces it on every push.
+regression across all three corpora, and CI enforces it on every push.
 
 **What lexical + graph retrieval cannot do**, stated precisely: the kestrel
 multi-hop questions use words like "hardware" and "outpost" that appear in
@@ -140,6 +154,22 @@ Vendor :: reliability :: good  (2024-01-01 → 2024-01-01)  [superseded]
 
 Which fact wins is decided **deterministically** (newest valid-time, provenance as
 tiebreak) — never by asking a language model which one looks fresher.
+
+And the whole history of anything is one command — every value change from the
+fact store merged chronologically with the dated prose that mentions it:
+
+```bash
+$ lore timeline Project Atlas
+2024-01-15  status: planning  (until 2024-09-01)
+2024-02-10  • [[Project Atlas]] kicked off with a three-person crew.  [kickoff.md]
+2024-09-01  status: planning → active
+2025-06-20  • The [[Project Atlas]] midpoint review went long but well.  [review.md]
+```
+
+"What was X before it changed" is the query temporal-graph products market as
+their flagship — built there by running an LLM over every ingested document.
+Here the supersede chain has been maintained all along, so it is a read-side
+join: no LLM, no network, same answer every time.
 
 **2. Retrieval that follows connections, not just words.** Queries fuse BM25, dense
 similarity (when configured), and Personalized PageRank over the vault's own graph —
@@ -204,7 +234,25 @@ reindex.
 
 **8. Built for agents.** An MCP server exposes 14 typed tools so Claude Code, Cursor, or
 any MCP client can use your vault as durable memory — with a session context pack,
-fact assertion, point-in-time queries, and a reinforcement signal.
+fact assertion, point-in-time queries, and a reinforcement signal. Session
+continuity is a query, not a paraphrase: `lore resume` returns exactly what
+changed since the agent last connected, computed from record time —
+
+```bash
+$ lore resume
+since 2026-08-11 15:55
+~ lore/journal/2026-08-11.md
++ Project Atlas :: status :: shipped (since 2026-08-11)
+± Project Atlas :: status: active → shipped
+
+$ lore resume
+since 2026-08-11 15:56
+nothing changed
+```
+
+— where the popular alternatives run an LLM over the previous session and
+inject the summary: a paraphrase, unreproducible, wrong exactly when it
+matters.
 
 ## The CLI
 
