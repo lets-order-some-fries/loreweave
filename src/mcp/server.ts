@@ -75,7 +75,7 @@ function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.12.0' });
+  const server = new McpServer({ name: 'loreweave', version: '0.13.0' });
 
   server.registerTool(
     'lore_search',
@@ -88,11 +88,15 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
         k: z.number().int().min(1).max(50).optional().describe('max results (default 8)'),
         since: z.string().optional().describe('only content dated on/after this ISO date'),
         until: z.string().optional().describe('only content dated on/before this ISO date'),
+        tags: z.array(z.string()).optional()
+          .describe('only notes carrying every listed tag; prefix a tag with "-" to exclude it'),
+        folder: z.string().optional()
+          .describe('only notes under this vault-relative folder, e.g. "projects/"'),
         verbose: z.boolean().optional().describe('include score breakdown and block anchors'),
       },
     },
-    safe(async ({ query, k, since, until, verbose }) => {
-      const hits = await search(ctx, query, { k, since, until });
+    safe(async ({ query, k, since, until, tags, folder, verbose }) => {
+      const hits = await search(ctx, query, { k, since, until, tags, folder });
       if (verbose) return hits;
       // Lean by default: an agent acts on the text and its source, not on
       // five floats. Measured, the full shape cost ~1,290 tokens per search —

@@ -19,6 +19,15 @@ export interface SearchOptions {
   since?: string;
   /** Only content dated on/before this ISO date. */
   until?: string;
+  /**
+   * Tag facets: every listed tag must be on the note; a leading '-' excludes
+   * instead ("give me #decision notes that are not #archive"). Tags come from
+   * frontmatter and inline #tags alike, and match case-insensitively with or
+   * without the '#'.
+   */
+  tags?: string[];
+  /** Only notes under this vault-relative folder (e.g. "projects/"). */
+  folder?: string;
   /** Include archived blocks. */
   includeArchived?: boolean;
   /** Skip access logging (for internal/dream calls). */
@@ -512,7 +521,7 @@ export async function search(
   const rows = ctx.store.db
     .prepare(
       `SELECT b.id, b.note_path, b.anchor, b.heading, b.text, b.stability, b.last_accessed,
-              b.importance, b.archived, b.event_from, b.event_to, n.mtime_ms
+              b.importance, b.archived, b.event_from, b.event_to, n.mtime_ms, n.tags
        FROM blocks b JOIN notes n ON n.path = b.note_path
        WHERE b.id IN (${placeholders})`,
     )
@@ -529,7 +538,40 @@ export async function search(
     event_from: string | null;
     event_to: string | null;
     mtime_ms: number;
+    tags: string;
   }[];
+  // Facet scoping: hard predicates, unlike the soft temporal boost — "only
+  // #decision notes under projects/" is membership, not emphasis. Applied to
+  // the whole candidate pool before the k-cut, so in-scope results are not
+  // crowded out by out-of-scope ones that merely scored higher.
+  const cleanTag = (t: string) => t.replace(/^#/, '').toLowerCase();
+  const wantTags = (opts.tags ?? []).filter((t) => !t.startsWith('-')).map(cleanTag);
+  const banTags = (opts.tags ?? []).filter((t) => t.startsWith('-')).map((t) => cleanTag(t.slice(1)));
+  const folderPrefix = opts.folder
+    ? opts.folder.replace(/^\.?\//, '').replace(/\/?$/, '/')
+    : null;
+  const tagCache = new Map<string, Set<string>>();
+  const noteTags = (path: string, raw: string): Set<string> => {
+    let s = tagCache.get(path);
+    if (!s) {
+      try {
+        s = new Set((JSON.parse(raw) as string[]).map(cleanTag));
+      } catch {
+        s = new Set();
+      }
+      tagCache.set(path, s);
+    }
+    return s;
+  };
+  const inScope = (r: { note_path: string; tags: string }): boolean => {
+    if (folderPrefix && !r.note_path.startsWith(folderPrefix)) return false;
+    if (wantTags.length || banTags.length) {
+      const t = noteTags(r.note_path, r.tags);
+      if (wantTags.some((w) => !t.has(w))) return false;
+      if (banTags.some((b) => t.has(b))) return false;
+    }
+    return true;
+  };
   const now = new Date();
   // Coverage = fraction of the query's distinct terms that actually appear in
   // the block. Unlike a fused rank (near-constant without access history) or
@@ -619,6 +661,7 @@ export async function search(
     boostedBlocks = new Set();
     for (const r of rows) {
       if (!opts.includeArchived && r.archived) continue;
+      if (!inScope(r)) continue; // rarity counts over the scoped pool only
       if (overlapsWindow(r) && !isRecordBlock(r.text)) boostedBlocks.add(r.id);
     }
   }
@@ -630,6 +673,7 @@ export async function search(
   const results: SearchResult[] = [];
   for (const r of rows) {
     if (!opts.includeArchived && r.archived) continue;
+    if (!inScope(r)) continue;
     // Prefer content time; fall back to file mtime when the note is undated.
     if (opts.since || opts.until) {
       const from = r.event_from ?? new Date(r.mtime_ms).toISOString().slice(0, 10);

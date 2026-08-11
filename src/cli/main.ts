@@ -99,7 +99,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.12.0')
+    .version('0.13.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -209,17 +209,33 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .option('-k, --k <n>', 'results', (v) => parseInt(v, 10))
     .option('--since <date>', 'only content dated on/after ISO date')
     .option('--until <date>', 'only content dated on/before ISO date')
+    .option(
+      '--tag <tag>',
+      'only notes with this tag; -tag excludes (repeatable)',
+      (v: string, acc: string[]) => [...acc, v],
+      [] as string[],
+    )
+    .option('--folder <path>', 'only notes under this vault folder')
     .option('--json', 'JSON output')
     .action(
       async (
         words: string[],
-        opts: { k?: number; since?: string; until?: string; json?: boolean },
+        opts: {
+          k?: number;
+          since?: string;
+          until?: string;
+          tag?: string[];
+          folder?: string;
+          json?: boolean;
+        },
       ) => {
       await withCtx(async (ctx) => {
         const res = await search(ctx, words.join(' '), {
           k: opts.k,
           since: opts.since,
           until: opts.until,
+          tags: opts.tag?.length ? opts.tag : undefined,
+          folder: opts.folder,
         });
         if (opts.json) {
           io.out(JSON.stringify(res, null, 2));

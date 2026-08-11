@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.13.0 — 2026-08-11
+
+Facets: search can now be scoped by tag and folder.
+
+- **`--tag` / `--folder` on `lore search`, `tags`/`folder` on `lore_search`.**
+  Every listed tag must be on the note (frontmatter and inline `#tags` count
+  alike; case and the `#` are forgiven); a leading `-` excludes ("#decision
+  notes that are not #archive"); `--folder projects/` scopes to a vault
+  subtree. Facets are membership, not emphasis — unlike the temporal boost,
+  an out-of-scope note is out, however well it scores — and they filter the
+  whole candidate pool before the k-cut, so in-scope results are never
+  crowded out by out-of-scope ones. An over-constrained scope returns empty,
+  not noise. This was the most-repeated complaint across competitor issue
+  trackers (include-whitelists, type filters); 362 → 367 tests.
+
 ## 0.12.0 — 2026-08-11
 
 `lore timeline` — an entity's whole history in one call.

@@ -212,7 +212,7 @@ fact assertion, point-in-time queries, and a reinforcement signal.
 |---|---|
 | `lore init` | create `.lore/` with a default config |
 | `lore index [--full] [--no-nlp] [--rebuild-similar]` | incremental sync of vault → index |
-| `lore search <q> [-k] [--since] [--until] [--json]` | hybrid retrieval with provenance |
+| `lore search <q> [-k] [--since] [--until] [--tag] [--folder] [--json]` | hybrid retrieval with provenance |
 | `lore ask <q>` | extractive answer: current facts + top passages (no LLM needed) |
 | `lore facts [--subject] [--predicate] [--as-of] [--as-known-at] [--history]` | query the fact store |
 | `lore timeline <entity> [--since] [--until]` | chronological history: fact changes merged with dated mentions |
@@ -326,7 +326,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 362 tests
+npm test          # 367 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
