@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.25.0 — 2026-08-12
+
+Hard queries get the deep walk; easy ones stay fast.
+
+- **Query-adaptive expansion depth (the QPP routing).** A DEAD content term —
+  a plain word with zero hits in this vault — is the classic pre-retrieval
+  hardness signature: the user is describing the vault in words the vault
+  does not use, which is exactly when a one-hop walk starves. Those queries
+  now get the two-hop walk automatically; ordinary queries keep the fast
+  shallow one, and windowed/counting queries stay with the temporal and
+  computable layers that own them. Measured, this beat both fixed settings:
+  kestrel reach 97.5% → **100%** (the last multihop MISS found), northwind
+  r@5 87.5% → **91.7%** with a stuck aggregate question rising 16 → 5,
+  MRR up on both, meridian untouched. The v0.24.0 knob measured the trade;
+  the router keeps both sides of it. 401 → 402 tests.
+
 ## 0.24.0 — 2026-08-12
 
 Chains of claims order the backfill — and H1-titled vaults come alive.

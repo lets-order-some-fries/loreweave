@@ -86,9 +86,9 @@ lexical overlap.
 
 | corpus | system | finds the answer | in top 5 | MRR | answer shown |
 |---|---|---|---|---|---|
-| kestrel (40 q) | **hybrid** | **98%** | **75%** | **0.540** | **55%** |
+| kestrel (40 q) | **hybrid** | **100%** | **75%** | **0.545** | **55%** |
 | | BM25 | 75% | 65% | 0.532 | 55% |
-| northwind (24 q) | **hybrid** | **96%** | **88%** | **0.685** | **83%** |
+| northwind (24 q) | **hybrid** | **96%** | **92%** | **0.690** | **83%** |
 | | BM25 | 63% | 58% | 0.521 | 54% |
 | meridian (18 q) | **hybrid** | **100%** | **94%** | **0.952** | **94%** |
 | | BM25 | 94% | 83% | 0.437 | 83% |
@@ -383,7 +383,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 401 tests
+npm test          # 402 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

@@ -63,4 +63,27 @@ describe('path-reliability ordering of recall-reached notes', () => {
     expect(mid, 'closer chain note ranks above the further one').toBeLessThan(far);
     ctx.close();
   });
+
+  it('a dead-term query gets deep expansion at DEFAULT config (QPP routing)', async () => {
+    // 'equipment' has zero hits in this vault — the vocabulary-mismatch
+    // hardness signature. Adaptive depth routes exactly these queries to a
+    // two-hop walk, so the rig is found without touching expansionHops.
+    // Windowed and counting queries stay shallow: their depth belongs to
+    // the temporal and computable layers.
+    const root = await makeVault(VAULT);
+    const config = ConfigSchema.parse({}); // stock defaults, hops = 1
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    let cached: LoreGraph | null = null;
+    const ctx = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => (cached = null),
+      close: () => store.close(),
+    } as unknown as LoreContext;
+    const res = await search(ctx, 'Skerry Survey equipment', { noLog: true });
+    expect(res.map((r) => r.notePath)).toContain('far.md');
+    ctx.close();
+  });
 });

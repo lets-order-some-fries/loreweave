@@ -64,6 +64,22 @@ function df(store: Store, term: string): number {
 }
 
 /**
+ * Does the query carry any DEAD content term — a plain word of 3+ letters
+ * with zero hits in this vault? This is the classic pre-retrieval
+ * hardness signature (vocabulary mismatch): the user is describing the
+ * vault in words the vault does not use, which is exactly when shallow
+ * link expansion starves and a deeper walk pays for itself.
+ */
+export function hasDeadTerm(store: Store, qTerms: string[]): boolean {
+  for (const term of qTerms) {
+    if (term.length < 3) continue;
+    if (!/^[a-z]+$/i.test(term)) continue; // numbers/dates are not vocabulary
+    if (df(store, term) === 0) return true;
+  }
+  return false;
+}
+
+/**
  * In-corpus ring-mates for the query's DEAD terms (df = 0), capped so one
  * dead word cannot flood the OR query. Returns [] when every query word
  * exists in the vault — the common case costs one df probe per content term.

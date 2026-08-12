@@ -7,7 +7,7 @@ import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 import { vaultDecay } from '../dynamics/fit.js';
 import { expandNotes, seedNotes } from './expand.js';
 import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
-import { expandDeadTerms } from './synonyms.js';
+import { expandDeadTerms, hasDeadTerm } from './synonyms.js';
 
 export interface SearchOptions {
   k?: number;
@@ -82,6 +82,9 @@ export function matchQueryEntities(
  * "Facts (currently valid)" section that had already said it properly.
  */
 const RECORD_LINE = /^\s*[-*+]\s*\[(fact|invalidate)\]/i;
+
+/** Counting questions: their window/depth belongs to the computable layer. */
+const AGGREGATE_RE = /\b(how many|how much|number of|count of|total)\b/i;
 
 /** Per-line mask of lines that are machine text: code fences and record lines. */
 function fencedMask(lines: string[]): boolean[] {
@@ -453,8 +456,21 @@ export async function search(
     }
     const seeds = seedNotes(linkGraph, query, lexicalNotes, cfg.expansionSeeds);
     if (seeds.length > 0) {
+      // Query-adaptive depth: a DEAD content term (df = 0) is the classic
+      // hardness signature — the user is describing the vault in words the
+      // vault does not use, and those are precisely the queries a one-hop
+      // walk starves (measured: hops=2 everywhere finds every two-hop
+      // answer but pollutes easy queries; hops=2 on dead-term queries only
+      // keeps both). Windowed and counting queries are exempt as always —
+      // the temporal and computable layers own those.
+      const hard =
+        !opts.since &&
+        !opts.until &&
+        !AGGREGATE_RE.test(query) &&
+        queryContentWindow(query) === null && // windowed queries: temporal machinery owns them
+        hasDeadTerm(store, [...new Set(contentTerms(query))]);
       const expanded = expandNotes(linkGraph, seeds, {
-        hops: cfg.expansionHops,
+        hops: hard ? Math.max(cfg.expansionHops, 2) : cfg.expansionHops,
         decay: cfg.expansionDecay,
       });
       if (expanded.size > 0) {
@@ -643,7 +659,7 @@ export async function search(
   // window scopes the AGGREGATE, not retrieval emphasis — boosting the dated
   // instances buries the summary note that actually states the count, and
   // the computable layer (`count`, fact aggregates) owns that window anyway.
-  const aggregateQuery = /\b(how many|how much|number of|count of|total)\b/i.test(query);
+  const aggregateQuery = AGGREGATE_RE.test(query);
   const qWindow =
     opts.since || opts.until || cfg.boosts.temporal <= 0 || aggregateQuery
       ? null

@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3450,
-        "indexMs": 212,
+        "indexMs": 214,
         "warnings": 0
       },
       "overall": {
@@ -16,9 +16,9 @@
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.75,
-          "mrr": 0.542,
+          "mrr": 0.545,
           "ans@5": 0.575,
-          "found": 0.975
+          "found": 1
         },
         "bm25": {
           "n": 40,
@@ -40,9 +40,9 @@
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.75,
-          "mrr": 0.539,
+          "mrr": 0.545,
           "ans@5": 0.575,
-          "found": 0.925
+          "found": 1
         },
         "hybrid−expand": {
           "n": 40,
@@ -67,9 +67,9 @@
             "n": 10,
             "r@1": 0,
             "r@5": 0.4,
-            "mrr": 0.149,
+            "mrr": 0.161,
             "ans@5": 0.4,
-            "found": 0.9
+            "found": 1
           },
           "temporal": {
             "n": 10,
@@ -169,9 +169,9 @@
             "n": 10,
             "r@1": 0,
             "r@5": 0.4,
-            "mrr": 0.135,
+            "mrr": 0.161,
             "ans@5": 0.4,
-            "found": 0.7
+            "found": 1
           },
           "temporal": {
             "n": 10,
@@ -234,15 +234,15 @@
         "links": 25,
         "facts": 63,
         "edges": 137,
-        "indexMs": 27,
+        "indexMs": 25,
         "warnings": 0
       },
       "overall": {
         "hybrid": {
           "n": 24,
           "r@1": 0.5,
-          "r@5": 0.875,
-          "mrr": 0.685,
+          "r@5": 0.917,
+          "mrr": 0.69,
           "ans@5": 0.833,
           "found": 0.958
         },
@@ -265,10 +265,10 @@
         "hybrid−graph": {
           "n": 24,
           "r@1": 0.5,
-          "r@5": 0.833,
-          "mrr": 0.674,
+          "r@5": 0.875,
+          "mrr": 0.682,
           "ans@5": 0.792,
-          "found": 0.875
+          "found": 0.917
         },
         "hybrid−expand": {
           "n": 24,
@@ -308,8 +308,8 @@
           "aggregate": {
             "n": 5,
             "r@1": 0.4,
-            "r@5": 0.6,
-            "mrr": 0.512,
+            "r@5": 0.8,
+            "mrr": 0.54,
             "ans@5": 0.4,
             "found": 0.8
           }
@@ -410,10 +410,10 @@
           "aggregate": {
             "n": 5,
             "r@1": 0.4,
-            "r@5": 0.6,
-            "mrr": 0.5,
+            "r@5": 0.8,
+            "mrr": 0.54,
             "ans@5": 0.4,
-            "found": 0.6
+            "found": 0.8
           }
         },
         "hybrid−expand": {
@@ -748,40 +748,40 @@
       "system": "hybrid",
       "id": "M3",
       "cat": "multihop",
-      "rank": 4,
-      "answerRank": 4
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid",
-      "id": "M4",
-      "cat": "multihop",
-      "rank": 12,
-      "answerRank": 12
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid",
-      "id": "M5",
-      "cat": "multihop",
       "rank": 6,
       "answerRank": 6
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
+      "id": "M4",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid",
+      "id": "M5",
+      "cat": "multihop",
+      "rank": 8,
+      "answerRank": 8
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid",
       "id": "M6",
       "cat": "multihop",
-      "rank": 30,
-      "answerRank": 30
+      "rank": 34,
+      "answerRank": 34
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "M7",
       "cat": "multihop",
-      "rank": 14,
-      "answerRank": 14
+      "rank": 34,
+      "answerRank": 34
     },
     {
       "corpus": "kestrel",
@@ -796,16 +796,16 @@
       "system": "hybrid",
       "id": "M9",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 22,
+      "answerRank": 22
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "M10",
       "cat": "multihop",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 21,
+      "answerRank": 21
     },
     {
       "corpus": "kestrel",
@@ -1708,40 +1708,40 @@
       "system": "hybrid−graph",
       "id": "M3",
       "cat": "multihop",
-      "rank": 4,
-      "answerRank": 4
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid−graph",
-      "id": "M4",
-      "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid−graph",
-      "id": "M5",
-      "cat": "multihop",
       "rank": 6,
       "answerRank": 6
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
+      "id": "M4",
+      "cat": "multihop",
+      "rank": 3,
+      "answerRank": 3
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid−graph",
+      "id": "M5",
+      "cat": "multihop",
+      "rank": 8,
+      "answerRank": 8
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid−graph",
       "id": "M6",
       "cat": "multihop",
-      "rank": 20,
-      "answerRank": 20
+      "rank": 34,
+      "answerRank": 34
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
       "id": "M7",
       "cat": "multihop",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 34,
+      "answerRank": 34
     },
     {
       "corpus": "kestrel",
@@ -1756,16 +1756,16 @@
       "system": "hybrid−graph",
       "id": "M9",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 22,
+      "answerRank": 22
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
       "id": "M10",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 21,
+      "answerRank": 21
     },
     {
       "corpus": "kestrel",
@@ -2428,7 +2428,7 @@
       "system": "hybrid",
       "id": "N-A4",
       "cat": "aggregate",
-      "rank": 16,
+      "rank": 5,
       "answerRank": 0
     },
     {
@@ -3004,7 +3004,7 @@
       "system": "hybrid−graph",
       "id": "N-A4",
       "cat": "aggregate",
-      "rank": 0,
+      "rank": 5,
       "answerRank": 0
     },
     {
