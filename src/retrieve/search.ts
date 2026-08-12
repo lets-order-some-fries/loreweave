@@ -7,6 +7,7 @@ import { daysBetween, retrievability } from '../dynamics/fsrs.js';
 import { vaultDecay } from '../dynamics/fit.js';
 import { expandNotes, seedNotes } from './expand.js';
 import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
+import { expandDeadTerms } from './synonyms.js';
 
 export interface SearchOptions {
   k?: number;
@@ -361,8 +362,16 @@ export async function search(
   const cand = cfg.candidates;
   const store = ctx.store;
 
-  // 1) lexical
-  const lexical = store.searchLexical(query, cand, opts.includeArchived);
+  // 1) lexical — with controlled-vocabulary expansion for DEAD query terms.
+  // "Ironbark Archive benefactor": 'benefactor' hits zero notes while the
+  // vault says "Funded by [[…]]"; the ring substitutes in-corpus relation
+  // words (funder, funded) so the OR fallback can reach what the vault calls
+  // the same thing. Terms that exist in the vault are never touched, and the
+  // expansion feeds ONLY this channel — coverage, entity matching and the
+  // dense query stay the user's literal words.
+  const deadExpansion = expandDeadTerms(store, [...new Set(contentTerms(query))]);
+  const lexQuery = deadExpansion.length ? `${query} ${deadExpansion.join(' ')}` : query;
+  const lexical = store.searchLexical(lexQuery, cand, opts.includeArchived);
   const lexicalRanks = new Map<number, number>();
   const lexScores = new Map<number, number>();
   lexical.forEach((h, i) => {

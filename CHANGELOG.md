@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.22.0 — 2026-08-12
+
+Questions use vocabulary ABOUT a vault, not from it.
+
+- **Controlled-vocabulary rings for dead query terms.** "Ridge Array
+  benefactor" hit zero notes while the vault said "funded by [[Meridian
+  Trust]]" — the relation was present under a different surface form, and no
+  vault-derived statistic can bridge that (there are no co-occurrences to
+  derive it from). A small shipped table of relation/type synonym rings now
+  routes DEAD terms only (df = 0 in this vault) to ring-mates that DO occur
+  here, feeding just the lexical channel — coverage, entity matching and the
+  dense query stay the user's literal words. A shipped table is data, not a
+  model (a stemmer table's standing; Falcon 2.0 has done rule-based relation
+  linking over alias tables for years) — the core stays reproducible and
+  model-free. Honest ledger: one eval multihop question rose (rank 11 → 6),
+  others washed; the benchmark's density dilutes expansion in a way small
+  real vaults do not. 394 → 398 tests.
+
 ## 0.21.0 — 2026-08-12
 
 The graph now knows what the fact store knows.
