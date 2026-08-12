@@ -105,6 +105,34 @@ describe('extractDates', () => {
     expect(extractDates('no dates at all')).toBeNull();
   });
 
+  it('reads the date forms people actually write', () => {
+    // "in June 2023" indexed as undated for as long as the engine existed —
+    // the query parser understood month-year, the content side only ISO.
+    expect(extractDates('the role passed to Halvorsen in June 2023')).toEqual({
+      from: '2023-06-01',
+      to: '2023-06-30',
+    });
+    expect(extractDates('measured on 14 June 2023 at the bench')).toEqual({
+      from: '2023-06-14',
+      to: '2023-06-14',
+    });
+    expect(extractDates('shipped June 14, 2023 after review')).toEqual({
+      from: '2023-06-14',
+      to: '2023-06-14',
+    });
+    // a span across mixed forms covers min..max
+    expect(extractDates('from April 2016 until 2023-06-14')).toEqual({
+      from: '2016-04-01',
+      to: '2023-06-14',
+    });
+  });
+
+  it('bare years stay ignored — "Room 2019" is not a date', () => {
+    expect(extractDates('meet in Room 2019 about error 2024')).toBeNull();
+    // and an impossible day falls out rather than inventing a month range
+    expect(extractDates('the 45 June 2023 plan')).toBeNull();
+  });
+
   it('ignores impossible month values', () => {
     expect(extractDates('version 2024-99-99 of the spec')).toBeNull();
   });

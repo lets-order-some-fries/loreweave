@@ -69,6 +69,14 @@ export function buildTimeline(
     if (f.supersededBy !== null) predecessorOf.set(f.supersededBy, f);
   }
   for (const f of facts) {
+    // A mined attribute with no valid time is a description, not an event:
+    // `type: station` extracted from frontmatter would otherwise appear as a
+    // "change" dated whenever the index happened to run — one line of today-
+    // noise per hub page. Stated facts keep their entry even without a valid
+    // time: asserting IS an event, and its record date is when it happened.
+    if (f.validFrom === null && f.sourceType === 'extracted' && f.supersededBy === null) {
+      continue;
+    }
     const predecessor = predecessorOf.get(f.id);
     entries.push({
       date: (f.validFrom ?? f.recordedAt).slice(0, 10),

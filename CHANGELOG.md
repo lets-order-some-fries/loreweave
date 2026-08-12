@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.20.0 — 2026-08-12
+
+Content time now reads the dates people actually write.
+
+- **Prose dates in human form.** "The role passed to Halvorsen in June 2023"
+  indexed as *undated* for as long as the engine existed: the query parser
+  understood month-year, but the content side extracted only ISO dates — so
+  on real vaults most of the temporal machinery (window boost, recency,
+  timeline mentions) never fired. `extractDates` now reads "June 2023"
+  (whole-month range), "14 June 2023", and "June 14, 2023". Bare years stay
+  ignored on purpose: "Room 2019" is not a date. Found by probing an eval
+  failure cluster — six temporal questions found the right note but the
+  history block that answers them was invisible to every temporal signal.
+- **Timeline: mined attributes are descriptions, not events.** A frontmatter-
+  extracted fact with no valid time (`type: station`) appeared as a "change"
+  dated whenever the index ran — one line of today-noise per hub page.
+  Stated facts keep their entry: asserting IS an event. 389 → 391 tests.
+
 ## 0.19.0 — 2026-08-12
 
 Word order is evidence: term-proximity joins the ranking.

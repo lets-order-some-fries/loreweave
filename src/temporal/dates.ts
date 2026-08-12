@@ -200,18 +200,47 @@ export function extractDates(text: string, frontmatter: Record<string, unknown> 
       return { from: d, to: d };
     }
   }
-  const found: string[] = [];
+  // The query parser has always understood "June 2023"; the content side
+  // only read ISO dates, so a note saying "the role passed to Halvorsen in
+  // June 2023" indexed as undated and the whole temporal machinery (window
+  // boost, recency, timeline mentions) never fired on it. People write prose
+  // dates far more often than ISO ones. Month names are near-unambiguous as
+  // dates; BARE years are not ("Room 2019", "error 2024") and stay ignored.
+  const from: string[] = [];
+  const to: string[] = [];
+  const push = (f: string, t: string) => {
+    from.push(f);
+    to.push(t);
+  };
   const iso = text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g);
   for (const m of iso) {
     const y = Number(m[1]);
     const mo = Number(m[2]);
     const day = Number(m[3]);
     if (mo >= 1 && mo <= 12 && day >= 1 && day <= lastDay(y, mo)) {
-      found.push(`${m[1]}-${m[2]}-${m[3]}`);
+      push(`${m[1]}-${m[2]}-${m[3]}`, `${m[1]}-${m[2]}-${m[3]}`);
     }
-    if (found.length > 200) break;
+    if (from.length > 200) break;
   }
-  if (found.length === 0) return null;
-  found.sort();
-  return { from: found[0]!, to: found[found.length - 1]! };
+  // 14 June 2023 · June 14, 2023 · June 2023
+  const monthAlt = Object.keys(MONTHS).join('|');
+  const human = text.matchAll(
+    new RegExp(`\\b(?:(\\d{1,2})\\s+)?(${monthAlt})\\.?\\s+(?:(\\d{1,2}),\\s+)?(\\d{4})\\b`, 'gi'),
+  );
+  for (const m of human) {
+    const mo = MONTHS[m[2]!.toLowerCase()]!;
+    const y = Number(m[4]);
+    const day = Number(m[1] ?? m[3] ?? 0);
+    if (day >= 1 && day <= lastDay(y, mo)) {
+      const d = `${m[4]}-${pad(mo)}-${pad(day)}`;
+      push(d, d);
+    } else if (day === 0) {
+      push(`${m[4]}-${pad(mo)}-01`, `${m[4]}-${pad(mo)}-${pad(lastDay(y, mo))}`);
+    }
+    if (from.length > 200) break;
+  }
+  if (from.length === 0) return null;
+  from.sort();
+  to.sort();
+  return { from: from[0]!, to: to[to.length - 1]! };
 }
