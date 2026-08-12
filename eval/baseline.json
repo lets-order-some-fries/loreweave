@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3328,
-        "indexMs": 217,
+        "indexMs": 244,
         "warnings": 0
       },
       "overall": {
@@ -636,6 +636,13 @@
             "found": 1
           }
         }
+      },
+      "flipConsistency": {
+        "hybrid": 1,
+        "bm25": 0,
+        "graph": 0,
+        "hybrid−graph": 1,
+        "hybrid−expand": 1
       }
     }
   },

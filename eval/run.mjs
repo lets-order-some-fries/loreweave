@@ -245,9 +245,39 @@ async function evaluate(corpus) {
     };
   }
 
+  // Paired temporal consistency (TempRAGEval's discipline): a flip pair is
+  // the same question with a shifted window and a DIFFERENT correct note; a
+  // system is consistent on the pair only when BOTH directions rank their
+  // answer first. Lexical overlap can carry one direction; only real
+  // time-scoping carries both.
+  const flipConsistency = {};
+  const flipQs = corpus.questions.filter((q) => q.cat === 'flip');
+  if (flipQs.length) {
+    const pairOf = (id) => id.replace(/[ab]$/, '');
+    for (const name of Object.keys(SYSTEMS)) {
+      const ranks = new Map(
+        perQuestion
+          .filter((p) => p.system === name && p.cat === 'flip')
+          .map((p) => [p.id, p.rank]),
+      );
+      const pairs = new Map();
+      for (const q of flipQs) {
+        const key = pairOf(q.id);
+        const list = pairs.get(key) ?? [];
+        list.push(ranks.get(q.id) ?? 0);
+        pairs.set(key, list);
+      }
+      let consistent = 0;
+      for (const rs of pairs.values()) {
+        if (rs.length === 2 && rs.every((r) => r === 1)) consistent++;
+      }
+      flipConsistency[name] = +(consistent / pairs.size).toFixed(3);
+    }
+  }
+
   ctx.close();
   rmSync(join(VAULT, '.lore'), { recursive: true, force: true });
-  return { name: corpus.name, corpus: stats, overall, byCategory: results, perQuestion, cats };
+  return { name: corpus.name, corpus: stats, overall, byCategory: results, perQuestion, cats, flipConsistency };
 }
 
 const runs = [];
@@ -257,7 +287,17 @@ for (const c of CORPORA) runs.push(await evaluate(c));
 const SYSTEM_NAMES = ['hybrid', 'bm25', 'graph'];
 const payload = {
   corpora: Object.fromEntries(
-    runs.map((r) => [r.name, { corpus: r.corpus, overall: r.overall, byCategory: r.byCategory }]),
+    runs.map((r) => [
+      r.name,
+      {
+        corpus: r.corpus,
+        overall: r.overall,
+        byCategory: r.byCategory,
+        ...(r.flipConsistency && Object.keys(r.flipConsistency).length
+          ? { flipConsistency: r.flipConsistency }
+          : {}),
+      },
+    ]),
   ),
   perQuestion: runs.flatMap((r) => r.perQuestion),
 };
@@ -284,6 +324,17 @@ if (asJson) {
         log(
           `   ${pad(name, 10)}${num(m['r@1'])}  ${num(m['r@5'])}  ${num(m.mrr)}  ${num(m['ans@5'])}  ${num(m.found)}`,
         );
+      }
+      log('');
+    }
+  }
+
+  for (const run of runs) {
+    if (run.flipConsistency && Object.keys(run.flipConsistency).length) {
+      log('══ temporal consistency under window perturbation ══════════');
+      for (const name of SYSTEM_NAMES) {
+        const v = run.flipConsistency[name];
+        if (v !== undefined) log(`  ${pad(run.name, 11)} ${pad(name, 10)} ${(v * 100).toFixed(0)}% of flip pairs answered correctly BOTH ways`);
       }
       log('');
     }
@@ -353,6 +404,12 @@ if (gate) {
     const base = baseline.corpora?.[run.name]?.overall;
     if (!base) continue;
     for (const name of SYSTEM_NAMES) {
+      const baseFlip = baseline.corpora?.[run.name]?.flipConsistency?.[name];
+      const nowFlip = run.flipConsistency?.[name];
+      if (baseFlip !== undefined && nowFlip !== undefined && nowFlip < baseFlip - TOL) {
+        console.error(`REGRESSION ${run.name}/${name}.flipConsistency: ${baseFlip} → ${nowFlip}`);
+        failed = true;
+      }
       for (const metric of ['r@1', 'r@5', 'mrr', 'ans@5', 'found']) {
         const now = run.overall[name]?.[metric];
         const was = base[name]?.[metric];

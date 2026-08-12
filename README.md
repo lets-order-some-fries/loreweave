@@ -97,8 +97,11 @@ Multi-hop is where the graph earns its keep: **BM25 finds 0% on both prose
 corpora** — it cannot reach a note that shares no words with your query, at
 any depth — while hybrid finds 90% and 100%. Time is where the temporal
 machinery earns its keep: on meridian's windowed questions hybrid ranks the
-right note **first 100% of the time vs BM25's 0%**, and stays at 100% when
-every window is perturbed (BM25: 17%).
+right note **first 100% of the time vs BM25's 0%** — and on the paired
+perturbation test (same question, shifted window, different correct answer,
+both directions must rank first) hybrid scores **100% vs BM25's 0%**. The
+consistency number is computed and regression-gated by `npm run eval`, not
+hand-derived.
 
 "answer shown" is the strictest measure: not just the right note, but a
 returned passage that literally contains the answer. Results are one per note,
