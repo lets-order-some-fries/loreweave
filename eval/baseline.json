@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3328,
-        "indexMs": 249,
+        "indexMs": 217,
         "warnings": 0
       },
       "overall": {
@@ -16,7 +16,7 @@
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.75,
-          "mrr": 0.54,
+          "mrr": 0.541,
           "ans@5": 0.55,
           "found": 0.975
         },
@@ -31,26 +31,26 @@
         "graph": {
           "n": 40,
           "r@1": 0.075,
-          "r@5": 0.425,
-          "mrr": 0.222,
-          "ans@5": 0.25,
+          "r@5": 0.45,
+          "mrr": 0.234,
+          "ans@5": 0.275,
           "found": 0.875
         },
         "hybrid−graph": {
           "n": 40,
           "r@1": 0.4,
           "r@5": 0.75,
-          "mrr": 0.532,
+          "mrr": 0.538,
           "ans@5": 0.55,
-          "found": 0.85
+          "found": 0.925
         },
         "hybrid−expand": {
           "n": 40,
           "r@1": 0.4,
-          "r@5": 0.675,
-          "mrr": 0.536,
-          "ans@5": 0.45,
-          "found": 0.975
+          "r@5": 0.725,
+          "mrr": 0.541,
+          "ans@5": 0.5,
+          "found": 0.925
         }
       },
       "byCategory": {
@@ -67,7 +67,7 @@
             "n": 10,
             "r@1": 0,
             "r@5": 0.3,
-            "mrr": 0.115,
+            "mrr": 0.117,
             "ans@5": 0.3,
             "found": 0.9
           },
@@ -128,22 +128,22 @@
             "r@1": 0.1,
             "r@5": 0.7,
             "mrr": 0.297,
-            "ans@5": 0.2,
+            "ans@5": 0.3,
             "found": 0.9
           },
           "multihop": {
             "n": 10,
             "r@1": 0,
             "r@5": 0,
-            "mrr": 0.045,
+            "mrr": 0.042,
             "ans@5": 0,
             "found": 0.8
           },
           "temporal": {
             "n": 10,
             "r@1": 0.1,
-            "r@5": 0.6,
-            "mrr": 0.286,
+            "r@5": 0.7,
+            "mrr": 0.336,
             "ans@5": 0.4,
             "found": 1
           },
@@ -151,7 +151,7 @@
             "n": 10,
             "r@1": 0.1,
             "r@5": 0.4,
-            "mrr": 0.259,
+            "mrr": 0.261,
             "ans@5": 0.4,
             "found": 0.8
           }
@@ -169,9 +169,9 @@
             "n": 10,
             "r@1": 0,
             "r@5": 0.3,
-            "mrr": 0.082,
+            "mrr": 0.104,
             "ans@5": 0.3,
-            "found": 0.4
+            "found": 0.7
           },
           "temporal": {
             "n": 10,
@@ -194,18 +194,18 @@
           "simple": {
             "n": 10,
             "r@1": 0.5,
-            "r@5": 0.9,
-            "mrr": 0.683,
-            "ans@5": 0.7,
+            "r@5": 1,
+            "mrr": 0.7,
+            "ans@5": 0.8,
             "found": 1
           },
           "multihop": {
             "n": 10,
             "r@1": 0,
-            "r@5": 0,
+            "r@5": 0.1,
             "mrr": 0.06,
-            "ans@5": 0,
-            "found": 0.9
+            "ans@5": 0.1,
+            "found": 0.7
           },
           "temporal": {
             "n": 10,
@@ -219,7 +219,7 @@
             "n": 10,
             "r@1": 0.6,
             "r@5": 0.9,
-            "mrr": 0.738,
+            "mrr": 0.739,
             "ans@5": 0.8,
             "found": 1
           }
@@ -233,8 +233,8 @@
         "entities": 39,
         "links": 25,
         "facts": 63,
-        "edges": 131,
-        "indexMs": 48,
+        "edges": 137,
+        "indexMs": 26,
         "warnings": 0
       },
       "overall": {
@@ -257,10 +257,10 @@
         "graph": {
           "n": 24,
           "r@1": 0,
-          "r@5": 0.208,
-          "mrr": 0.087,
+          "r@5": 0.375,
+          "mrr": 0.137,
           "ans@5": 0.167,
-          "found": 0.25
+          "found": 0.5
         },
         "hybrid−graph": {
           "n": 24,
@@ -273,10 +273,10 @@
         "hybrid−expand": {
           "n": 24,
           "r@1": 0.5,
-          "r@5": 0.625,
-          "mrr": 0.566,
-          "ans@5": 0.583,
-          "found": 0.708
+          "r@5": 0.792,
+          "mrr": 0.617,
+          "ans@5": 0.75,
+          "found": 0.958
         }
       },
       "byCategory": {
@@ -360,10 +360,10 @@
           "multihop": {
             "n": 6,
             "r@1": 0,
-            "r@5": 0,
-            "mrr": 0,
+            "r@5": 0.667,
+            "mrr": 0.202,
             "ans@5": 0,
-            "found": 0
+            "found": 1
           },
           "temporal": {
             "n": 5,
@@ -428,10 +428,10 @@
           "multihop": {
             "n": 6,
             "r@1": 0,
-            "r@5": 0,
-            "mrr": 0,
-            "ans@5": 0,
-            "found": 0
+            "r@5": 0.667,
+            "mrr": 0.202,
+            "ans@5": 0.667,
+            "found": 1
           },
           "temporal": {
             "n": 5,
@@ -460,7 +460,7 @@
         "links": 25,
         "facts": 0,
         "edges": 108,
-        "indexMs": 14,
+        "indexMs": 15,
         "warnings": 0
       },
       "overall": {
@@ -483,9 +483,9 @@
         "graph": {
           "n": 18,
           "r@1": 0.167,
-          "r@5": 0.778,
-          "mrr": 0.413,
-          "ans@5": 0.778,
+          "r@5": 0.833,
+          "mrr": 0.435,
+          "ans@5": 0.833,
           "found": 0.944
         },
         "hybrid−graph": {
@@ -562,16 +562,16 @@
           "temporal": {
             "n": 8,
             "r@1": 0.25,
-            "r@5": 0.75,
+            "r@5": 0.875,
             "mrr": 0.479,
-            "ans@5": 0.75,
+            "ans@5": 0.875,
             "found": 1
           },
           "flip": {
             "n": 6,
             "r@1": 0.167,
             "r@5": 0.833,
-            "mrr": 0.45,
+            "mrr": 0.472,
             "ans@5": 0.833,
             "found": 1
           },
@@ -579,7 +579,7 @@
             "n": 4,
             "r@1": 0,
             "r@5": 0.75,
-            "mrr": 0.225,
+            "mrr": 0.292,
             "ans@5": 0.75,
             "found": 0.75
           }
@@ -757,32 +757,32 @@
       "system": "hybrid",
       "id": "M5",
       "cat": "multihop",
-      "rank": 11,
-      "answerRank": 11
+      "rank": 6,
+      "answerRank": 6
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "M6",
       "cat": "multihop",
-      "rank": 24,
-      "answerRank": 24
+      "rank": 27,
+      "answerRank": 27
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "M7",
       "cat": "multihop",
-      "rank": 13,
-      "answerRank": 13
+      "rank": 14,
+      "answerRank": 14
     },
     {
       "corpus": "kestrel",
       "system": "hybrid",
       "id": "M8",
       "cat": "multihop",
-      "rank": 6,
-      "answerRank": 6
+      "rank": 8,
+      "answerRank": 8
     },
     {
       "corpus": "kestrel",
@@ -797,8 +797,8 @@
       "system": "hybrid",
       "id": "M10",
       "cat": "multihop",
-      "rank": 19,
-      "answerRank": 19
+      "rank": 20,
+      "answerRank": 20
     },
     {
       "corpus": "kestrel",
@@ -1294,7 +1294,7 @@
       "id": "S2",
       "cat": "simple",
       "rank": 2,
-      "answerRank": 6
+      "answerRank": 5
     },
     {
       "corpus": "kestrel",
@@ -1374,30 +1374,30 @@
       "id": "M2",
       "cat": "multihop",
       "rank": 18,
-      "answerRank": 25
+      "answerRank": 28
     },
     {
       "corpus": "kestrel",
       "system": "graph",
       "id": "M3",
       "cat": "multihop",
-      "rank": 24,
-      "answerRank": 35
+      "rank": 25,
+      "answerRank": 40
     },
     {
       "corpus": "kestrel",
       "system": "graph",
       "id": "M4",
       "cat": "multihop",
-      "rank": 12,
-      "answerRank": 19
+      "rank": 15,
+      "answerRank": 24
     },
     {
       "corpus": "kestrel",
       "system": "graph",
       "id": "M5",
       "cat": "multihop",
-      "rank": 36,
+      "rank": 33,
       "answerRank": 0
     },
     {
@@ -1421,8 +1421,8 @@
       "system": "graph",
       "id": "M8",
       "cat": "multihop",
-      "rank": 21,
-      "answerRank": 30
+      "rank": 31,
+      "answerRank": 43
     },
     {
       "corpus": "kestrel",
@@ -1437,16 +1437,16 @@
       "system": "graph",
       "id": "M10",
       "cat": "multihop",
-      "rank": 15,
-      "answerRank": 19
+      "rank": 16,
+      "answerRank": 22
     },
     {
       "corpus": "kestrel",
       "system": "graph",
       "id": "T1",
       "cat": "temporal",
-      "rank": 4,
-      "answerRank": 5
+      "rank": 3,
+      "answerRank": 3
     },
     {
       "corpus": "kestrel",
@@ -1462,7 +1462,7 @@
       "id": "T3",
       "cat": "temporal",
       "rank": 7,
-      "answerRank": 15
+      "answerRank": 16
     },
     {
       "corpus": "kestrel",
@@ -1493,8 +1493,8 @@
       "system": "graph",
       "id": "T7",
       "cat": "temporal",
-      "rank": 4,
-      "answerRank": 5
+      "rank": 2,
+      "answerRank": 4
     },
     {
       "corpus": "kestrel",
@@ -1509,8 +1509,8 @@
       "system": "graph",
       "id": "T9",
       "cat": "temporal",
-      "rank": 6,
-      "answerRank": 8
+      "rank": 3,
+      "answerRank": 7
     },
     {
       "corpus": "kestrel",
@@ -1533,7 +1533,7 @@
       "system": "graph",
       "id": "A2",
       "cat": "aggregate",
-      "rank": 28,
+      "rank": 19,
       "answerRank": 0
     },
     {
@@ -1717,32 +1717,32 @@
       "system": "hybrid−graph",
       "id": "M5",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 6,
+      "answerRank": 6
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
       "id": "M6",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 20,
+      "answerRank": 20
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
       "id": "M7",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 19,
+      "answerRank": 19
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−graph",
       "id": "M8",
       "cat": "multihop",
-      "rank": 6,
-      "answerRank": 6
+      "rank": 8,
+      "answerRank": 8
     },
     {
       "corpus": "kestrel",
@@ -1997,61 +1997,37 @@
       "system": "hybrid−expand",
       "id": "S10",
       "cat": "simple",
-      "rank": 6,
-      "answerRank": 6
+      "rank": 3,
+      "answerRank": 3
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−expand",
       "id": "M1",
       "cat": "multihop",
-      "rank": 24,
-      "answerRank": 24
+      "rank": 0,
+      "answerRank": 0
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−expand",
       "id": "M2",
       "cat": "multihop",
-      "rank": 17,
-      "answerRank": 17
+      "rank": 0,
+      "answerRank": 0
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−expand",
       "id": "M3",
       "cat": "multihop",
-      "rank": 21,
-      "answerRank": 21
+      "rank": 25,
+      "answerRank": 25
     },
     {
       "corpus": "kestrel",
       "system": "hybrid−expand",
       "id": "M4",
-      "cat": "multihop",
-      "rank": 9,
-      "answerRank": 9
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid−expand",
-      "id": "M5",
-      "cat": "multihop",
-      "rank": 11,
-      "answerRank": 11
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid−expand",
-      "id": "M6",
-      "cat": "multihop",
-      "rank": 23,
-      "answerRank": 23
-    },
-    {
-      "corpus": "kestrel",
-      "system": "hybrid−expand",
-      "id": "M7",
       "cat": "multihop",
       "rank": 10,
       "answerRank": 10
@@ -2059,10 +2035,34 @@
     {
       "corpus": "kestrel",
       "system": "hybrid−expand",
+      "id": "M5",
+      "cat": "multihop",
+      "rank": 5,
+      "answerRank": 5
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid−expand",
+      "id": "M6",
+      "cat": "multihop",
+      "rank": 31,
+      "answerRank": 31
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid−expand",
+      "id": "M7",
+      "cat": "multihop",
+      "rank": 9,
+      "answerRank": 9
+    },
+    {
+      "corpus": "kestrel",
+      "system": "hybrid−expand",
       "id": "M8",
       "cat": "multihop",
-      "rank": 33,
-      "answerRank": 33
+      "rank": 18,
+      "answerRank": 18
     },
     {
       "corpus": "kestrel",
@@ -2077,8 +2077,8 @@
       "system": "hybrid−expand",
       "id": "M10",
       "cat": "multihop",
-      "rank": 13,
-      "answerRank": 13
+      "rank": 16,
+      "answerRank": 16
     },
     {
       "corpus": "kestrel",
@@ -2189,8 +2189,8 @@
       "system": "hybrid−expand",
       "id": "A4",
       "cat": "aggregate",
-      "rank": 21,
-      "answerRank": 21
+      "rank": 19,
+      "answerRank": 19
     },
     {
       "corpus": "kestrel",
@@ -2630,7 +2630,7 @@
       "id": "N-S1",
       "cat": "simple",
       "rank": 6,
-      "answerRank": 6
+      "answerRank": 7
     },
     {
       "corpus": "northwind",
@@ -2662,7 +2662,7 @@
       "id": "N-S5",
       "cat": "simple",
       "rank": 3,
-      "answerRank": 4
+      "answerRank": 5
     },
     {
       "corpus": "northwind",
@@ -2686,55 +2686,55 @@
       "id": "N-S8",
       "cat": "simple",
       "rank": 3,
-      "answerRank": 4
+      "answerRank": 5
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M1",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 5,
+      "answerRank": 8
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M2",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 7,
+      "answerRank": 10
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M3",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 5,
+      "answerRank": 8
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M4",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 4,
+      "answerRank": 7
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M5",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 4,
+      "answerRank": 7
     },
     {
       "corpus": "northwind",
       "system": "graph",
       "id": "N-M6",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 6,
+      "answerRank": 9
     },
     {
       "corpus": "northwind",
@@ -3077,48 +3077,48 @@
       "system": "hybrid−expand",
       "id": "N-M1",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 5,
+      "answerRank": 5
     },
     {
       "corpus": "northwind",
       "system": "hybrid−expand",
       "id": "N-M2",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 7,
+      "answerRank": 7
     },
     {
       "corpus": "northwind",
       "system": "hybrid−expand",
       "id": "N-M3",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 5,
+      "answerRank": 5
     },
     {
       "corpus": "northwind",
       "system": "hybrid−expand",
       "id": "N-M4",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 4,
+      "answerRank": 4
     },
     {
       "corpus": "northwind",
       "system": "hybrid−expand",
       "id": "N-M5",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 4,
+      "answerRank": 4
     },
     {
       "corpus": "northwind",
       "system": "hybrid−expand",
       "id": "N-M6",
       "cat": "multihop",
-      "rank": 0,
-      "answerRank": 0
+      "rank": 6,
+      "answerRank": 6
     },
     {
       "corpus": "northwind",
@@ -3493,8 +3493,8 @@
       "system": "graph",
       "id": "M-T1",
       "cat": "temporal",
-      "rank": 3,
-      "answerRank": 3
+      "rank": 4,
+      "answerRank": 4
     },
     {
       "corpus": "meridian",
@@ -3541,8 +3541,8 @@
       "system": "graph",
       "id": "M-T7",
       "cat": "temporal",
-      "rank": 6,
-      "answerRank": 6
+      "rank": 4,
+      "answerRank": 4
     },
     {
       "corpus": "meridian",
@@ -3581,8 +3581,8 @@
       "system": "graph",
       "id": "M-F2b",
       "cat": "flip",
-      "rank": 5,
-      "answerRank": 5
+      "rank": 3,
+      "answerRank": 3
     },
     {
       "corpus": "meridian",
@@ -3605,16 +3605,16 @@
       "system": "graph",
       "id": "M-C1",
       "cat": "current",
-      "rank": 5,
-      "answerRank": 5
+      "rank": 3,
+      "answerRank": 3
     },
     {
       "corpus": "meridian",
       "system": "graph",
       "id": "M-C2",
       "cat": "current",
-      "rank": 5,
-      "answerRank": 5
+      "rank": 3,
+      "answerRank": 3
     },
     {
       "corpus": "meridian",

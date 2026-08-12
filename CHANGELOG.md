@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.23.0 — 2026-08-12
+
+Texture stops at hop one.
+
+- **Provenance-tiered deep propagation.** Every graph edge now carries two
+  weights: the full one, and the share allowed to keep propagating past the
+  first hop. Relational evidence travels — links, facts, identity, mentions;
+  co-occurrence and embedding similarity are neighborhood texture, and
+  compounding texture across hops is how a walk drowns a two-hop answer
+  under a one-hop wall (the same pathology the co-occurrence dilution
+  comment has documented at hop 1 since it was measured). PPR's first
+  iteration walks the full graph; deeper iterations walk only what a claim,
+  not a coincidence, supports. Honest ledger: small positive drift on the
+  eval (kestrel MRR 0.540 → 0.541, multihop 0.115 → 0.117), zero movement
+  elsewhere, gate green — the structural guarantee is the point, and it
+  compounds with fact edges as vaults accumulate asserted relations.
+  398 → 400 tests.
+
 ## 0.22.0 — 2026-08-12
 
 Questions use vocabulary ABOUT a vault, not from it.
