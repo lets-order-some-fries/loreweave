@@ -10,7 +10,7 @@ import { parseQueryTime } from '../temporal/dates.js';
 import { buildTimeline } from '../temporal/timeline.js';
 import { resumeDelta } from '../resume.js';
 import { indexVault, indexState } from '../index/indexer.js';
-import { search } from '../retrieve/search.js';
+import { bestSnippet, search } from '../retrieve/search.js';
 import {
   aggregateFacts,
   assertFact,
@@ -100,7 +100,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.20.0')
+    .version('0.20.1')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -453,8 +453,14 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
               const until = e.until === null ? '' : `  (until ${e.until})`;
               io.out(`${e.date}  ${e.predicate}: ${arrow}${until}`);
             } else {
-              const firstLine = (e.text ?? '').split('\n').find((l) => l.trim()) ?? '';
-              const snip = firstLine.length > 100 ? `${firstLine.slice(0, 100)}…` : firstLine;
+              // Show the line that MENTIONS the subject, not whatever the
+              // block starts with — a table block's first line is
+              // "| Skill | Proficiency |", unreadable as a history entry
+              // (same lesson bestSnippet taught search).
+              const line =
+                bestSnippet(e.text ?? '', contentTerms(subject), 100) ||
+                ((e.text ?? '').split('\n').find((l) => l.trim()) ?? '');
+              const snip = line.length > 100 ? `${line.slice(0, 100)}…` : line;
               io.out(`${e.date}  • ${snip}  [${e.notePath}]`);
             }
           }

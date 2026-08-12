@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.20.1 — 2026-08-12
+
+Dogfood pass on a real vault (42 notes of career records, tables, leads).
+
+- **Timeline mentions show the line naming the subject** — a table block's
+  first line is "| Skill | Proficiency |", unreadable as a history entry;
+  the same lesson `bestSnippet` taught search now applies to `timeline`.
+- Verified on real data: "companies to avoid" search hits the exact passage
+  at rank 1; dream's duplicate/link/orphan findings are sensible; resume
+  delta correct. Diagnosed and closed the kestrel multihop tail: ranks 11-24
+  are one-hop walls in front of two-hop answers whose discriminating word
+  ("benefactor", "hardware") appears in zero vault notes — the documented
+  embeddings frontier, not a ranking bug.
+
 ## 0.20.0 — 2026-08-12
 
 Content time now reads the dates people actually write.
