@@ -415,8 +415,20 @@ export async function search(
   });
   const graphRanks = new Map<number, number>();
   let pprScores: Float64Array | null = null;
+  // Path reliability: the same walk restricted to relational edges and run
+  // deeper. Full PPR FINDS the neighborhood (recall); this scores whether a
+  // node is reached by a chain of claims — links, facts, identity — or by
+  // texture, and it is what ORDERS the recall-backfilled list below. A
+  // two-hop answer at the end of a link/fact chain outranks a one-hop
+  // co-occurrence bystander there, which raw PPR mass inverted.
+  let relScores: Float64Array | null = null;
   if (seeds.size > 0) {
     pprScores = ppr(graph, seeds, { alpha: cfg.pprAlpha, iterations: cfg.pprIterations });
+    relScores = ppr(graph, seeds, {
+      alpha: cfg.pprAlpha,
+      iterations: Math.max(4, cfg.pprIterations),
+      relationalOnly: true,
+    });
     const blockScores: { blockId: number; s: number }[] = [];
     for (let i = 0; i < graph.blockCount; i++) {
       const s = pprScores[i]!;
@@ -828,7 +840,22 @@ export async function search(
   const linked = results
     .filter(isExpansion)
     .sort((a, b) => {
+      // Within each tier, path reliability orders the list: the relational-
+      // only walk's mass at the node — reached by a chain of claims scores
+      // high, reached by texture scores ~zero. This is the slot where a
+      // two-hop answer used to sit at rank 20-40 behind one-hop bystanders
+      // that raw PPR mass (which counts texture) had ranked above it.
+      const relOf = (r: SearchResult): number => {
+        if (relScores === null) return 0;
+        const id = byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1;
+        const idx = graph.blockIndex.get(id);
+        return idx === undefined ? 0 : relScores[idx]!;
+      };
       // link-reached notes first (high precision), then PPR-only ones
+      const tier = (r: SearchResult) => {
+        const id = byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1;
+        return expandRanks.has(id) ? 0 : 1;
+      };
       const rank = (r: SearchResult) => {
         const id = byBlock.get(`${r.notePath} ${r.anchor}`) ?? -1;
         const e = expandRanks.get(id);
@@ -836,6 +863,18 @@ export async function search(
         const g = graphRanks.get(id);
         return g !== undefined ? 1000 + g : 1e9;
       };
+      const ta = tier(a);
+      const tb = tier(b);
+      if (ta !== tb) return ta - tb;
+      // On a WINDOWED query, temporal evidence outranks path reliability: a
+      // chain-reached note from the wrong period must not leapfrog dated
+      // results, so reliability ordering is suspended when the query names a
+      // window. Everywhere else it orders the tier — raw PPR mass counts
+      // texture, which is exactly what buried chain-reached answers.
+      if (qWindow === null) {
+        const d = relOf(b) - relOf(a);
+        if (d !== 0) return d;
+      }
       return rank(a) - rank(b) || byPath(a, b);
     });
   const merged: SearchResult[] = primary.slice(0, cfg.expansionPromoteAfter);

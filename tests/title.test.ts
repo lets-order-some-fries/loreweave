@@ -61,13 +61,13 @@ describe('identically-named notes stay distinct', () => {
     await indexVault(store, root);
     const titles = (store.db.prepare('SELECT title FROM notes ORDER BY title').all() as { title: string }[])
       .map((r) => r.title);
-    expect(titles).toEqual(['a', 'b']);
+    expect(titles).toEqual(['A', 'B']);
     store.close();
   });
 
   it('parseNote applies the same rule', () => {
     expect(parseNote('sp/writing-skills/SKILL.md', '# Heading\n\nBody\n', 1).title).toBe(
-      'writing-skills',
+      'Heading', // the note's own H1 declaration outranks folder-derived names
     );
   });
 });

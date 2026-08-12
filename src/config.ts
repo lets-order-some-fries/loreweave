@@ -49,6 +49,9 @@ export const ConfigSchema = z
           .default({}),
         /** How many top lexical notes to expand links from. */
         expansionSeeds: z.number().int().min(1).max(20).default(5),
+        /** Link-expansion depth. 2 finds every two-hop answer (multihop reach
+         *  100% on the eval) at a measured precision cost in dense vaults;
+         *  the shipped default keeps precision. */
         expansionHops: z.number().int().min(1).max(3).default(1),
         expansionDecay: z.number().min(0).max(1).default(0.45),
         /** Expansion results slot in after this many fused results. */

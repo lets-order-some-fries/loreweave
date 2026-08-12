@@ -5,6 +5,13 @@ export interface PprOptions {
   alpha?: number;
   /** Power iterations; 2 suffices for retrieval (NodeRAG). */
   iterations?: number;
+  /**
+   * Walk ONLY relational edges (weightsDeep) from the first hop: the
+   * PathRAG-shaped question — "is this node reached by a chain of claims,
+   * or by neighborhood texture?" — as a score. Used to ORDER recall-reached
+   * notes, not to find them.
+   */
+  relationalOnly?: boolean;
 }
 
 /**
@@ -24,6 +31,7 @@ export function ppr(
   // LoreGraph.weightsDeep). Falls back to the full weights when a graph
   // predates the split — behavior is then identical to the classic walk.
   const deep = graph.weightsDeep ?? weights;
+  const relationalOnly = opts.relationalOnly === true;
   const scores = new Float64Array(n);
   if (seeds.size === 0 || n === 0) return scores;
 
@@ -49,8 +57,8 @@ export function ppr(
   const p = Float64Array.from(seedVec);
   const next = new Float64Array(n);
   for (let it = 0; it < iterations; it++) {
-    const w = it === 0 ? weights : deep;
-    const str = it === 0 ? strength : strengthDeep;
+    const w = it === 0 && !relationalOnly ? weights : deep;
+    const str = it === 0 && !relationalOnly ? strength : strengthDeep;
     next.fill(0);
     let dangling = 0;
     for (let u = 0; u < n; u++) {

@@ -327,10 +327,23 @@ function normalizeFrontmatterValue(v: unknown): unknown {
  * folder is what actually identifies it (`skills/writing-skills/SKILL.md`
  * is "writing-skills", not "SKILL").
  */
-export function resolveTitle(path: string, fm: Record<string, unknown>): string {
+export function resolveTitle(
+  path: string,
+  fm: Record<string, unknown>,
+  firstHeading?: string,
+): string {
   for (const key of ['title', 'name']) {
     const v = fm[key];
     if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  // A vault titled by H1 headings (slug filenames, `# Real Name` inside) is
+  // the other common convention besides Obsidian's filename-as-title — and
+  // without this fallback every [[Real Name]] link in such a vault resolved
+  // to nothing: no note-name seeds, no link expansion, a dead recall
+  // channel. The basename is still indexed as a name the note answers to
+  // (buildNameIndex), so filename-style links keep working either way.
+  if (firstHeading && firstHeading.trim() && !GENERIC_BASENAMES.has(firstHeading.trim().toLowerCase())) {
+    return firstHeading.trim();
   }
   const parts = path.split('/');
   const base = (parts.pop() ?? path).replace(/\.md$/i, '');
@@ -359,8 +372,6 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
     body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   }
 
-  const title = resolveTitle(path, fm);
-
   // tags: frontmatter (string | array) + inline
   const tagSet = new Set<string>();
   const fmTags = fm.tags ?? fm.tag;
@@ -377,6 +388,8 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
   }
 
   const sections = splitSections(body);
+  const firstHeading = sections.find((s) => s.headingPath.length === 1)?.headingPath[0];
+  const title = resolveTitle(path, fm, firstHeading);
   const blocks: Block[] = [];
   const links: WikiLink[] = [];
   const anchorCounts = new Map<string, number>();

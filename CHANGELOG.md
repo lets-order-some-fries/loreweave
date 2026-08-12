@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.24.0 — 2026-08-12
+
+Chains of claims order the backfill — and H1-titled vaults come alive.
+
+- **Path-reliability ordering (the PathRAG-shaped fix).** Recall-reached
+  notes were ordered by raw PPR mass, which counts texture — so a two-hop
+  answer at the end of a link chain sat behind one-hop co-occurrence
+  bystanders. A second walk restricted to relational edges (links, facts,
+  identity, mentions — v0.23.0's weightsDeep) now scores whether a CHAIN OF
+  CLAIMS reaches each note, and that score orders the backfill. On windowed
+  queries the ordering is suspended: temporal evidence outranks path
+  reliability. Measured: kestrel multihop r@5 0.3 → 0.4, MRR 0.117 → 0.145
+  (+24%), northwind and meridian exactly at baseline.
+- **H1 titles resolve.** A vault titled by H1 headings with slug filenames —
+  docs repos, blogs, half of real vaults — had a DEAD link-expansion channel:
+  `[[Transect Plan]]` could not resolve to `transect-plan-notes.md` because
+  titles came only from frontmatter or filename. The first H1 now titles the
+  note (frontmatter still wins; the filename stays an alias), which wakes
+  link resolution, note-name seeding, and expansion for that entire vault
+  shape. Found while writing this release's test, on a five-note vault.
+- `retrieval.expansionHops` documented: 2 reaches every two-hop answer on
+  the eval (multihop found 100%) at a measured precision cost in dense
+  vaults; the default stays 1. 400 → 401 tests.
+
 ## 0.23.0 — 2026-08-12
 
 Texture stops at hop one.

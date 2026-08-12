@@ -89,7 +89,7 @@ describe('parseNote', () => {
   it('handles unicode content and paths', () => {
     const raw = `# Überblick\n\nNaïve café — 中文内容 #标签\n`;
     const n = parseNote('notes/日本語.md', raw, 1);
-    expect(n.title).toBe('日本語');
+    expect(n.title).toBe('Überblick'); // H1 declares the title; the filename stays an alias
     expect(n.tags).toContain('标签');
     expect(n.blocks[0]!.heading).toBe('Überblick');
   });
