@@ -23,6 +23,10 @@
 
 ---
 
+<p align="center">
+  <img src="docs/demo.gif" alt="loreweave demo: temporal search, timeline, as-of facts, session resume" width="720">
+</p>
+
 Most knowledge tools are **write-only**. You capture diligently, the vault grows, and
 six months later you can't find the thing you know you wrote — because retrieval is
 keyword search over prose, nothing ever resurfaces on its own, and nothing notices when
