@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.21.0 — 2026-08-12
+
+The graph now knows what the fact store knows.
+
+- **Fact edges.** "Brasshold :: funder :: Quill Trust" lived in the fact
+  store while PPR walked mention and co-occurrence edges around it — the
+  strongest relational evidence in the vault sat outside the graph. Every
+  currently-valid fact now contributes a subject ↔ object entity edge
+  (`edgeWeights.FACT`, default 1.0, the highest — a stated relation is not a
+  co-occurrence guess). Superseding a fact removes its edge: the walk ranks
+  the present. Payoff pinned by test: searching "Brasshold programme
+  backing" reaches the funder note that never mentions Brasshold. Honest
+  ledger: the eval corpora did not move — their multihop chains are prose
+  links, not fact chains — this is for fact-rich vaults and agent-asserted
+  memory, and it lays the rail for predicate-aware routing (researched, next).
+- **Embeddings dogfooded end-to-end** (Ollama + nomic-embed-text, 474 blocks):
+  the dense channel works, and honesty compels a correction — on
+  relation-tracing multihop queries embeddings do NOT rescue ranking (the
+  answer note shares no topic text with the query; only the graph knows).
+  Current theory agrees: fixed-embedding retrievers provably need
+  embedding width proportional to graph size for relation tracing
+  (SeedER, arXiv:2605.23753). The README's framing will be updated as the
+  predicate-routing work lands. Also new: demo GIF in the README.
+  391 → 394 tests.
+
 ## 0.20.1 — 2026-08-12
 
 Dogfood pass on a real vault (42 notes of career records, tables, leads).

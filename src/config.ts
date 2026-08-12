@@ -88,6 +88,10 @@ export const ConfigSchema = z
              *  acronym ↔ expansion pairs. High weight on purpose — these are
              *  identity claims, not co-occurrence evidence. */
             SAMEAS: z.number().default(0.9),
+            /** Fact edges: subject ↔ object of currently-valid facts. The
+             *  strongest relational evidence the vault has — a stated or
+             *  extracted relation, not a co-occurrence guess. */
+            FACT: z.number().default(1.0),
           })
           .default({}),
         maxEntitiesPerBlockCooccur: z.number().int().default(12),
