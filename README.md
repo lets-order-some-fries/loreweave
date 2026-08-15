@@ -189,12 +189,28 @@ narrows the gap but does not close it. That is the honest position, and it is
 why the multi-hop work below is not finished.
 
 **LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
-turn-level recall: R@1 0.337, R@5 0.538, R@10 0.610, R@20 0.656. Its strongest
-category is temporal (R@1 0.454). Multi-hop looks worst at R@1 0.088, but those
-questions carry **3.13 evidence turns on average**, so R@1 cannot exceed 0.390
-there — measured against what is achievable, multi-hop reaches 22% of ceiling
-against 40-48% for single-evidence categories. Still the weakest area; the
-honest framing is 22%, not 0.088.
+turn-level recall:
+
+| | R@1 | R@5 | R@10 | R@20 |
+|---|---|---|---|---|
+| model-free | **0.337** | **0.538** | 0.610 | 0.656 |
+| + embeddings | 0.318 | 0.532 | **0.627** | **0.705** |
+
+Strongest category is temporal (R@1 0.454). Multi-hop looks worst at R@1 0.088,
+but those questions carry **3.13 evidence turns on average**, so R@1 cannot
+exceed 0.390 there — against what is achievable, multi-hop reaches 22% of
+ceiling versus 40-48% for single-evidence categories. Embeddings do not fix it.
+
+**The pattern across all three benchmarks is one weakness, stated plainly.**
+Recall is strong and top-of-ranking is not: LoCoMo R@20 0.705 against R@1
+0.337, LongMemEval R@10 0.974 against R@1 0.589, BEIR Recall@10 0.869 against
+nDCG@10 0.729. The right answer reaches the candidate pool; putting it first is
+where this engine loses to hybrids that rerank. Two model-free attempts at it
+failed on measurement — pseudo-relevance feedback (flat) and scoring the
+coverage signal directly (harmful at every weight, see the comment in
+`search.ts`) — so the honest state is: known weakness, two ruled-out fixes, and
+a cross-encoder reranker as the remaining candidate, which would be an
+optional model on the same opt-in tier as embeddings.
 
 Two things worth saying plainly. **None of these corpora have links, tags, or
 frontmatter** — the structure this engine exists to exploit — so it is being

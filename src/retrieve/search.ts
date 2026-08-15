@@ -856,6 +856,10 @@ export async function search(
     const base = fused.get(r.id)!;
     const hay = normalizeKey(r.text + ' ' + r.heading);
     const prox = cfg.boosts.proximity > 0 ? proximityScore(hay, qTerms) : 0;
+    const cov =
+      noContentWords || !qTerms.length
+        ? 0
+        : qTerms.filter((t) => hay.includes(t)).length / qTerms.length;
     // Temporal emphasis rewards evidence only: a block with a REAL content
     // date overlapping the query's window. Undated blocks stay neutral —
     // mtime says when a file was touched, not when its events happened, and
@@ -867,6 +871,16 @@ export async function search(
       (temporalWeight > 0 && boostedBlocks!.has(r.id) ? temporalWeight * base : 0) +
       (recencyOf !== null ? cfg.boosts.recency * (recencyOf.get(r.id) ?? 0) * base : 0) +
       cfg.boosts.proximity * prox * base;
+    // Coverage is deliberately NOT a scoring term, though it is computed just
+    // above and reported to callers. Every external benchmark says this engine
+    // ranks recall well and precision less well (LoCoMo R@20 0.705 vs R@1
+    // 0.337), so boosting the most direct precision signal looked obvious.
+    // Measured, it is harmful at every weight tried: kestrel r@5 0.750 →
+    // 0.725, and meridian r@1 0.944 → 0.833 at 0.5 and 0.722 at 2.0. Two
+    // reasons, both worth remembering — BM25 already prices term overlap, so
+    // this double-counts it; and a block containing every query word from the
+    // WRONG period outranks the right-dated one, which is precisely what the
+    // temporal machinery exists to prevent.
 
     // explanation: matched entities adjacent to this block in the graph
     const via: string[] = [];
@@ -891,11 +905,7 @@ export async function search(
       // constant, so a nonsense query and a bullseye both scored ~0.0328 and
       // looked identical.
       lexicalScore: Number((lexScores.get(r.id) ?? 0).toFixed(3)),
-      coverage: noContentWords
-        ? 0
-        : qTerms.length
-        ? Number((qTerms.filter((t) => hay.includes(t)).length / qTerms.length).toFixed(3))
-        : 0,
+      coverage: Number(cov.toFixed(3)),
       parts: {
         lexical: Number((lexicalRanks.has(r.id) ? 1 / (cfg.rrfK + lexicalRanks.get(r.id)!) : 0).toFixed(6)),
         dense: Number((denseRanks.has(r.id) ? 1 / (cfg.rrfK + denseRanks.get(r.id)!) : 0).toFixed(6)),
