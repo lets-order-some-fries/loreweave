@@ -67,6 +67,26 @@ export function fitDecay(
     let total = 0;
     let n = 0;
     for (const events of byBlock.values()) {
+      // Each 'used' credits at most ONE retrieval: the nearest preceding one
+      // inside the horizon. Crediting every retrieval in the window made a
+      // block used once a week score ~100% recall — its ignored retrievals,
+      // which this module's own doc calls misses, were relabelled successes.
+      // The optimizer then fitted inter-event CADENCE rather than memory
+      // (measured: dense cadence → 0.8, sparse → 0.1), and a 0.1 fit pushes
+      // R below findStale's 0.3 threshold so far out that `lore review`
+      // could never surface a block again.
+      const credited = new Set<number>();
+      for (let i = 0; i < events.length; i++) {
+        if (events[i]!.kind !== 'used') continue;
+        for (let j = i - 1; j >= 0; j--) {
+          if (events[j]!.kind !== 'retrieved') continue;
+          if (events[i]!.at - events[j]!.at > horizon) break;
+          if (!credited.has(j)) {
+            credited.add(j);
+            break;
+          }
+        }
+      }
       let stability = 1.0;
       let prevAt: number | null = null;
       for (let i = 0; i < events.length; i++) {
@@ -74,13 +94,7 @@ export function fitDecay(
         if (ev.kind === 'retrieved' && prevAt !== null) {
           const t = (ev.at - prevAt) / DAY_MS;
           const r = retrievability(t, stability, decay);
-          let used = false;
-          for (let j = i + 1; j < events.length && events[j]!.at <= ev.at + horizon; j++) {
-            if (events[j]!.kind === 'used') {
-              used = true;
-              break;
-            }
-          }
+          const used = credited.has(i);
           const p = Math.min(1 - 1e-6, Math.max(1e-6, r));
           total += used ? -Math.log(p) : -Math.log(1 - p);
           n++;

@@ -99,6 +99,31 @@ describe('per-vault decay fit', () => {
     store.close();
   });
 
+  it('one use does not relabel a week of ignored retrievals as successes', () => {
+    // A block used once a week had EVERY retrieval that week counted a hit —
+    // including the ignored ones this module's doc calls misses — so the fit
+    // saw ~100% recall and chased inter-event cadence instead of memory. Each
+    // use credits at most the nearest preceding retrieval now.
+    const store = openStore(':memory:');
+    seedBlocks(store, 6);
+    const ins = store.db.prepare(`INSERT INTO access_log(at,kind,query,block_id) VALUES (?,?,?,?)`);
+    const day = 86_400_000;
+    const t0 = Date.parse('2026-01-01T00:00:00Z');
+    for (let blk = 1; blk <= 6; blk++) {
+      for (let week = 0; week < 4; week++) {
+        for (let i = 0; i < 10; i++) {
+          ins.run(new Date(t0 + week * 7 * day + i * 3600_000).toISOString(), 'retrieved', 'q', blk);
+        }
+        ins.run(new Date(t0 + week * 7 * day + 6 * day).toISOString(), 'used', null, blk);
+      }
+    }
+    const fit = fitDecay(store)!;
+    // Mostly-ignored retrievals must read as mostly-misses: a near-zero loss
+    // would mean the labels had been inflated to all-success again.
+    expect(fit.logLoss).toBeGreaterThan(0.5);
+    store.close();
+  });
+
   it('thin history refuses to fit — the default shape stays', () => {
     const store = openStore(':memory:');
     seedBlocks(store, 1);

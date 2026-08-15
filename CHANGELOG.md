@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.29.0 — 2026-08-15
+
+The audit's last substantive batch — two of them broke the promise the whole
+engine rests on.
+
+- **Search order depended on index build history.** Exact PPR ties are
+  ordinary vault structure (two notes tagged the same way), and ties fell
+  through to graph node index → block rowid → insertion order. A byte-identical
+  vault returned `hub, alpha, beta` from a fresh index and `hub, beta, alpha`
+  from an incremental one. Graph nodes are now ordered by content
+  (`note_path, anchor`; entities by key), with an explicit tie-break on the
+  rank sort. Fixing it at the node level covers every consumer, not just the
+  sort that exposed it.
+- **`timeline` had the same disease.** Its comparator never returned 0 and
+  disagreed with itself on same-kind ties, and the mention query ordered by
+  date alone — so same-date entries came back in row order. Now a total order
+  keyed only on content.
+- **`timeline` couldn't merge plural-named entities.** Prose mentions are
+  keyed through `singularizeKey`, fact subjects are not — so "Redwood Systems"
+  had its facts under one key and its mentions under another, and the merged
+  history the command exists for was unreachable under every spelling.
+- **Persisted SIMILAR edges could never terminate mass.** Since 0.23.0 they
+  carried zero weight past hop 1, so a block reachable only by embedding
+  similarity — precisely the vocabulary-disjoint case those edges exist for —
+  scored exactly 0. They now carry half weight at depth: weaker than a stated
+  link, no longer a dead end.
+- **The decay fit trusted inflated labels.** One `used` marked *every*
+  retrieval in the prior week a success, so a block cited weekly scored ~100%
+  recall and the optimizer fitted inter-event cadence rather than memory — and
+  a resulting 0.1 fit pushes retrievability so flat that `lore review` could
+  never surface a block again. Each use now credits at most the nearest
+  preceding retrieval.
+
+Eval note: the shipped hybrid pipeline is unchanged on every metric across all
+three corpora; the graph-only diagnostic moved (ans@5 4/24 → 2/24 on northwind)
+because its ties now break deterministically instead of by luck of insertion
+order. Baseline re-recorded. 414 → 419 tests.
+
 ## 0.28.0 — 2026-08-15
 
 Five more audit findings — the batch where a typo could tell you your vault

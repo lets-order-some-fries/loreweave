@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
+import { ppr } from '../src/graph/ppr.js';
 import { ConfigSchema } from '../src/config.js';
 import { makeVault } from './helpers.js';
 
@@ -47,6 +48,40 @@ describe('deep propagation weights', () => {
     expect(pair).not.toBeNull();
     expect(pair!.full).toBeGreaterThan(0); // texture still counts at hop 1
     expect(pair!.deep).toBe(0); // …and stops there
+    store.close();
+  });
+
+  it('a persisted SIMILAR edge can carry mass all the way to its destination', async () => {
+    // Co-occurrence is texture and stops at hop 1, but an embedding
+    // similarity edge is a claim about CONTENT — and it is the one mechanism
+    // that reaches a block sharing no vocabulary with the query. At deep=0 a
+    // SIMILAR-only destination received mass at hop 1 and then scored exactly
+    // 0 in the final vector, so the feature those edges exist for could not
+    // fire at default settings.
+    const root = await makeVault({
+      'seed.md': '# Thornwick Gauge\n\nThe thornwick gauge measures stack drift.\n',
+      'far.md': '# Unrelated\n\nCompletely different vocabulary about kettles.\n',
+    });
+    const config = ConfigSchema.parse({});
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const rows = store.db
+      .prepare(`SELECT id, note_path FROM blocks ORDER BY note_path`)
+      .all() as { id: number; note_path: string }[];
+    const far = rows.find((r) => r.note_path === 'far.md')!;
+    const seed = rows.find((r) => r.note_path === 'seed.md')!;
+    store.db
+      .prepare(
+        `INSERT INTO edges(src_type, src_id, dst_type, dst_id, type, weight)
+         VALUES ('block',?,'block',?,'SIMILAR',?)`,
+      )
+      .run(seed.id, far.id, 0.95);
+    const g = buildGraph(store, config);
+    const scores = ppr(g, new Map([[g.blockIndex.get(seed.id)!, 1]]), {
+      alpha: config.retrieval.pprAlpha,
+      iterations: config.retrieval.pprIterations,
+    });
+    expect(scores[g.blockIndex.get(far.id)!]!).toBeGreaterThan(0);
     store.close();
   });
 

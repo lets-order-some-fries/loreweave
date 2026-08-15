@@ -125,6 +125,37 @@ describe('timeline', () => {
     ctx.close();
   });
 
+  it('a plural-named entity merges its facts and its prose mentions', async () => {
+    // NLP prose mentions are keyed through singularizeKey; fact subjects are
+    // not. For "Redwood Systems" that put the two halves of the history under
+    // two different keys, so the merged timeline this tool exists to produce
+    // was unreachable under every spelling, with no error anywhere.
+    const root = await mkdtemp(join(tmpdir(), 'lw-tlp-'));
+    await writeFile(
+      join(root, 'log.md'),
+      '---\ntitle: Log\ndate: 2025-09-09\n---\n\n# Log\n\nRedwood Systems delivered the replacement mast.\n',
+    );
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const ctx = {
+      root, config: ConfigSchema.parse({}), store, provider: null,
+      graph: () => { throw new Error('unused'); },
+      noteLinks: () => { throw new Error('unused'); },
+      invalidateGraph: () => {},
+      close: () => store.close(),
+    } as unknown as LoreContext;
+    assertFact(ctx, {
+      subject: 'Redwood Systems',
+      predicate: 'status',
+      object: 'active',
+      validFrom: '2025-01-01',
+    });
+    const kinds = buildTimeline(store, 'Redwood Systems').map((e) => e.kind);
+    expect(kinds).toContain('change');
+    expect(kinds).toContain('mention');
+    ctx.close();
+  });
+
   it('mentions come back verbatim — prose is never rewritten', async () => {
     const ctx = await ctxWithHistory();
     const tl = buildTimeline(ctx.store, 'Project Atlas');

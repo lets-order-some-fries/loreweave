@@ -6,6 +6,12 @@ import { openStore } from '../src/store/db.js';
 import { indexVault } from '../src/index/indexer.js';
 import { queryFacts } from '../src/facts/model.js';
 import { PARSER_VERSION } from '../src/store/schema.js';
+import { search } from '../src/retrieve/search.js';
+import { buildGraph } from '../src/graph/build.js';
+import { buildNoteLinkGraph } from '../src/retrieve/expand.js';
+import { buildTimeline } from '../src/temporal/timeline.js';
+import { ConfigSchema } from '../src/config.js';
+import type { LoreContext } from '../src/context.js';
 
 /**
  * The engine's load-bearing promise: outputs are a function of the VAULT, not
@@ -105,6 +111,68 @@ describe('answers do not depend on index build history', () => {
       .get(nowId.id) as { c: number };
     expect(pointed.c).toBe(2);
     store.close();
+  });
+
+  it('search order is the same whether the index was built fresh or grew', async () => {
+    // Two notes tagged the same way tie exactly on PPR mass — ordinary vault
+    // structure. Ties fell through to node index = block rowid = insertion
+    // order, so a fresh index and an incremental one ranked the byte-identical
+    // vault differently. Graph nodes are ordered by content now.
+    const files: Record<string, string> = {
+      'hub.md': '---\ntitle: Kestrelmoor\n---\n\n# Kestrelmoor\n\nThe kestrelmoor programme coordinates the upland surveys.\n',
+      'alpha.md': '---\ntitle: Alpha\ntags: [kestrelmoor]\n---\n\n# Alpha\n\nBench calibration of the drift meter.\n',
+      'beta.md': '---\ntitle: Beta\ntags: [kestrelmoor]\n---\n\n# Beta\n\nField calibration of the drift meter.\n',
+    };
+    const order = async (mode: 'fresh' | 'grown') => {
+      const root = await mkdtemp(join(tmpdir(), `lw-det-${mode}-`));
+      const store = openStore(':memory:');
+      if (mode === 'fresh') {
+        for (const [p2, c] of Object.entries(files)) await writeFile(join(root, p2), c);
+        await indexVault(store, root);
+      } else {
+        await writeFile(join(root, 'hub.md'), files['hub.md']!);
+        await writeFile(join(root, 'beta.md'), files['beta.md']!);
+        await indexVault(store, root);
+        await writeFile(join(root, 'alpha.md'), files['alpha.md']!);
+        await indexVault(store, root);
+      }
+      const config = ConfigSchema.parse({});
+      let cached: ReturnType<typeof buildGraph> | null = null;
+      const ctx = {
+        root, config, store, provider: null,
+        graph: () => (cached ??= buildGraph(store, config)),
+        noteLinks: () => buildNoteLinkGraph(store),
+        invalidateGraph: () => (cached = null),
+        close: () => store.close(),
+      } as unknown as LoreContext;
+      const res = (await search(ctx, 'kestrelmoor', { noLog: true })).map((r) => r.notePath);
+      store.close();
+      return res.join(' > ');
+    };
+    expect(await order('grown')).toBe(await order('fresh'));
+  });
+
+  it('timeline order is the same whether the index was built fresh or grew', async () => {
+    const a = '---\ntitle: A\ndate: 2025-05-05\n---\n\n# A\n\n[[Wrenfield Depot]] took delivery of the pumps.\n';
+    const b = '---\ntitle: B\ndate: 2025-05-05\n---\n\n# B\n\n[[Wrenfield Depot]] logged the same delivery separately.\n';
+    const order = async (mode: 'fresh' | 'grown') => {
+      const root = await mkdtemp(join(tmpdir(), `lw-tl-${mode}-`));
+      const store = openStore(':memory:');
+      if (mode === 'fresh') {
+        await writeFile(join(root, 'a.md'), a);
+        await writeFile(join(root, 'b.md'), b);
+        await indexVault(store, root);
+      } else {
+        await writeFile(join(root, 'b.md'), b);
+        await indexVault(store, root);
+        await writeFile(join(root, 'a.md'), a);
+        await indexVault(store, root);
+      }
+      const out = buildTimeline(store, 'Wrenfield Depot').map((e) => e.notePath).join(' > ');
+      store.close();
+      return out;
+    };
+    expect(await order('grown')).toBe(await order('fresh'));
   });
 
   it('a cache at the current parser version is left alone', async () => {

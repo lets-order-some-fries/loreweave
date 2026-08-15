@@ -8,7 +8,7 @@
         "links": 449,
         "facts": 126,
         "edges": 3450,
-        "indexMs": 214,
+        "indexMs": 207,
         "warnings": 0
       },
       "overall": {
@@ -234,7 +234,7 @@
         "links": 25,
         "facts": 63,
         "edges": 137,
-        "indexMs": 25,
+        "indexMs": 26,
         "warnings": 0
       },
       "overall": {
@@ -259,7 +259,7 @@
           "r@1": 0,
           "r@5": 0.375,
           "mrr": 0.137,
-          "ans@5": 0.167,
+          "ans@5": 0.083,
           "found": 0.5
         },
         "hybrid−graph": {
@@ -354,7 +354,7 @@
             "r@1": 0,
             "r@5": 0.375,
             "mrr": 0.167,
-            "ans@5": 0.375,
+            "ans@5": 0.125,
             "found": 0.5
           },
           "multihop": {
@@ -2669,7 +2669,7 @@
       "id": "N-S5",
       "cat": "simple",
       "rank": 3,
-      "answerRank": 5
+      "answerRank": 6
     },
     {
       "corpus": "northwind",
@@ -2693,7 +2693,7 @@
       "id": "N-S8",
       "cat": "simple",
       "rank": 3,
-      "answerRank": 5
+      "answerRank": 6
     },
     {
       "corpus": "northwind",
@@ -2805,7 +2805,7 @@
       "id": "N-A3",
       "cat": "aggregate",
       "rank": 4,
-      "answerRank": 7
+      "answerRank": 6
     },
     {
       "corpus": "northwind",

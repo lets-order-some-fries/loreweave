@@ -440,12 +440,15 @@ export async function search(
       iterations: Math.max(4, cfg.pprIterations),
       relationalOnly: true,
     });
-    const blockScores: { blockId: number; s: number }[] = [];
+    const blockScores: { blockId: number; s: number; node: number }[] = [];
     for (let i = 0; i < graph.blockCount; i++) {
       const s = pprScores[i]!;
-      if (s > 0) blockScores.push({ blockId: graph.nodeDbId[i]!, s });
+      if (s > 0) blockScores.push({ blockId: graph.nodeDbId[i]!, s, node: i });
     }
-    blockScores.sort((a, b) => b.s - a.s);
+    // Exact PPR ties are ordinary vault structure (two notes tagged the same
+    // way, symmetric mentions), so the tie-break decides real output order.
+    // Node index is content-ordered now, which makes this deterministic.
+    blockScores.sort((a, b) => b.s - a.s || a.node - b.node);
     blockScores.slice(0, cand).forEach((h, i) => graphRanks.set(h.blockId, i + 1));
   }
 
