@@ -395,7 +395,7 @@ export async function search(
   const denseScores = new Map<number, number>();
   if (ctx.provider) {
     try {
-      const [qvec] = await ctx.provider.embed([query]);
+      const [qvec] = await ctx.provider.embed([query], 'query');
       if (qvec) {
         const hits = denseTopK(store, qvec, cand);
         hits.forEach((h, i) => {

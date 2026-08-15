@@ -230,8 +230,9 @@ async function evaluate(corpus) {
     // suspect when an optional channel makes results worse.
     ...(withEmbed
       ? {
+          'dense=2.0': ablate({ dense: 2.0 }),
+          'dense=1.5': ablate({ dense: 1.5 }),
           'dense=0.5': ablate({ dense: 0.5 }),
-          'dense=0.25': ablate({ dense: 0.25 }),
           'dense=0': ablate({ dense: 0 }),
         }
       : {}),

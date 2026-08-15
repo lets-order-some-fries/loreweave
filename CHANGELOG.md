@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.33.0 — 2026-08-15
+
+The embedding layer was being used wrong, by us. Fixed — and it goes from
+harmful to the biggest single quality gain this project has measured.
+
+- **Task prefixes.** `nomic-embed-text` is an *asymmetric* retrieval model:
+  it is trained with `search_query:` on queries and `search_document:` on
+  passages, and without them both sides land in the same region of the space
+  and the dense channel stops discriminating. We were sending raw text for
+  both. That — not embeddings themselves — is why 0.31.0 measured the optional
+  layer making retrieval *worse* and why that finding is now retracted.
+  Prefixes are inferred per model family (nomic, E5, BGE known; symmetric
+  models get none) and overridable via `embedding.queryPrefix` /
+  `documentPrefix`.
+- **Measured, with prefixes sent:**
+
+  | corpus | r@5 | MRR | answer shown |
+  |---|---|---|---|
+  | kestrel, model-free | 0.750 | 0.545 | 0.550 |
+  | kestrel, + embeddings | **0.825** | **0.572** | **0.575** |
+  | northwind, model-free | 0.917 | 0.690 | 0.833 |
+  | northwind, + embeddings | **0.958** | 0.681 | **0.875** |
+
+  And externally, on BEIR/SciFact: nDCG@10 **0.682 → 0.729**, Recall@10
+  0.811 → 0.869 — from "competitive with BM25" to competitive with strong
+  neural retrievers, using a small local model and no network.
+- **Fusion weight left at 1.0 on purpose.** Sweeping 0 → 2.0, kestrel prefers
+  2.0 and northwind prefers 1.0 — the corpora disagree, which is exactly what
+  the second corpus exists to catch. Tuning to the winner would be overfitting
+  the benchmark; the sweep is in `npm run eval -- --embed` for anyone who
+  wants to tune to their own vault.
+- The default is still **no models at all**. That guarantee is the product.
+  This only means the optional layer now earns its place when switched on.
+  421 → 425 tests.
+
 ## 0.32.0 — 2026-08-15
 
 Measured on benchmarks we did not design — and fixed what that exposed.

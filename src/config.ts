@@ -12,6 +12,20 @@ export const ConfigSchema = z
         /** Name of the env var holding the API key (never the key itself). */
         apiKeyEnv: z.string().default('OPENAI_API_KEY'),
         batchSize: z.number().int().min(1).max(512).default(32),
+        /**
+         * Task prefixes for instruction-tuned embedding models.
+         *
+         * Asymmetric retrieval models are TRAINED with a task prefix and are
+         * out of distribution without one — nomic-embed-text wants
+         * "search_query: " on queries and "search_document: " on passages,
+         * E5 wants "query: "/"passage: ". Omitted, both sides get embedded as
+         * if they were the same kind of text, which is exactly the condition
+         * that made the dense channel LOWER retrieval quality here (0.31.0).
+         * Left unset, they are inferred from the model name; set them to ""
+         * to force none, or to your model's own strings.
+         */
+        queryPrefix: z.string().optional(),
+        documentPrefix: z.string().optional(),
       })
       .default({}),
     retrieval: z

@@ -39,7 +39,8 @@ if (!existsSync(dist)) {
   console.error('dist/ not built — run `npm run build` first.');
   process.exit(2);
 }
-const { openContext, indexVault, search } = await import(pathToFileURL(dist).href);
+const WITH_EMBED = process.argv.includes('--embed');
+const { openContext, indexVault, search, embedMissingBlocks, buildSimilarEdges } = await import(pathToFileURL(dist).href);
 
 const lines = (f) => readFileSync(f, 'utf8').split('\n').filter(Boolean);
 
@@ -72,10 +73,21 @@ for (const d of corpus) {
   writeFileSync(join(VAULT, rel), `# ${title}\n\n${d.text ?? ''}\n`);
 }
 mkdirSync(join(VAULT, '.lore'), { recursive: true });
+  if (WITH_EMBED) {
+    writeFileSync(
+      join(VAULT, '.lore', 'config.json'),
+      JSON.stringify({ embedding: { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' } }, null, 2),
+    );
+  }
 
 const ctx = openContext(VAULT);
 const t0 = Date.now();
 await indexVault(ctx.store, VAULT, { full: true });
+if (WITH_EMBED) {
+  if (!ctx.provider) { console.error('--embed: no provider (is Ollama running?)'); process.exit(2); }
+  await embedMissingBlocks(ctx.store, ctx.provider, ctx.config.embedding.batchSize);
+  buildSimilarEdges(ctx.store, ctx.config);
+}
 ctx.invalidateGraph();
 console.log(`indexed in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 

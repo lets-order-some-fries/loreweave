@@ -36,9 +36,11 @@ quantity each benchmark's own retrieval ablations report. Numbers here are
 after retrieval; those measure a different thing, and comparing them would be
 the kind of apples-to-oranges claim this file exists to avoid.
 
-Every run is the **model-free configuration**: no LLM, no embeddings, no
-network. That is the point — it is the floor, and the floor is what ships by
-default.
+Runs default to the **model-free configuration**: no LLM, no embeddings, no
+network. That is the floor, and the floor is what ships by default. Append
+`--embed` to any harness to add local dense vectors (Ollama +
+`nomic-embed-text`) — measured on SciFact that takes nDCG@10 from 0.682 to
+**0.729**, at roughly 9× the per-query cost (12 ms → 106 ms).
 
 ## Adapting the data
 

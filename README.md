@@ -122,26 +122,26 @@ from the vault (co-occurrence, PPMI, LSA) can bridge that, because there are no
 occurrences to derive one from. Those answers are still *found* by following
 links; ranking them first needs semantics from outside the vault.
 
-**And embeddings do not currently supply it — measured.** `npm run eval --
---embed` reruns everything with local dense vectors (Ollama +
-`nomic-embed-text`) on top. The result on these corpora is *worse*, not better:
+**Embeddings supply it — once the model is asked correctly.** `npm run eval --
+--embed` reruns everything with local dense vectors (Ollama). For three
+releases that measured *worse* than no embeddings at all, and the cause turned
+out to be ours: `nomic-embed-text` is an asymmetric model trained with task
+prefixes (`search_query:` / `search_document:`), and we were sending raw text
+for both — so queries and passages landed in the same region of the space and
+the dense channel stopped discriminating. With the prefixes sent:
 
 | corpus | | r@5 | MRR | answer shown |
 |---|---|---|---|---|
-| kestrel | lexical + graph | **0.750** | **0.545** | **0.550** |
-| | + embeddings | 0.725 | 0.539 | 0.525 |
-| northwind | lexical + graph | **0.917** | **0.690** | **0.833** |
-| | + embeddings | 0.833 | 0.604 | 0.792 |
+| kestrel | model-free | 0.750 | 0.545 | 0.550 |
+| | + embeddings | **0.825** | **0.572** | **0.575** |
+| northwind | model-free | 0.917 | 0.690 | 0.833 |
+| | + embeddings | **0.958** | 0.681 | **0.875** |
 | meridian | either | 0.944 | 0.951 | 0.944 |
 
-Sweeping the dense fusion weight (1.0 → 0.5 → 0.25 → 0) does not recover it,
-and the loss is split between the dense ranking list and the similarity edges
-it adds to the graph. So the honest position: **the numbers above are what the
-shipped, model-free configuration does, and we cannot claim the optional layer
-improves anything.** The likely reason is these corpora themselves — invented,
-distinctive vocabulary is exactly where lexical matching is strongest and
-paraphrase is rarest. On prose full of synonyms it may well pay off; measure it
-on your own vault with `--embed` rather than trusting either of us.
+Prefixes are inferred from the model name (nomic, E5 and BGE families are
+known) and overridable with `embedding.queryPrefix` / `documentPrefix`. The
+default is still **no models at all** — that is the guarantee this project is
+built on — but the optional layer now earns its place when you turn it on.
 
 ## Measured on public benchmarks
 
@@ -157,8 +157,9 @@ language model after retrieval.
 
 | system | nDCG@10 | Recall@10 |
 |---|---|---|
-| loreweave, lexical channel | **0.682** | 0.808 |
-| loreweave, full pipeline | 0.676 | **0.811** |
+| loreweave + local embeddings | **0.729** | **0.869** |
+| loreweave, lexical channel | 0.682 | 0.808 |
+| loreweave, model-free pipeline | 0.676 | 0.811 |
 | BM25 (BEIR paper, Anserini) | 0.665 | — |
 
 **LongMemEval_S** (ICLR 2025) — 500 questions, ~50-session history each,
@@ -464,7 +465,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 421 tests
+npm test          # 425 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

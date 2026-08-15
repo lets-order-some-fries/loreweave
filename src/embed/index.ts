@@ -2,17 +2,52 @@ import { isHeadingEcho } from '../vault/parse.js';
 import type { Store } from '../store/db.js';
 import type { LoreConfig } from '../config.js';
 
+export type EmbedRole = 'query' | 'document';
+
 export interface EmbeddingProvider {
   name: string;
   model: string;
-  embed(texts: string[]): Promise<Float32Array[]>;
+  /**
+   * `role` selects the task prefix an asymmetric model was trained with.
+   * Defaults to 'document' so existing callers keep indexing behaviour.
+   */
+  embed(texts: string[], role?: EmbedRole): Promise<Float32Array[]>;
+}
+
+/**
+ * The task prefixes each model family was trained with.
+ *
+ * These are not decoration. An asymmetric retrieval model learns "queries look
+ * like THIS, passages look like THAT" from the prefix, and without it both
+ * sides land in the same region of the space — measured here as a dense
+ * channel that made ranking WORSE than no dense channel at all.
+ */
+function defaultPrefixes(model: string): { query: string; document: string } {
+  const m = model.toLowerCase();
+  if (m.includes('nomic-embed')) return { query: 'search_query: ', document: 'search_document: ' };
+  if (m.includes('e5')) return { query: 'query: ', document: 'passage: ' };
+  if (m.includes('bge')) {
+    return { query: 'Represent this sentence for searching relevant passages: ', document: '' };
+  }
+  // OpenAI's text-embedding-3-* and most symmetric models want nothing.
+  return { query: '', document: '' };
+}
+
+/** Config wins over inference; '' is a real answer meaning "no prefix". */
+export function prefixesFor(config: LoreConfig): { query: string; document: string } {
+  const auto = defaultPrefixes(config.embedding.model);
+  return {
+    query: config.embedding.queryPrefix ?? auto.query,
+    document: config.embedding.documentPrefix ?? auto.document,
+  };
 }
 
 /** null when provider is 'none' — every call-site must handle that cleanly. */
 export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fetch): EmbeddingProvider | null {
   const e = config.embedding;
   if (e.provider === 'none') return null;
-  if (e.provider === 'ollama') return ollamaProvider(e.url, e.model, fetchImpl);
+  const prefixes = prefixesFor(config);
+  if (e.provider === 'ollama') return withPrefixes(ollamaProvider(e.url, e.model, fetchImpl), prefixes);
   if (e.provider === 'openai') {
     const key = process.env[e.apiKeyEnv];
     if (!key) {
@@ -20,9 +55,25 @@ export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fe
         `embedding provider 'openai' configured but env var ${e.apiKeyEnv} is not set`,
       );
     }
-    return openaiProvider(e.url, e.model, key, fetchImpl);
+    return withPrefixes(openaiProvider(e.url, e.model, key, fetchImpl), prefixes);
   }
   return null;
+}
+
+/** Wrap a raw provider so every call carries its task prefix. */
+function withPrefixes(
+  inner: EmbeddingProvider,
+  prefixes: { query: string; document: string },
+): EmbeddingProvider {
+  if (!prefixes.query && !prefixes.document) return inner;
+  return {
+    name: inner.name,
+    model: inner.model,
+    embed: (texts, role = 'document') => {
+      const p = role === 'query' ? prefixes.query : prefixes.document;
+      return inner.embed(p ? texts.map((t) => p + t) : texts, role);
+    },
+  };
 }
 
 function ollamaProvider(url: string, model: string, fetchImpl: typeof fetch): EmbeddingProvider {

@@ -19,6 +19,7 @@ export { ppr, type PprOptions } from './graph/ppr.js';
 export {
   resolveProvider,
   embedMissingBlocks,
+  prefixesFor,
   denseTopK,
   buildSimilarEdges,
   cosine,
