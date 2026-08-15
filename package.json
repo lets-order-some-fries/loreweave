@@ -1,6 +1,6 @@
 {
   "name": "loreweave",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "description": "A temporal knowledge engine for markdown vaults \u2014 indexes, links, remembers, forgets, and dreams. Local-first, agent-ready (MCP).",
   "type": "module",
   "license": "MIT",
@@ -45,6 +45,9 @@
     "eval": "npm run build && node eval/run.mjs",
     "eval:gate": "npm run build && node eval/run.mjs --gate",
     "scale": "npm run build && node eval/scale.mjs",
+    "bench:beir": "npm run build && node eval/beir.mjs",
+    "bench:longmemeval": "npm run build && node --max-old-space-size=8192 eval/longmemeval.mjs",
+    "bench:locomo": "npm run build && node eval/locomo.mjs",
     "eval:baseline": "npm run build && node eval/run.mjs --json > eval/baseline.json && echo 'baseline recorded'",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",

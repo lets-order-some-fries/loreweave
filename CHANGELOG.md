@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.32.0 — 2026-08-15
+
+Measured on benchmarks we did not design — and fixed what that exposed.
+
+- **Three external benchmark harnesses**, reproducible from
+  [`docs/benchmarks.md`](docs/benchmarks.md): BEIR/SciFact (`npm run
+  bench:beir`), LongMemEval_S (`bench:longmemeval`), LoCoMo (`bench:locomo`).
+  All model-free — no LLM, no embeddings, no network — and all *retrieval*
+  metrics, not end-to-end QA, so they are not comparable to the accuracy
+  numbers systems with an LLM after retrieval quote.
+- **The lexical core holds up externally.** SciFact nDCG@10 **0.682** for
+  loreweave's lexical channel against the BEIR paper's published BM25 baseline
+  of **0.665** — the FTS5 setup is competitive with Anserini, so the graph is
+  not propping up a weak baseline.
+- **LongMemEval_S session retrieval: R@5 0.899, R@10 0.943** overall, with
+  knowledge-update at R@5 0.942 and temporal-reasoning at 0.871 — the two
+  categories this engine claims. **LoCoMo turn-level recall: R@5 0.539**, its
+  strongest category temporal (R@1 0.451).
+- **Fix: the graph channel was trusted on vaults with no graph.** Entity-PPR
+  backfill adds notes nothing else found — worth +13 to +25 points of reach on
+  link-rich vaults, and pure noise without structure, where all that remains
+  is co-occurrence over prose. A vault now has to *have* explicit structure
+  (links, tags or facts — more than one per fifty notes) before the walk is
+  trusted. Measured: SciFact nDCG@10 0.653 → 0.676, LoCoMo R@5 0.479 → 0.539,
+  R@10 0.561 → 0.612; the internal corpora are unaffected. Not uniformly
+  better: LongMemEval R@10 moved 0.955 → 0.943, and that is in the README too.
+  Facts count as structure — the test suite caught a links-and-tags-only
+  measure locking a fact-only vault out of its own fact edges. 420 → 421 tests.
+
 ## 0.31.0 — 2026-08-15
 
 Measured the optional embedding layer for the first time — and it does not do

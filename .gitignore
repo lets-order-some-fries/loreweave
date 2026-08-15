@@ -13,3 +13,7 @@ eval/vault3/
 
 eval/scale-*/
 eval/scale-last.json
+eval/beir-vault/
+eval/lme-vault/
+eval/locomo-vault/
+eval/*-last.json

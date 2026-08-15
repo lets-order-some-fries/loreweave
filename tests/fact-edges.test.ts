@@ -92,6 +92,23 @@ describe('fact edges', () => {
     ctx.close();
   });
 
+  it('a vault with no links, tags or facts does not get graph backfill', async () => {
+    // The graph channel adds notes nothing else found — worth real precision
+    // when there IS a graph, pure noise when there is not. Measured on BEIR
+    // SciFact (5 183 abstracts, no structure of any kind) it cost 0.024
+    // nDCG@10. structureRatio answers "does this vault have explicit
+    // structure at all"; facts count toward it, which the suite discovered
+    // when a fact-only vault locked out its own fact edges.
+    const root = await mkdtemp(join(tmpdir(), 'lw-nostruct-'));
+    await writeFile(join(root, 'a.md'), '# Alpha\n\nPlain prose about drift meters.\n');
+    await writeFile(join(root, 'b.md'), '# Beta\n\nMore plain prose about drift meters.\n');
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const g = buildGraph(store, ConfigSchema.parse({}));
+    expect(g.structureRatio).toBe(0);
+    store.close();
+  });
+
   it('the relation is traversable: searching the subject reaches the funder note', async () => {
     // quill-trust.md never mentions Brasshold; only the asserted fact links
     // them. The graph channel must carry the note into the results.

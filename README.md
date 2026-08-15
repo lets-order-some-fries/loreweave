@@ -143,6 +143,51 @@ distinctive vocabulary is exactly where lexical matching is strongest and
 paraphrase is rarest. On prose full of synonyms it may well pay off; measure it
 on your own vault with `--embed` rather than trusting either of us.
 
+## Measured on public benchmarks
+
+The corpora above are ours — we wrote the notes *and* the questions, which
+makes them good for regression and worthless as proof. These are third-party,
+with relevance labels nobody here chose. All runs are the **model-free**
+configuration (no LLM, no embeddings, no network), and all are **retrieval**
+metrics: loreweave finds the evidence, it does not write the answer, so these
+are not comparable to end-to-end QA accuracy quoted by systems that put a
+language model after retrieval.
+
+**BEIR / SciFact** — 5 183 abstracts, 300 queries, nDCG@10:
+
+| system | nDCG@10 | Recall@10 |
+|---|---|---|
+| loreweave, lexical channel | **0.682** | 0.808 |
+| loreweave, full pipeline | 0.676 | **0.811** |
+| BM25 (BEIR paper, Anserini) | 0.665 | — |
+
+**LongMemEval_S** (ICLR 2025) — 500 questions, ~50-session history each,
+session-level recall:
+
+| category | n | R@1 | R@5 | R@10 |
+|---|---|---|---|---|
+| knowledge-update | 78 | 0.481 | 0.942 | 0.955 |
+| temporal-reasoning | 133 | 0.414 | 0.871 | 0.910 |
+| multi-session | 133 | 0.371 | 0.835 | 0.925 |
+| single-session (all) | 156 | 0.833 | 0.955 | 0.974 |
+| **overall** | **500** | **0.552** | **0.899** | **0.943** |
+
+**LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
+turn-level recall: R@1 0.340, R@5 0.539, R@10 0.612, R@20 0.655. Its strongest
+category is temporal (R@1 0.451), its weakest multi-hop (R@1 0.087) — a
+question needing four turns can score at most 0.25 at R@1.
+
+Two things worth saying plainly. **None of these corpora have links, tags, or
+frontmatter** — the structure this engine exists to exploit — so it is being
+measured with one hand tied; that is the honest cost of using benchmarks we
+didn't design. And measuring them found a real defect: the graph channel was
+trusted even on corpora with no graph to walk, which cost 0.024 nDCG@10 on
+SciFact and 6 points of R@5 on LoCoMo. Fixed in 0.32.0. It is *not* uniformly
+better — LongMemEval's R@10 moved 0.955 → 0.943 — and the trade is documented
+rather than hidden.
+
+Reproduce every number: [`docs/benchmarks.md`](docs/benchmarks.md).
+
 ## Scale
 
 Measured, like the quality numbers — `npm run scale` reproduces this on your
@@ -419,7 +464,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 420 tests
+npm test          # 421 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

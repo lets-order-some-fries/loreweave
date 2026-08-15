@@ -581,7 +581,16 @@ export async function search(
   }
   // Entity-PPR is recall too: measured, it adds ~10 points of reach but as a
   // peer ranking list it displaced good lexical hits.
-  if (cfg.weights.graph > 0 && graphRanks.size > 0) {
+  //
+  // …and only when the vault HAS a graph. With no links and no tags the graph
+  // is entity co-occurrence over prose, which is a topic signal, not a
+  // relatedness one: on BEIR SciFact (5 183 abstracts, no structure of any
+  // kind) this backfill cost 0.024 nDCG@10 — 0.676 down to 0.653 — by pushing
+  // co-occurrence neighbours above real lexical hits. The threshold is not a
+  // tuning knob but a question: does this vault have explicit structure at
+  // all? One link or tag per fifty notes answers yes.
+  const vaultHasStructure = graph.structureRatio >= 0.02;
+  if (cfg.weights.graph > 0 && graphRanks.size > 0 && vaultHasStructure) {
     for (const [blockId] of graphRanks) {
       if (!lexicalRanks.has(blockId)) linkedOnly.add(blockId);
       if (!fused.has(blockId)) fused.set(blockId, 0);
