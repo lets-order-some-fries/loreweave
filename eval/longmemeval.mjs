@@ -27,6 +27,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
 const DATA = process.argv[2];
 const LIMIT = Number(process.argv[3] ?? 0) || Infinity;
+/**
+ * `--stride N` samples every Nth question. The file is GROUPED BY CATEGORY,
+ * so a plain `limit` reads only the first category and reports a number that
+ * looks like the whole benchmark — the first 25 questions are all
+ * single-session-user, the easiest class. A stride spreads the sample across
+ * every category instead.
+ */
+const STRIDE = Math.max(1, Number((process.argv.find((a) => a.startsWith('--stride=')) ?? '').split('=')[1] ?? 1));
 if (!DATA || !existsSync(DATA)) {
   console.error('usage: node eval/longmemeval.mjs /path/to/longmemeval_s [limit]');
   process.exit(2);
@@ -54,8 +62,9 @@ const KS = [1, 3, 5, 10];
 const byCat = new Map();
 let done = 0;
 
-for (const q of data) {
+for (const [qi, q] of data.entries()) {
   if (done >= LIMIT) break;
+  if (qi % STRIDE !== 0) continue;
   const sessions = q.haystack_sessions ?? [];
   const ids = q.haystack_session_ids ?? [];
   const dates = q.haystack_dates ?? [];

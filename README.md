@@ -163,7 +163,7 @@ language model after retrieval.
 | BM25 (BEIR paper, Anserini) | 0.665 | — |
 
 **LongMemEval_S** (ICLR 2025) — 500 questions, ~50-session history each,
-session-level recall:
+session-level recall, model-free:
 
 | category | n | R@1 | R@5 | R@10 |
 |---|---|---|---|---|
@@ -172,6 +172,21 @@ session-level recall:
 | multi-session | 133 | 0.371 | 0.835 | 0.925 |
 | single-session (all) | 156 | 0.833 | 0.955 | 0.974 |
 | **overall** | **500** | **0.552** | **0.899** | **0.943** |
+
+Adding local embeddings helps, measured on an identical 100-question sample
+spanning all six categories (the sample runs ~3 points above the full set, so
+compare the two columns to each other, not to the table above):
+
+| | R@1 | R@3 | R@5 | R@10 |
+|---|---|---|---|---|
+| model-free | 0.569 | 0.852 | 0.928 | 0.961 |
+| + embeddings | **0.589** | **0.886** | **0.944** | **0.974** |
+
+For context, a third-party benchmark of the same task reports **BM25 alone at
+86.2% R@5** and **BM25+vector hybrid at 95.2%**. Model-free loreweave sits
+comfortably above the lexical baseline and below the hybrid; with embeddings it
+narrows the gap but does not close it. That is the honest position, and it is
+why the multi-hop work below is not finished.
 
 **LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
 turn-level recall: R@1 0.337, R@5 0.538, R@10 0.610, R@20 0.656. Its strongest

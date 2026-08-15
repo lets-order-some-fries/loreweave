@@ -26,7 +26,8 @@ if (!DATA || !existsSync(DATA)) {
   console.error('usage: node eval/locomo.mjs /path/to/locomo10.json');
   process.exit(2);
 }
-const { openContext, indexVault, search } = await import(
+const WITH_EMBED = process.argv.includes('--embed');
+const { openContext, indexVault, search, embedMissingBlocks, buildSimilarEdges } = await import(
   pathToFileURL(join(REPO, 'dist/index.js')).href
 );
 
@@ -71,8 +72,18 @@ for (const conv of data) {
   }
   if (!n) continue;
   mkdirSync(join(VAULT, '.lore'), { recursive: true });
+  if (WITH_EMBED) {
+    writeFileSync(
+      join(VAULT, '.lore', 'config.json'),
+      JSON.stringify({ embedding: { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' } }, null, 2),
+    );
+  }
   const ctx = openContext(VAULT);
   await indexVault(ctx.store, VAULT, { full: true });
+  if (WITH_EMBED && ctx.provider) {
+    await embedMissingBlocks(ctx.store, ctx.provider, ctx.config.embedding.batchSize);
+    buildSimilarEdges(ctx.store, ctx.config);
+  }
   ctx.invalidateGraph();
 
   for (const q of conv.qa ?? []) {
