@@ -264,7 +264,9 @@ SciFact and 6 points of R@5 on LoCoMo. Fixed in 0.32.0. It is *not* uniformly
 better — LongMemEval's R@10 moved 0.955 → 0.943 — and the trade is documented
 rather than hidden.
 
-Reproduce every number: [`docs/benchmarks.md`](docs/benchmarks.md).
+Reproduce every number: [`docs/benchmarks.md`](docs/benchmarks.md). How these
+compare to the field, with the apples-to-oranges traps called out:
+[`docs/scoreboard.md`](docs/scoreboard.md).
 
 ## Scale
 

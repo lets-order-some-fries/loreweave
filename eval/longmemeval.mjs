@@ -45,6 +45,7 @@ if (!existsSync(dist)) {
   process.exit(2);
 }
 const WITH_EMBED = process.argv.includes('--embed');
+const WITH_RERANK = process.argv.includes('--rerank');
 const { openContext, indexVault, search, embedMissingBlocks, buildSimilarEdges } = await import(pathToFileURL(dist).href);
 
 console.log('loading dataset…');
@@ -88,11 +89,15 @@ for (const [qi, q] of data.entries()) {
     );
   });
   mkdirSync(join(VAULT, '.lore'), { recursive: true });
+  const cfgObj = {};
   if (WITH_EMBED) {
-    writeFileSync(
-      join(VAULT, '.lore', 'config.json'),
-      JSON.stringify({ embedding: { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' } }, null, 2),
-    );
+    cfgObj.embedding = { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' };
+  }
+  if (WITH_RERANK) {
+    cfgObj.rerank = { provider: 'transformers', model: 'Xenova/ms-marco-MiniLM-L-6-v2', topK: 30 };
+  }
+  if (Object.keys(cfgObj).length) {
+    writeFileSync(join(VAULT, '.lore', 'config.json'), JSON.stringify(cfgObj, null, 2));
   }
 
   const ctx = openContext(VAULT);
