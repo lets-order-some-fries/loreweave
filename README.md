@@ -119,9 +119,29 @@ regression across all three corpora, and CI enforces it on every push.
 multi-hop questions use words like "hardware" and "outpost" that appear in
 *zero* notes — the vault says "instrument" and "station". No statistic derived
 from the vault (co-occurrence, PPMI, LSA) can bridge that, because there are no
-occurrences to derive one from. Those answers are still *found* (90%) by
-following links, but ranking them first needs external semantic knowledge —
-which is exactly what enabling embeddings supplies.
+occurrences to derive one from. Those answers are still *found* by following
+links; ranking them first needs semantics from outside the vault.
+
+**And embeddings do not currently supply it — measured.** `npm run eval --
+--embed` reruns everything with local dense vectors (Ollama +
+`nomic-embed-text`) on top. The result on these corpora is *worse*, not better:
+
+| corpus | | r@5 | MRR | answer shown |
+|---|---|---|---|---|
+| kestrel | lexical + graph | **0.750** | **0.545** | **0.550** |
+| | + embeddings | 0.725 | 0.539 | 0.525 |
+| northwind | lexical + graph | **0.917** | **0.690** | **0.833** |
+| | + embeddings | 0.833 | 0.604 | 0.792 |
+| meridian | either | 0.944 | 0.951 | 0.944 |
+
+Sweeping the dense fusion weight (1.0 → 0.5 → 0.25 → 0) does not recover it,
+and the loss is split between the dense ranking list and the similarity edges
+it adds to the graph. So the honest position: **the numbers above are what the
+shipped, model-free configuration does, and we cannot claim the optional layer
+improves anything.** The likely reason is these corpora themselves — invented,
+distinctive vocabulary is exactly where lexical matching is strongest and
+paraphrase is rarest. On prose full of synonyms it may well pay off; measure it
+on your own vault with `--embed` rather than trusting either of us.
 
 ## Scale
 

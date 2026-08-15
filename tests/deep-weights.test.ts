@@ -51,13 +51,14 @@ describe('deep propagation weights', () => {
     store.close();
   });
 
-  it('a persisted SIMILAR edge can carry mass all the way to its destination', async () => {
-    // Co-occurrence is texture and stops at hop 1, but an embedding
-    // similarity edge is a claim about CONTENT — and it is the one mechanism
-    // that reaches a block sharing no vocabulary with the query. At deep=0 a
-    // SIMILAR-only destination received mass at hop 1 and then scored exactly
-    // 0 in the final vector, so the feature those edges exist for could not
-    // fire at default settings.
+  it('a persisted SIMILAR edge relays at hop 1 and stops there, by measurement', async () => {
+    // This asserts a DELIBERATE limit, not an accident. An audit flagged that
+    // a SIMILAR-only block scores 0 in the final vector, and 0.29.0 "fixed"
+    // it with a half share at depth — on reasoning alone, because the eval
+    // could not run embeddings then. When it could, deep=0 won on all three
+    // corpora (kestrel MRR 0.539 vs 0.533, northwind 0.604 vs 0.570):
+    // similarity is a statement about two blocks, not a chain of claims, and
+    // compounding it across hops costs more precision than it buys.
     const root = await makeVault({
       'seed.md': '# Thornwick Gauge\n\nThe thornwick gauge measures stack drift.\n',
       'far.md': '# Unrelated\n\nCompletely different vocabulary about kettles.\n',
@@ -81,7 +82,14 @@ describe('deep propagation weights', () => {
       alpha: config.retrieval.pprAlpha,
       iterations: config.retrieval.pprIterations,
     });
-    expect(scores[g.blockIndex.get(far.id)!]!).toBeGreaterThan(0);
+    expect(scores[g.blockIndex.get(far.id)!]!).toBe(0);
+    // …and the edge is genuinely there at full weight for hop 1.
+    let hop1 = 0;
+    const s0 = g.blockIndex.get(seed.id)!;
+    for (let e = g.offsets[s0]!; e < g.offsets[s0 + 1]!; e++) {
+      if (g.neighbors[e] === g.blockIndex.get(far.id)!) hop1 += g.weights[e]!;
+    }
+    expect(hop1).toBeGreaterThan(0);
     store.close();
   });
 

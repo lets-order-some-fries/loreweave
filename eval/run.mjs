@@ -28,6 +28,11 @@ const DEPTH = 50;
 const args = new Set(process.argv.slice(2));
 const asJson = args.has('--json');
 const gate = args.has('--gate');
+// --embed measures the CEILING: the same corpora with local dense embeddings
+// enabled. Everything the README publishes is the FLOOR (lexical + graph, no
+// models), which is the honest default but says nothing about how much the
+// optional layer is worth. Requires a local Ollama with nomic-embed-text.
+const withEmbed = args.has('--embed');
 const log = (...a) => {
   if (!asJson) console.log(...a);
 };
@@ -39,9 +44,8 @@ if (!existsSync(dist)) {
 }
 // Dynamic import of an ABSOLUTE path must go through a file:// URL: on
 // Windows, `D:\...` is parsed as protocol "d:" and rejected by the ESM loader.
-const { openContext, indexVault, search, ppr, matchQueryEntities } = await import(
-  pathToFileURL(dist).href
-);
+const { openContext, indexVault, search, ppr, matchQueryEntities, embedMissingBlocks, buildSimilarEdges } =
+  await import(pathToFileURL(dist).href);
 // Two corpora. The second exists to catch overfitting: same shipped config,
 // a vault with different link syntax, note shapes and vocabulary. A config
 // tuned to one benchmark will win there and lose here.
@@ -113,10 +117,31 @@ async function evaluate(corpus) {
   rmSync(VAULT, { recursive: true, force: true });
   corpus.build(VAULT);
   mkdirSync(join(VAULT, '.lore'), { recursive: true });
+  if (withEmbed) {
+    writeFileSync(
+      join(VAULT, '.lore', 'config.json'),
+      JSON.stringify(
+        { embedding: { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' } },
+        null,
+        2,
+      ),
+    );
+  }
 
   const ctx = openContext(VAULT);
   const t0 = Date.now();
   const report = await indexVault(ctx.store, VAULT, { full: true });
+  let embedMs = 0;
+  if (withEmbed) {
+    if (!ctx.provider) {
+      console.error('--embed asked for, but no embedding provider resolved (is Ollama running?)');
+      process.exit(2);
+    }
+    const te = Date.now();
+    await embedMissingBlocks(ctx.store, ctx.provider, ctx.config.embedding.batchSize);
+    buildSimilarEdges(ctx.store, ctx.config);
+    embedMs = Date.now() - te;
+  }
   ctx.invalidateGraph();
   const indexMs = Date.now() - t0;
   const db = ctx.store.db;
@@ -130,6 +155,7 @@ async function evaluate(corpus) {
     facts: one('SELECT COUNT(*) c FROM facts'),
     edges: graph.neighbors.length / 2,
     indexMs,
+    embedMs,
     warnings: report.warnings.length,
   };
 
@@ -199,6 +225,16 @@ async function evaluate(corpus) {
     graph: graphOnly,
     'hybrid−graph': ablate({ graph: 0 }),
     'hybrid−expand': ablate({ expansion: 0 }),
+    // With --embed, sweep the dense weight: the default 1.0 gives the dense
+    // list the same say as BM25, and an untuned weight is the first thing to
+    // suspect when an optional channel makes results worse.
+    ...(withEmbed
+      ? {
+          'dense=0.5': ablate({ dense: 0.5 }),
+          'dense=0.25': ablate({ dense: 0.25 }),
+          'dense=0': ablate({ dense: 0 }),
+        }
+      : {}),
   };
   const cats = [...new Set(corpus.questions.map((q) => q.cat))];
   const results = {};

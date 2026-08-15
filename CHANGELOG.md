@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.31.0 — 2026-08-15
+
+Measured the optional embedding layer for the first time — and it does not do
+what this README has claimed since the eval existed.
+
+- **New: `npm run eval -- --embed`.** Reruns all three corpora with local dense
+  vectors (Ollama + `nomic-embed-text`) layered on, and sweeps the dense fusion
+  weight. Everything published until now was the model-free FLOOR; nothing had
+  ever measured the ceiling.
+- **The ceiling is lower than the floor.** kestrel r@5 0.750 → 0.725 and MRR
+  0.545 → 0.539; northwind r@5 0.917 → 0.833 and MRR 0.690 → 0.604; meridian
+  unchanged. Sweeping the dense weight (1.0 → 0.5 → 0.25 → 0) does not recover
+  it, and the loss splits between the dense ranking list and the similarity
+  edges it adds to the graph. The README's claim that embeddings supply the
+  semantics multi-hop needs is now replaced by this table and an explicit "we
+  cannot claim the optional layer improves anything", with the caveat that
+  synthetic corpora with invented vocabulary are the worst case for dense
+  retrieval and a paraphrase-heavy real vault may differ — measure yours.
+- **Reverted 0.29.0's SIMILAR deep-share.** That release gave similarity edges
+  half weight past hop 1, reasoning that they are a claim about content and
+  that a SIMILAR-only block otherwise scores 0. Both halves were true and the
+  conclusion was still wrong: the eval could not run embeddings then, so
+  nothing measured it. It can now, and deep=0 wins on all three corpora
+  (kestrel MRR 0.539 vs 0.533, northwind 0.604 vs 0.570). Similarity is a
+  statement about two blocks, not a chain of claims. The test that asserted
+  the 0.29.0 behavior now documents the measured limit instead.
+
 ## 0.30.0 — 2026-08-15
 
 Scale is measured now, and measuring it found a quadratic pass.
