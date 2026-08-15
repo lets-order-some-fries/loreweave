@@ -8,6 +8,7 @@ import { vaultDecay } from '../dynamics/fit.js';
 import { expandNotes, seedNotes } from './expand.js';
 import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
 import { expandDeadTerms, hasDeadTerm } from './synonyms.js';
+import { coverageOf, feedbackTerms, shouldExpand } from './prf.js';
 
 export interface SearchOptions {
   k?: number;
@@ -390,6 +391,40 @@ export async function search(
     lexScores.set(h.blockId, h.score);
   });
 
+  // 1b) pseudo-relevance feedback — the rest of the cluster.
+  //
+  // A question needing several passages is answered by finding the FIRST one
+  // and then the ones beside it. Measured on LoCoMo, whose multi-hop
+  // questions average 3.13 evidence turns, this engine reached 22% of the
+  // achievable R@1 against 40-48% where one passage suffices. Rocchio's
+  // remedy: take the terms that distinguish the top hits from the vault, ask
+  // again, and fuse the answer in underneath the user's own words.
+  const prfRanks = new Map<number, number>();
+  if (cfg.weights.prf > 0 && lexical.length > 0) {
+    const qTermsEarly = [...new Set(contentTerms(query))];
+    const topText = lexical[0]?.snippet ?? '';
+    if (shouldExpand(qTermsEarly, coverageOf(topText, qTermsEarly))) {
+      const feedbackIds = lexical.slice(0, 3).map((h) => h.blockId);
+      const texts = feedbackIds.length
+        ? (
+            store.db
+              .prepare(
+                `SELECT text FROM blocks WHERE id IN (${feedbackIds.map(() => '?').join(',')})`,
+              )
+              .all(...feedbackIds) as { text: string }[]
+          ).map((r) => r.text)
+        : [];
+      const extra = feedbackTerms(store, texts, qTermsEarly);
+      if (extra.length) {
+        store
+          .searchLexical(`${query} ${extra.join(' ')}`, cand, opts.includeArchived)
+          .forEach((h, i) => {
+            if (!prfRanks.has(h.blockId)) prfRanks.set(h.blockId, i + 1);
+          });
+      }
+    }
+  }
+
   // 2) dense
   let denseRanks = new Map<number, number>();
   const denseScores = new Map<number, number>();
@@ -550,6 +585,7 @@ export async function search(
   const lists: RankedList[] = [
     { weight: cfg.weights.lexical, ranks: lexicalRanks },
     { weight: ctx.provider ? cfg.weights.dense : 0, ranks: denseRanks },
+    { weight: cfg.weights.prf, ranks: prfRanks },
   ];
   const fused = new Map<number, number>();
   for (const list of lists) {

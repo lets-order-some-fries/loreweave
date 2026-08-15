@@ -159,7 +159,7 @@ language model after retrieval.
 |---|---|---|
 | loreweave + local embeddings | **0.729** | **0.869** |
 | loreweave, lexical channel | 0.682 | 0.808 |
-| loreweave, model-free pipeline | 0.676 | 0.811 |
+| loreweave, model-free pipeline | 0.681 | 0.817 |
 | BM25 (BEIR paper, Anserini) | 0.665 | — |
 
 **LongMemEval_S** (ICLR 2025) — 500 questions, ~50-session history each,
@@ -174,9 +174,12 @@ session-level recall:
 | **overall** | **500** | **0.552** | **0.899** | **0.943** |
 
 **LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
-turn-level recall: R@1 0.340, R@5 0.539, R@10 0.612, R@20 0.655. Its strongest
-category is temporal (R@1 0.451), its weakest multi-hop (R@1 0.087) — a
-question needing four turns can score at most 0.25 at R@1.
+turn-level recall: R@1 0.337, R@5 0.538, R@10 0.610, R@20 0.656. Its strongest
+category is temporal (R@1 0.454). Multi-hop looks worst at R@1 0.088, but those
+questions carry **3.13 evidence turns on average**, so R@1 cannot exceed 0.390
+there — measured against what is achievable, multi-hop reaches 22% of ceiling
+against 40-48% for single-evidence categories. Still the weakest area; the
+honest framing is 22%, not 0.088.
 
 Two things worth saying plainly. **None of these corpora have links, tags, or
 frontmatter** — the structure this engine exists to exploit — so it is being
@@ -465,7 +468,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 425 tests
+npm test          # 429 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

@@ -41,6 +41,12 @@ export const ConfigSchema = z
             lexical: z.number().default(1.0),
             dense: z.number().default(1.0),
             /**
+             * Pseudo-relevance feedback: a second lexical pass over terms the
+             * top results share. Fused BELOW the user's own words on purpose —
+             * it may add evidence, never outvote the query. 0 disables.
+             */
+            prf: z.number().default(0.4),
+            /**
              * ON/OFF, not a weight, despite the name and the company it keeps.
              *
              * Entity-PPR and link expansion are recall mechanisms: they add

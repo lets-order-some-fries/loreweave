@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.34.0 — 2026-08-15
+
+Pseudo-relevance feedback, and an honest read of the weakest number.
+
+- **PRF as a fused channel.** Some questions are answered by one passage;
+  others need the rest of a cluster. Rocchio's remedy, deterministically: take
+  the terms that distinguish the top three hits from the vault, ask again, fuse
+  the result *below* the user's own words (`weights.prf`, default 0.4). Guards
+  against the drift PRF is famous for: it runs only on queries of four-plus
+  terms whose best hit does not already cover everything; candidate terms must
+  recur across the feedback set AND be rare in the vault; the expansion can
+  only ever contain vocabulary the vault actually uses.
+- **Measured, including where it does nothing.** BEIR/SciFact nDCG@10
+  0.676 → 0.681 and Recall@10 0.811 → 0.817 — small, real, and exactly where
+  the literature says PRF pays (verbose, recall-oriented queries). Flat on
+  LoCoMo and on all three internal corpora, which is why it is gated rather
+  than unconditional. Cost is one extra lexical pass on gated queries only
+  (~15 ms).
+- **The multi-hop number, read correctly.** LoCoMo multi-hop R@1 0.088 has
+  been quoted as this engine's weak spot. Those questions carry 3.13 evidence
+  turns on average, so R@1 there cannot exceed 0.390: the real figure is **22%
+  of achievable, against 40-48%** for single-evidence categories. Still the
+  weakest area — and PRF did not move it, which the README now says. The next
+  measurement is whether embeddings bridge it. 425 → 429 tests.
+
 ## 0.33.0 — 2026-08-15
 
 The embedding layer was being used wrong, by us. Fixed — and it goes from
