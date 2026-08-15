@@ -26,7 +26,9 @@ function defaultPrefixes(model: string): { query: string; document: string } {
   const m = model.toLowerCase();
   if (m.includes('nomic-embed')) return { query: 'search_query: ', document: 'search_document: ' };
   if (m.includes('e5')) return { query: 'query: ', document: 'passage: ' };
-  if (m.includes('bge')) {
+  // BGE, mixedbread and Snowflake Arctic all trained retrieval on the same
+  // instruction, and all three want it on the query side only.
+  if (m.includes('bge') || m.includes('mxbai') || m.includes('arctic-embed')) {
     return { query: 'Represent this sentence for searching relevant passages: ', document: '' };
   }
   // OpenAI's text-embedding-3-* and most symmetric models want nothing.
