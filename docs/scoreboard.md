@@ -35,16 +35,37 @@ network.
 |---|---|---|
 | MemPal (verbatim chunks + embeddings) | 96.6% | vendor benchmark |
 | BM25 + vector hybrid | 95.2% | third-party benchmark repo |
-| **loreweave + embeddings** | **94.4%*** | `bench:longmemeval -- --stride=5 --embed` |
-| loreweave, model-free | 89.9% | full 500 questions |
+| **loreweave, chunked + embeddings** | **94.7%*** | `--stride=5 --chunk=8 --embed` |
+| loreweave + embeddings | 94.4%* | `--stride=5 --embed` |
+| loreweave + embeddings + reranking | 93.6%* | `--stride=5 --embed --rerank` |
+| loreweave, chunked, model-free | 92.6%* | `--stride=5 --chunk=8` |
+| loreweave, model-free | 92.8%* / **89.9%** | sample / **full 500** |
 | BM25 alone | 86.2% | third-party benchmark repo |
 
-\* 100-question stratified sample, which runs ~3 points above the full set
-(92.8% vs 89.9% model-free on the same arm) — so the true full-set figure with
-embeddings is nearer 91–92%.
+\* 100-question stratified sample. The one arm measured both ways scored 92.8%
+sampled against 89.9% on the full 500, so **the sample runs ~3 points high** and
+every starred figure should be read ~3 points lower. On that correction the best
+configuration lands near **92% on the full set**.
 
-**Status: not yet.** Clearly ahead of lexical-only retrieval, still behind
-hybrid systems. **This is the open target: R@5 ≥ 95.2% on the full 500.**
+**Status: not yet, and not close enough to claim otherwise.** Clearly ahead of
+lexical-only retrieval, still behind hybrid systems by roughly 3 points.
+**The open target remains R@5 ≥ 95.2% on the full 500.**
+
+What was tried, so the next attempt does not repeat it: embeddings are worth
++1.6 points and are the single biggest lever; 8-turn session chunking adds +0.3
+on top of embeddings and **nothing at all** model-free (92.6 vs 92.8), which
+kills the theory that BM25 length normalisation was the problem; cross-encoder
+reranking is **negative** here (−0.8) and on BEIR (−0.034 nDCG). The remaining
+untried levers are a stronger embedding model and a top-k sweep, and neither
+looks like 3 points.
+
+The definitive full-500 run of the best configuration is **still outstanding** —
+it needs ~2 h and more free RAM than this machine had (two attempts died when
+the embedding server was starved out at 6% free memory). The engine treats an
+unreachable embedding server as a soft failure and falls back to lexical
+retrieval, so a run that loses the provider partway reports a blended number
+with nothing in the output saying so; check any long run for
+`dense retrieval unavailable` before believing its totals.
 
 ## 3. Long-conversation retrieval — LoCoMo, turn-level recall
 
@@ -85,3 +106,11 @@ Two of five are won, one is uncontested, one has no valid comparison, and one is
 open. The single remaining measurable target is **§2: LongMemEval_S R@5 ≥ 95.2%
 on the full 500 questions**. Everything else on this board is either ahead or
 unmeasurable against the field.
+
+**Where that leaves the claim.** "Best in the market" is not supportable as a
+blanket statement and this file will not make one. What the numbers support:
+loreweave beats the classical baseline on public document retrieval, is the only
+system publishing temporal-consistency or scale figures at all, and is the only
+one that does any of it model-free and reproducibly. It is behind the vector
+hybrids on conversational recall by about three points. Both halves of that are
+true, and a scoreboard that printed only the first half would be worthless.
