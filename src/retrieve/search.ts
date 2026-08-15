@@ -9,6 +9,7 @@ import { expandNotes, seedNotes } from './expand.js';
 import { assertIsoDate, queryContentWindow } from '../temporal/dates.js';
 import { expandDeadTerms, hasDeadTerm } from './synonyms.js';
 import { coverageOf, feedbackTerms, shouldExpand } from './prf.js';
+import { resolveReranker } from '../rerank/index.js';
 
 export interface SearchOptions {
   k?: number;
@@ -587,6 +588,21 @@ export async function search(
     { weight: ctx.provider ? cfg.weights.dense : 0, ranks: denseRanks },
     { weight: cfg.weights.prf, ranks: prfRanks },
   ];
+  // Rank fusion (RRF), not score fusion — and that is load-bearing.
+  //
+  // Bruch et al. (TOIS 2023) report convex combination of NORMALIZED scores
+  // beating RRF, so it was implemented and measured here. It is catastrophic
+  // for this engine: meridian r@1 0.944 → 0.444 and MRR 0.952 → 0.615, with
+  // kestrel and northwind mixed-to-worse. The cause is architectural rather
+  // than a bad weight. Every boost below (temporal, recency, importance,
+  // proximity) is MULTIPLICATIVE on this base, and their sizes were chosen
+  // against RRF's compressed range. Min-max normalization stretches the base
+  // to 0..1, so a lexically dominant block sits at 1.0 while the
+  // temporally-correct answer sits at 0.4 — and a 30% temporal boost can no
+  // longer reach it. Score fusion silently switches off the temporal
+  // machinery that is the point of this project. Changing it means redesigning
+  // the boosts as additive terms in a normalized space, which is a different
+  // project from swapping a fusion function.
   const fused = new Map<number, number>();
   for (const list of lists) {
     if (list.weight <= 0) continue;
@@ -986,7 +1002,70 @@ export async function search(
   // the block holding the literal answer sat at rank 18-36 — we surfaced the
   // right note and then showed the wrong section of it. Ranking decides which
   // notes matter; within a note, query-term coverage decides which block.
-  const top = cfg.oneBlockPerNote ? pickBestBlockPerNote(ctx, merged, qTerms, k) : merged.slice(0, k);
+  let top = cfg.oneBlockPerNote ? pickBestBlockPerNote(ctx, merged, qTerms, k) : merged.slice(0, k);
+
+  // Cross-encoder rerank, when configured. Applied to a WIDER slice than the
+  // caller asked for and then cut to k: reordering only the k results already
+  // chosen could not move anything into view, and the whole finding from the
+  // external benchmarks is that the answer is in the pool but below the fold.
+  //
+  // NOT on temporally-scoped queries. A cross-encoder judges text against
+  // text; it cannot see a date, so on "Cinder Vane status in 2026" it scores
+  // every passage about the Cinder Vane alike and reorders them by wording —
+  // discarding exactly the evidence the temporal machinery just used. Measured
+  // on the meridian corpus: r@1 0.944 → 0.278 and MRR 0.952 → 0.574 when the
+  // reranker was allowed to overrule it. Where the query names a time, or asks
+  // for the current state, retrieval has information the reranker does not,
+  // and the retrieval order stands. (LoCoMo's "when did X happen" questions
+  // name no window, so they keep the reranker's +9 points.)
+  const temporallyScoped = namedWindow !== null || currentCue;
+  const reranker = temporallyScoped ? null : await resolveReranker(ctx.config);
+  if (reranker) {
+    const pool = cfg.oneBlockPerNote
+      ? pickBestBlockPerNote(ctx, merged, qTerms, Math.max(k, ctx.config.rerank.topK))
+      : merged.slice(0, Math.max(k, ctx.config.rerank.topK));
+    try {
+      // Score the PASSAGE, not the snippet. A snippet is a ~12-word window cut
+      // around the match for a human to read; handing that to a cross-encoder
+      // throws away the context it exists to judge, and measured on SciFact it
+      // was actively harmful — nDCG@10 0.681 → 0.594 with recall falling too,
+      // which is the signature of scoring the wrong text rather than of a
+      // weak model.
+      const textOf = new Map<string, string>();
+      if (pool.length) {
+        const clauses = pool.map(() => '(note_path=? AND anchor=?)').join(' OR ');
+        const params = pool.flatMap((r) => [r.notePath, r.anchor]);
+        for (const row of ctx.store.db
+          .prepare(`SELECT note_path, anchor, text FROM blocks WHERE ${clauses}`)
+          .all(...params) as { note_path: string; anchor: string; text: string }[]) {
+          textOf.set(`${row.note_path}\u0000${row.anchor}`, row.text);
+        }
+      }
+      const scores = await reranker.score(
+        query,
+        pool.map((r) => {
+          const body = textOf.get(`${r.notePath}\u0000${r.anchor}`) ?? r.snippet;
+          return `${r.heading ? `${r.heading}. ` : ''}${body}`.slice(0, 2000);
+        }),
+      );
+      if (scores.length === pool.length) {
+        // The reranker owns the order outright. A rank-sum blend with
+        // retrieval was measured and rejected: it recovers some of the r@5
+        // this costs (northwind 0.667 → 0.875) by giving up most of the r@1
+        // that justifies the feature (kestrel 0.575 → 0.425). Sharpening the
+        // top slot IS the trade being made here — an agent hands one passage
+        // to a model, and rank 1 is the product.
+        top = pool
+          .map((r, i) => ({ r, s: scores[i]! }))
+          .sort((a, b) => b.s - a.s)
+          .slice(0, k)
+          .map(({ r }) => r);
+      }
+    } catch (err) {
+      // A reranker that fails must cost the ordering, never the results.
+      console.error(`[loreweave] rerank failed, using retrieval order: ${(err as Error).message}`);
+    }
+  }
 
   if (!opts.noLog) {
     const idByAnchor = new Map(rows.map((r) => [`${r.note_path} ${r.anchor}`, r.id]));

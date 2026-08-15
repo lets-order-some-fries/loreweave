@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.35.0 — 2026-08-15
+
+Optional cross-encoder reranking — the fix for the one weakness every external
+benchmark agreed on.
+
+- **`rerank.provider: "transformers"`** (off by default) reorders the fused
+  candidates with a cross-encoder, via an OPTIONAL peer dependency imported
+  lazily: absent or broken, search logs once and returns the order it would
+  have returned anyway. Measured on LoCoMo: overall **R@1 0.337 → 0.422**
+  (+25% relative) and **multi-hop R@1 0.087 → 0.164**, taking the weakest
+  category from 22% of its achievable ceiling to 42%. kestrel r@1
+  0.400 → 0.575.
+- **Skipped on temporally-scoped queries, deliberately.** A cross-encoder
+  judges text against text and cannot see a date, so on "status in 2026" it
+  ranks every passage about the subject alike and discards the evidence
+  retrieval just used — meridian r@1 0.944 → 0.278 when allowed to overrule
+  it. Gated, meridian is untouched and temporal flip-consistency stays 100%.
+- **Costs, published rather than buried:** it sharpens rank 1 and scatters
+  ranks 2-5 (northwind r@5 0.917 → 0.667); it costs 200-850 ms per query; and
+  on BEIR it is nearly worthless (nDCG@10 0.681 → 0.688 for 45× the latency).
+  A rank-sum blend that recovers the r@5 was measured and rejected because it
+  gives up most of the r@1 that justifies the feature.
+- **Two bugs found building it**, both worth naming. `tsup` was bundling the
+  optional dependency, which broke its native ONNX binding — working from
+  source, failing from `dist`, i.e. invisible in development and certain for
+  every user of the published package; optional deps are now external. And the
+  `text-classification` pipeline was the wrong API: it softmaxes over labels,
+  and an ms-marco cross-encoder has one output, so every passage scored exactly
+  1.000. Relevance is the raw logit.
+- Also ruled out by measurement this cycle: **convex-combination fusion** over
+  normalized scores (meridian r@1 0.944 → 0.444). Our boosts are multiplicative
+  on the fused base and sized for RRF's compressed range; normalizing to 0..1
+  lets a lexically dominant block outrun any boost, silently disabling the
+  temporal machinery. Recorded at the fusion site. 429 → 432 tests.
+
 ## 0.34.0 — 2026-08-15
 
 Pseudo-relevance feedback, and an honest read of the weakest number.

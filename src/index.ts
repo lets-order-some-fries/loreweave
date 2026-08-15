@@ -70,3 +70,4 @@ export {
 export { parseQueryTime, parseDateExpression, extractDates } from './temporal/dates.js';
 export { buildTimeline, type TimelineEntry, type TimelineOptions } from './temporal/timeline.js';
 export { resumeDelta, type ResumeDelta } from './resume.js';
+export { resolveReranker, type Reranker } from './rerank/index.js';

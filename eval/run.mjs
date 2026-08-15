@@ -33,6 +33,7 @@ const gate = args.has('--gate');
 // models), which is the honest default but says nothing about how much the
 // optional layer is worth. Requires a local Ollama with nomic-embed-text.
 const withEmbed = args.has('--embed');
+const withRerank = args.has('--rerank');
 const log = (...a) => {
   if (!asJson) console.log(...a);
 };
@@ -117,15 +118,15 @@ async function evaluate(corpus) {
   rmSync(VAULT, { recursive: true, force: true });
   corpus.build(VAULT);
   mkdirSync(join(VAULT, '.lore'), { recursive: true });
+  const cfgObj = {};
   if (withEmbed) {
-    writeFileSync(
-      join(VAULT, '.lore', 'config.json'),
-      JSON.stringify(
-        { embedding: { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' } },
-        null,
-        2,
-      ),
-    );
+    cfgObj.embedding = { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' };
+  }
+  if (withRerank) {
+    cfgObj.rerank = { provider: 'transformers', model: 'Xenova/ms-marco-MiniLM-L-6-v2', topK: 30 };
+  }
+  if (Object.keys(cfgObj).length) {
+    writeFileSync(join(VAULT, '.lore', 'config.json'), JSON.stringify(cfgObj, null, 2));
   }
 
   const ctx = openContext(VAULT);

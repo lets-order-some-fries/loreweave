@@ -143,6 +143,49 @@ known) and overridable with `embedding.queryPrefix` / `documentPrefix`. The
 default is still **no models at all** — that is the guarantee this project is
 built on — but the optional layer now earns its place when you turn it on.
 
+## Optional: cross-encoder reranking
+
+Every benchmark below says the same thing about this engine — the right answer
+reaches the candidate pool, and putting it *first* is the weakness. A
+cross-encoder reads query and passage together, which is what retrieval
+scoring never does. It is **off by default** and needs an optional package:
+
+```bash
+npm i @huggingface/transformers          # optional peer dependency
+```
+```jsonc
+// .lore/config.json
+{ "rerank": { "provider": "transformers", "model": "Xenova/ms-marco-MiniLM-L-6-v2" } }
+```
+
+Measured on LoCoMo (1 982 evidence-labelled questions):
+
+| | R@1 | R@5 | multi-hop R@1 |
+|---|---|---|---|
+| model-free | 0.337 | 0.538 | 0.087 |
+| + reranking | **0.422** | **0.582** | **0.164** |
+
+Overall R@1 rises 25% relative, and multi-hop — the weakest category — nearly
+doubles, from 22% of its achievable ceiling to 42%, in line with everything
+else. On the internal corpora it moves kestrel r@1 0.400 → 0.575.
+
+**The honest costs**, all measured:
+
+- It sharpens rank 1 and scatters ranks 2-5 (northwind r@5 0.917 → 0.667). A
+  rank-sum blend with retrieval recovers most of that but gives up most of the
+  r@1 gain, so the trade is taken deliberately: an agent hands one passage to a
+  model, and rank 1 is the product. If you consume a list of five, leave this off.
+- It costs 200-850 ms per query depending on passage length, against 3-38 ms without.
+- It is **skipped on temporally-scoped queries**. A cross-encoder cannot see a
+  date, so on "status in 2026" it scores every passage about the subject alike
+  and discards what the temporal machinery just established — measured, meridian
+  r@1 0.944 → 0.278 when it was allowed to overrule that. Where the query names
+  a time or asks for the current state, retrieval order stands and temporal
+  consistency stays at 100%.
+- On BEIR/SciFact it is nearly worthless: nDCG@10 0.681 → 0.688 for 45× the
+  latency. Long scientific claims against abstracts are where BM25 is already
+  strong; short natural questions against short passages are where this pays.
+
 ## Measured on public benchmarks
 
 The corpora above are ours — we wrote the notes *and* the questions, which
@@ -499,7 +542,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 429 tests
+npm test          # 432 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

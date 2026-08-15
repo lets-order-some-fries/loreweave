@@ -28,6 +28,19 @@ export const ConfigSchema = z
         documentPrefix: z.string().optional(),
       })
       .default({}),
+    /**
+     * Optional cross-encoder reranking of the final list. Requires the
+     * optional `@huggingface/transformers` package; absent it, search logs
+     * once and continues unranked rather than failing.
+     */
+    rerank: z
+      .object({
+        provider: z.enum(['none', 'transformers']).default('none'),
+        model: z.string().default('Xenova/ms-marco-MiniLM-L-6-v2'),
+        /** How many fused candidates to rerank. Cost is linear in this. */
+        topK: z.number().int().min(1).max(200).default(30),
+      })
+      .default({}),
     retrieval: z
       .object({
         k: z.number().int().min(1).max(100).default(8),
