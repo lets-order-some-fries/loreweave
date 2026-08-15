@@ -49,7 +49,9 @@ export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fe
   const e = config.embedding;
   if (e.provider === 'none') return null;
   const prefixes = prefixesFor(config);
-  if (e.provider === 'ollama') return withPrefixes(ollamaProvider(e.url, e.model, fetchImpl), prefixes);
+  if (e.provider === 'ollama') {
+    return withPrefixes(ollamaProvider(e.url, e.model, fetchImpl, e.timeoutMs), prefixes);
+  }
   if (e.provider === 'openai') {
     const key = process.env[e.apiKeyEnv];
     if (!key) {
@@ -57,7 +59,7 @@ export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fe
         `embedding provider 'openai' configured but env var ${e.apiKeyEnv} is not set`,
       );
     }
-    return withPrefixes(openaiProvider(e.url, e.model, key, fetchImpl), prefixes);
+    return withPrefixes(openaiProvider(e.url, e.model, key, fetchImpl, e.timeoutMs), prefixes);
   }
   return null;
 }
@@ -78,16 +80,53 @@ function withPrefixes(
   };
 }
 
-function ollamaProvider(url: string, model: string, fetchImpl: typeof fetch): EmbeddingProvider {
+/**
+ * A request that can hang forever is worse than one that fails: the caller
+ * gets no output, no error, and no way to tell "slow" from "dead". Node's
+ * fetch has no default timeout, so we always supply one.
+ */
+async function withTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  what: string,
+): Promise<Response> {
+  try {
+    return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (err) {
+    const name = (err as { name?: string } | undefined)?.name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      throw new Error(
+        `${what} timed out after ${timeoutMs}ms. The server accepted the connection but never ` +
+          `replied — if it is alive and merely slow, raise embedding.timeoutMs.`,
+      );
+    }
+    throw err;
+  }
+}
+
+function ollamaProvider(
+  url: string,
+  model: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): EmbeddingProvider {
   return {
     name: 'ollama',
     model,
     async embed(texts) {
-      const res = await fetchImpl(`${url.replace(/\/$/, '')}/api/embed`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model, input: texts }),
-      });
+      const res = await withTimeout(
+        fetchImpl,
+        `${url.replace(/\/$/, '')}/api/embed`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ model, input: texts }),
+        },
+        timeoutMs,
+        'ollama embed',
+      );
       if (!res.ok) throw new Error(`ollama embed failed: ${res.status} ${await res.text()}`);
       const json = (await res.json()) as { embeddings: number[][] };
       if (!Array.isArray(json.embeddings) || json.embeddings.length !== texts.length) {
@@ -103,20 +142,27 @@ function openaiProvider(
   model: string,
   apiKey: string,
   fetchImpl: typeof fetch,
+  timeoutMs: number,
 ): EmbeddingProvider {
   const base = baseUrl.includes('11434') ? 'https://api.openai.com/v1' : baseUrl.replace(/\/$/, '');
   return {
     name: 'openai',
     model,
     async embed(texts) {
-      const res = await fetchImpl(`${base}/embeddings`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`,
+      const res = await withTimeout(
+        fetchImpl,
+        `${base}/embeddings`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ model, input: texts }),
         },
-        body: JSON.stringify({ model, input: texts }),
-      });
+        timeoutMs,
+        'openai embed',
+      );
       if (!res.ok) throw new Error(`openai embed failed: ${res.status} ${await res.text()}`);
       const json = (await res.json()) as { data: { index: number; embedding: number[] }[] };
       if (!Array.isArray(json.data) || json.data.length !== texts.length) {

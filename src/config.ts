@@ -13,6 +13,17 @@ export const ConfigSchema = z
         apiKeyEnv: z.string().default('OPENAI_API_KEY'),
         batchSize: z.number().int().min(1).max(512).default(32),
         /**
+         * Per-request timeout, milliseconds.
+         *
+         * Node's fetch has no default timeout, so a socket that dies without
+         * closing — a laptop suspended mid-index, a container paused, a VPN
+         * dropping — leaves the request pending forever and the indexer hangs
+         * with no output and no error. Observed here as a benchmark process
+         * that sat for 79 minutes having burned 9 seconds of CPU. A timeout
+         * turns that silent hang into a failure the caller can see and retry.
+         */
+        timeoutMs: z.number().int().min(1000).default(120_000),
+        /**
          * Task prefixes for instruction-tuned embedding models.
          *
          * Asymmetric retrieval models are TRAINED with a task prefix and are
