@@ -75,6 +75,28 @@ describe('resume', () => {
     ctx.close();
   });
 
+  it('an edit made while the index was stale still surfaces once it catches up', async () => {
+    // The ordinary flow: edit the vault in an editor with nothing indexing,
+    // then start a session. resume reports what the INDEX knows, but the
+    // watermark used to advance by the WALL CLOCK — so the unseen edit's
+    // mtime ended up below the watermark and was reported in no delta, ever.
+    const ctx = await freshCtx();
+    const file = join(ctx.root, 'a.md');
+    resumeDelta(ctx.store); // session 1: consumes the seed note
+    await new Promise((r) => setTimeout(r, 40));
+    await writeFile(file, '# Alpha\n\nEDITED while nothing was indexing\n');
+
+    // session 2: the index has not seen the edit yet, so there is nothing to
+    // report — and crucially the watermark must not run past it.
+    expect(resumeDelta(ctx.store).counts.notesChanged).toBe(0);
+
+    await indexVault(ctx.store, ctx.root); // lore index / watch catches up
+    expect(resumeDelta(ctx.store).counts.notesChanged).toBe(1);
+    // and it is not reported twice
+    expect(resumeDelta(ctx.store).counts.notesChanged).toBe(0);
+    ctx.close();
+  });
+
   it('a future watermark yields an empty delta, and garbage is rejected', async () => {
     const ctx = await freshCtx();
     const d = resumeDelta(ctx.store, { since: '2099-01-01' });

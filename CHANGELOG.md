@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.26.0 — 2026-08-15
+
+Three defects found by an adversarial audit of everything shipped since
+0.10.1 — the first audit of that surface, and the first one where the loudest
+finding was silent data loss.
+
+- **HIGH — `resume` permanently lost edits made while the index was stale.**
+  The delta reports what the INDEX knows, but the watermark advanced by the
+  WALL CLOCK. Edit a vault in an editor with nothing indexing (no `lore
+  watch`), then start a session: the edit is invisible (the row still carries
+  the old mtime), the watermark moves past the file's real mtime anyway, and
+  once the index catches up that mtime sits below the watermark forever — the
+  edit appears in no delta, ever. Notes are now tracked in file-mtime space
+  (`resume_notes_mtime`), which cannot outrun what the index has seen; facts
+  keep the wall-clock watermark, which is what `recorded_at` actually is.
+  Existing vaults seed the new watermark from the old one, so nobody
+  re-reports their whole vault once.
+- **HIGH — the recency cue over-claimed on stale vaults.** Min-max
+  normalization is purely relative: one distinct date in the candidate pool
+  scored a flat 1.0, so a lone 2019 journal took the FULL "current status"
+  boost and outranked the undated page that states the current status. Now:
+  one distinct date means nothing to prefer it over, so no claim; otherwise
+  the min-max rank is scaled by absolute age, making "newest of several
+  ancient things" a weak claim rather than a maximal one. The feature still
+  works — meridian's temporal categories are unchanged (1.000/1.000/0.75).
+- **MEDIUM — `boosts.temporal: 0` inverted windowed "current" queries.** The
+  cue keyed off the config-gated window rather than the query's own words, so
+  disabling temporal emphasis made "current status in 2019" prefer the
+  NEWEST block — actively wrong rather than merely neutral. The query's
+  window is now read once, independent of config. 402 → 406 tests.
+
 ## 0.25.0 — 2026-08-12
 
 Hard queries get the deep walk; easy ones stay fast.

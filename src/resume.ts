@@ -32,6 +32,19 @@ export interface ResumeDelta {
 }
 
 const WATERMARK_KEY = 'resume_watermark';
+/**
+ * Notes are tracked in FILE-MTIME space, facts in wall-clock record time.
+ *
+ * One wall-clock watermark for both LOST EDITS OUTRIGHT. `resume` reports
+ * what the INDEX knows, but the watermark advanced by the clock: a note
+ * edited while nothing was indexing (an editor session with no `lore watch`
+ * — the ordinary case) was invisible at resume time because its row still
+ * carried the old mtime, yet the watermark moved past the file's real mtime
+ * anyway. Once the index caught up, the row's mtime sat BELOW the watermark
+ * forever, so that edit appeared in no delta, ever. A watermark that only
+ * advances to what the index has actually seen cannot outrun it.
+ */
+const NOTES_WATERMARK_KEY = 'resume_notes_mtime';
 const LIST_CAP = 30;
 
 export function resumeDelta(store: Store, opts: { since?: string } = {}): ResumeDelta {
@@ -43,10 +56,20 @@ export function resumeDelta(store: Store, opts: { since?: string } = {}): Resume
   const fallback = new Date(Date.now() - 7 * 86400_000).toISOString();
   const since = opts.since ?? store.getMeta(WATERMARK_KEY) ?? fallback;
 
-  const sinceMs = Date.parse(since);
+  // An explicit `since` is a pure read and bounds both axes. Otherwise the
+  // notes floor is the stored file-mtime watermark, falling back to the
+  // record-time one — which on an upgrade is the old wall-clock value, so an
+  // existing vault does not re-report itself once, and on a fresh install is
+  // the 7-day window.
+  const storedNotes = Number(store.getMeta(NOTES_WATERMARK_KEY) ?? NaN);
+  const notesFloor = explicit
+    ? Date.parse(since)
+    : Number.isFinite(storedNotes)
+      ? storedNotes
+      : Date.parse(since);
   const changedRows = store.db
     .prepare(`SELECT path, title, mtime_ms FROM notes WHERE mtime_ms > ? ORDER BY mtime_ms DESC`)
-    .all(sinceMs) as { path: string; title: string; mtime_ms: number }[];
+    .all(notesFloor) as { path: string; title: string; mtime_ms: number }[];
   const notesChanged = changedRows.slice(0, LIST_CAP).map(({ path, title }) => ({ path, title }));
 
   const asserted = store.db
@@ -101,16 +124,14 @@ export function resumeDelta(store: Store, opts: { since?: string } = {}): Resume
   }
 
   // Advance only on the implicit call: this READ is the session boundary.
-  // The invariant is "a reported note never reappears unless re-edited", and
-  // `now` alone cannot guarantee it: file mtimes carry FRACTIONAL
-  // milliseconds while an ISO watermark is whole-ms, so a note written in
-  // the same millisecond (…123.456 > …123.0) resurfaced in the next,
-  // supposedly-empty delta. Advance past the fractional tail of everything
-  // just seen.
+  // Facts move with the clock (recorded_at IS wall clock). Notes move only to
+  // the newest mtime the index has actually seen — stored as an exact float,
+  // so the "a reported note never reappears" invariant holds down to the
+  // fractional millisecond a filesystem records, with no rounding slack.
   if (!explicit) {
-    const maxSeen = changedRows.reduce((m, r) => Math.max(m, r.mtime_ms), 0);
-    const advanceTo = Math.max(Date.parse(now), Math.ceil(maxSeen));
-    store.setMeta(WATERMARK_KEY, new Date(advanceTo).toISOString());
+    store.setMeta(WATERMARK_KEY, now);
+    const maxSeen = changedRows.reduce((m, r) => Math.max(m, r.mtime_ms), notesFloor);
+    store.setMeta(NOTES_WATERMARK_KEY, String(maxSeen));
   }
 
   return {
@@ -126,3 +147,4 @@ export function resumeDelta(store: Store, opts: { since?: string } = {}): Resume
 
 /** Exported for tests; not part of the public API surface. */
 export const RESUME_WATERMARK_KEY = WATERMARK_KEY;
+export const RESUME_NOTES_WATERMARK_KEY = NOTES_WATERMARK_KEY;

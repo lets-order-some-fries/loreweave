@@ -364,6 +364,14 @@ export async function search(
   const k = opts.k ?? cfg.k;
   const cand = cfg.candidates;
   const store = ctx.store;
+  // What the QUERY itself says about time, read once and independent of any
+  // config: whether the temporal boost is switched on cannot change what the
+  // words mean. (It used to: `qWindow` below is null when boosts.temporal is
+  // 0, and the "current" cue keyed off that — so disabling temporal emphasis
+  // made a windowed query like "current status in 2019" prefer the NEWEST
+  // block, actively inverting the window instead of merely ignoring it.)
+  const aggregateQuery = AGGREGATE_RE.test(query);
+  const namedWindow = aggregateQuery ? null : queryContentWindow(query);
 
   // 1) lexical — with controlled-vocabulary expansion for DEAD query terms.
   // "Ironbark Archive benefactor": 'benefactor' hits zero notes while the
@@ -466,8 +474,8 @@ export async function search(
       const hard =
         !opts.since &&
         !opts.until &&
-        !AGGREGATE_RE.test(query) &&
-        queryContentWindow(query) === null && // windowed queries: temporal machinery owns them
+        !aggregateQuery &&
+        namedWindow === null && // windowed queries: temporal machinery owns them
         hasDeadTerm(store, [...new Set(contentTerms(query))]);
       const expanded = expandNotes(linkGraph, seeds, {
         hops: hard ? Math.max(cfg.expansionHops, 2) : cfg.expansionHops,
@@ -659,11 +667,8 @@ export async function search(
   // window scopes the AGGREGATE, not retrieval emphasis — boosting the dated
   // instances buries the summary note that actually states the count, and
   // the computable layer (`count`, fact aggregates) owns that window anyway.
-  const aggregateQuery = AGGREGATE_RE.test(query);
   const qWindow =
-    opts.since || opts.until || cfg.boosts.temporal <= 0 || aggregateQuery
-      ? null
-      : queryContentWindow(query);
+    opts.since || opts.until || cfg.boosts.temporal <= 0 ? null : namedWindow;
   // A block is temporal evidence for the window in either of two ways: its
   // prose is DATED inside it (a journal entry about that June), or it records
   // a FACT whose valid time overlaps it (an undated entity page whose
@@ -746,7 +751,7 @@ export async function search(
   // the log, not the account. A dated window in the query wins over the cue:
   // "current status in 2024" is a 2024 question, however it is phrased.
   const currentCue =
-    qWindow === null &&
+    namedWindow === null &&
     !opts.since &&
     !opts.until &&
     !aggregateQuery &&
@@ -764,8 +769,25 @@ export async function search(
     if (dated.length > 0) {
       const lo = Math.min(...dated.map((d) => d.t));
       const hi = Math.max(...dated.map((d) => d.t));
+      // Min-max alone is PURELY RELATIVE: with one distinct date in the pool
+      // every dated block scored 1.0, so a lone 2019 journal took the full
+      // boost on "current status of X" and outranked the undated hub page
+      // that actually states the current status. "Newest here" is only
+      // evidence of currentness if here is recent, so scale by absolute age.
+      // Both factors rise with t, so the ordering among dated candidates is
+      // unchanged — only the strength of the claim moves.
+      const YEAR_MS = 365.25 * 86_400_000;
+      const nowMs = now.getTime();
+      const freshness = (t: number) => 1 / (1 + Math.max(0, (nowMs - t) / YEAR_MS));
+      // Two rules, because a recency PREFERENCE is comparative by nature:
+      //  - one distinct date in the pool: nothing to prefer over anything, so
+      //    no claim (it used to score a flat 1.0 — the full boost — which is
+      //    how a lone 2019 journal beat the undated page that states the
+      //    current status);
+      //  - otherwise rank by min-max, scaled by absolute age, so "newest of
+      //    several ancient things" is a weak claim rather than a maximal one.
       recencyOf = new Map(
-        dated.map((d) => [d.id, hi === lo ? 1 : (d.t - lo) / (hi - lo)]),
+        dated.map((d) => [d.id, hi === lo ? 0 : ((d.t - lo) / (hi - lo)) * freshness(d.t)]),
       );
     }
   }
