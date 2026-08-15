@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Note } from '../types.js';
-import { MIGRATIONS } from './schema.js';
+import { MIGRATIONS, PARSER_VERSION } from './schema.js';
 
 export interface LexicalHit {
   blockId: number;
@@ -188,6 +188,24 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     ).run(String(version));
   });
   migrate();
+
+  // Parser-version check: see PARSER_VERSION. A vault indexed by an older
+  // parser keeps stale titles and dates forever, because the incremental
+  // indexer trusts mtime+size+hash. Clearing the fingerprints makes the next
+  // index reparse the vault — the same healing migration v5 performed, but
+  // driven by the parser's version rather than the schema's.
+  const stampedParser = db.prepare(`SELECT value FROM meta WHERE key='parser_version'`).get() as
+    | { value: string }
+    | undefined;
+  if (Number(stampedParser?.value ?? 0) !== PARSER_VERSION) {
+    db.transaction(() => {
+      db.exec(`UPDATE notes SET hash = '', mtime_ms = -1, size = -1`);
+      db.prepare(
+        `INSERT INTO meta(key,value) VALUES('parser_version',?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      ).run(String(PARSER_VERSION));
+    })();
+  }
 
   const stmts = {
     insNote: db.prepare(

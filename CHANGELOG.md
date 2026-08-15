@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.27.0 — 2026-08-15
+
+Two more audit findings, both attacking the same promise: **outputs are a
+function of the vault, not of index build history.**
+
+- **HIGH — the fact replay stamped wall-clock time into the record.**
+  `rebuildFactsFromNotes` wipes and replays the whole fact table on every
+  index that touches any note, and a `- [fact]` line in a plain note with no
+  date fell back to `new Date()`. So editing an *unrelated* note re-dated the
+  fact: `recorded_at` moved, `--as-known-at` answers shifted, an undated
+  `- [invalidate]`'s close drifted (changing `--as-of` answers), and `resume`
+  announced facts nobody had asserted — every edit, forever, under watch mode.
+  Replay now uses the source note's mtime, which is what the structured
+  extractor two functions away already did. Replay is idempotent again.
+- **HIGH — parser upgrades never reached already-indexed notes.** The indexer
+  skips a file whose mtime, size and hash all match, and nothing tracked what
+  the *parser* knew — so 0.20.0's prose dates and 0.24.0's H1 titles applied
+  only to notes that happened to change afterwards. Two identical vaults gave
+  different answers depending on which versions had indexed them. A
+  `PARSER_VERSION` stamp now clears note fingerprints on mismatch (migration
+  v5's move, driven by the parser's version rather than the schema's), so the
+  next index reparses. Vaults indexed by any earlier release heal on first
+  open — expect one full reparse after upgrading, then nothing. 406 → 409
+  tests.
+
 ## 0.26.0 — 2026-08-15
 
 Three defects found by an adversarial audit of everything shipped since

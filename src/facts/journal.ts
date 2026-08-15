@@ -239,7 +239,7 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
          ORDER BY (CASE WHEN b.note_path LIKE '${JOURNAL_DIR}/%' THEN 0 ELSE 1 END),
                   b.note_path ASC, b.ord ASC`,
       )
-      .all() as { notePath: string; anchor: string; ord: number; text: string }[];
+      .all() as { notePath: string; anchor: string; ord: number; text: string; mtime_ms: number }[];
     const ins = db.prepare(
       // user_valid_until comes straight back from the journal line's own
       // `valid_until` attr. Without it a rebuild from markdown produced
@@ -257,7 +257,13 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
       const dateFromPath = r.notePath.match(/(\d{4}-\d{2}-\d{2})/)?.[1];
       for (const f of parseFactLines(r.text)) {
         if (f.kind === 'invalidate') {
-          const until = f.attrs.valid_until ?? dateFromPath ?? new Date().toISOString();
+          // The note's own mtime, never the clock: this replay reruns on
+          // EVERY index that touches any note, so a wall-clock fallback
+          // re-dated undated records on every unrelated edit — the close
+          // drifted, `as-of` answers moved, and `resume` re-reported facts
+          // nobody asserted. mtime is a function of the vault; the clock is
+          // a function of when you happened to index.
+          const until = f.attrs.valid_until ?? dateFromPath ?? new Date(r.mtime_ms).toISOString();
           // Bring the slot up to date before asking what is open.
           //
           // The live path recomputes supersessions after every assert, so by
@@ -283,7 +289,8 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
         const subject = normalizeKey(f.subject);
         const predicate = normalizeKey(f.predicate);
         const recordedAt =
-          f.attrs.recorded_at ?? (dateFromPath ? `${dateFromPath}T00:00:00.000Z` : new Date().toISOString());
+          f.attrs.recorded_at ??
+          (dateFromPath ? `${dateFromPath}T00:00:00.000Z` : new Date(r.mtime_ms).toISOString());
         // Identity of a FACT: same slot, same value, same validity window.
         // `recorded_at` is deliberately not part of it — logging the identical
         // claim twice is one fact stated twice, not two facts. `valid_until`

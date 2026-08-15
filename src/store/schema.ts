@@ -3,6 +3,21 @@
  * meta.schema_version records progress. NEVER edit an existing migration —
  * append a new one.
  */
+/**
+ * What the PARSER records, versioned separately from the schema.
+ *
+ * Migrations cover shape changes; this covers meaning changes. The indexer
+ * skips a file whose mtime, size and hash all match, so a release that
+ * teaches the parser something new (0.20.0: prose dates like "June 2023";
+ * 0.24.0: H1 headings as titles) left every untouched note carrying what the
+ * OLD parser recorded — and two identical vaults returned different answers
+ * depending on which versions had indexed them, which the disposable-cache
+ * promise forbids. Bump this whenever parseNote/extractDates output changes;
+ * openStore then clears note fingerprints (migration v5's move) so the next
+ * incremental run reparses everything.
+ */
+export const PARSER_VERSION = 2;
+
 export const MIGRATIONS: string[] = [
   // v1 — initial schema
   `
