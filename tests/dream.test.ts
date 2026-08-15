@@ -33,6 +33,46 @@ async function ctxWith(extra: Record<string, string>): Promise<LoreContext> {
   };
 }
 
+describe('dream stays bounded on hub entities', () => {
+  it('a name every note shares does not make consolidation quadratic', async () => {
+    // findLinkSuggestions self-joins mentions, so an entity in K notes emits
+    // K²/2 pairs. Vaults have hub entities by nature (a project name, a
+    // person, a recurring tag), and streaming the join bounded the memory
+    // while leaving the work quadratic: a 20 000-note vault did not finish
+    // this pass in ten minutes. Pair generation is capped by document
+    // frequency now — an entity in more than √n notes is background, not
+    // evidence that two particular notes belong together.
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 400; i++) {
+      files[`n${i}.md`] =
+        `# Note ${i}\n\nThe [[Ubiquitous Programme]] appears in every single note here.\n` +
+        `Local detail ${i} about calibration and drift.\n`;
+    }
+    const root = await makeVault(files);
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const config = ConfigSchema.parse({});
+    let cached: ReturnType<typeof buildGraph> | null = null;
+    const ctx = {
+      root, config, store, provider: null,
+      graph: () => (cached ??= buildGraph(store, config)),
+      noteLinks: () => buildNoteLinkGraph(store),
+      invalidateGraph: () => (cached = null),
+      close: () => store.close(),
+    } as unknown as LoreContext;
+
+    const t0 = Date.now();
+    const report = dream(ctx);
+    const elapsed = Date.now() - t0;
+    // 400 notes sharing one name is 80 000 pairs unbounded; bounded it is
+    // trivial. The threshold is deliberately loose — this guards an
+    // algorithmic blowup, not a millisecond budget.
+    expect(elapsed, `dream took ${elapsed}ms`).toBeLessThan(10_000);
+    expect(report.stats.notes).toBe(400);
+    store.close();
+  });
+});
+
 describe('dream', () => {
   it('detects cross-note duplicate passages', async () => {
     const ctx = await ctxWith({

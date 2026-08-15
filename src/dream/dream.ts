@@ -444,6 +444,19 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
 
   // Stream the co-mention join rather than materializing it: on a few-thousand
   // note vault the full pair list runs to gigabytes.
+  //
+  // Streaming bounded the MEMORY; it did nothing about the work. The join is
+  // a self-join on mentions, so an entity appearing in K notes emits K²/2
+  // pairs — and a vault has hub entities by nature. Measured: a 20 000-note
+  // vault did not finish this pass in ten minutes, while 1 000 notes took two
+  // seconds; the cost is quadratic in the commonest entity, not in the vault.
+  //
+  // The bound is also the better semantics, and the same argument entityIdf
+  // makes for the graph: an entity in more than √n notes is background, not
+  // evidence that two particular notes belong together. Those pairs were
+  // already being weighted down to near-nothing by IDF after being generated
+  // at full cost — this declines to generate them.
+  const pairCap = Math.max(30, Math.ceil(Math.sqrt(noteCount)));
   interface Acc {
     score: number;
     keys: { key: string; idf: number }[];
@@ -451,11 +464,16 @@ function findLinkSuggestions(ctx: LoreContext): LinkSuggestion[] {
   const pairs = new Map<string, Acc>();
   const rows = db
     .prepare(
-      `SELECT m1.note_path AS a, m2.note_path AS b, e.id AS eid, e.key AS key
+      `WITH informative AS (
+         SELECT entity_id FROM mentions WHERE confidence >= 0.6
+         GROUP BY entity_id HAVING COUNT(DISTINCT note_path) BETWEEN 2 AND ${pairCap}
+       )
+       SELECT m1.note_path AS a, m2.note_path AS b, e.id AS eid, e.key AS key
        FROM mentions m1
        JOIN mentions m2 ON m1.entity_id = m2.entity_id AND m1.note_path < m2.note_path
        JOIN entities e ON e.id = m1.entity_id
-       WHERE m1.confidence >= 0.6 AND m2.confidence >= 0.6
+       WHERE m1.entity_id IN (SELECT entity_id FROM informative)
+         AND m1.confidence >= 0.6 AND m2.confidence >= 0.6
        GROUP BY a, b, eid`,
     )
     .iterate() as Iterable<{ a: string; b: string; eid: number; key: string }>;

@@ -48,7 +48,7 @@ npx loreweave init && npx loreweave index
 ```bash
 cd ~/my-vault
 npx loreweave init          # creates .lore/
-npx loreweave index         # incremental; ~seconds for thousands of notes
+npx loreweave index         # incremental; ~1.2 ms per note (see Scale below)
 
 npx loreweave search "why did we drop the queue design"
 npx loreweave ask "what's the status of project atlas"
@@ -122,6 +122,22 @@ from the vault (co-occurrence, PPMI, LSA) can bridge that, because there are no
 occurrences to derive one from. Those answers are still *found* (90%) by
 following links, but ranking them first needs external semantic knowledge —
 which is exactly what enabling embeddings supplies.
+
+## Scale
+
+Measured, like the quality numbers — `npm run scale` reproduces this on your
+own machine (synthetic vaults, 3 blocks per note, dense interlinking):
+
+| notes | blocks | entities | edges | full index | incremental | search p50 | p95 | dream | heap |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 000 | 3 000 | 2 766 | 17 k | 1.2 s | 32 ms | 3 ms | 4 ms | 0.2 s | 63 MB |
+| 5 000 | 15 000 | 13 766 | 85 k | 6.1 s | 165 ms | 9 ms | 12 ms | 1.0 s | 145 MB |
+| 20 000 | 60 000 | 55 016 | 339 k | 22.5 s | 656 ms | 38 ms | 53 ms | 4.8 s | 333 MB |
+
+Full index scales at **0.93× per note** from 5 k to 20 k — linear or better,
+no superlinear step hiding in the middle. "Incremental" is one changed note,
+which is what `lore watch` actually does all day. Everything here is one
+process, one SQLite file, no daemon.
 
 ## What makes it different
 
@@ -383,7 +399,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 419 tests
+npm test          # 420 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

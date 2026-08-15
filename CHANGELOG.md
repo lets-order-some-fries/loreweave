@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.30.0 — 2026-08-15
+
+Scale is measured now, and measuring it found a quadratic pass.
+
+- **New: `npm run scale`.** The retrieval benchmark says whether answers are
+  RIGHT; this says whether they arrive. Index time, incremental time, graph
+  build, search p50/p95, the dream pass, and peak heap, over synthetic vaults
+  of any size. Both claims the README makes are reproducible on your own
+  machine now.
+- **`dream` was quadratic in a vault's commonest entity.** `findLinkSuggestions`
+  self-joins `mentions`, so an entity in K notes emits K²/2 pairs — and vaults
+  have hub entities by nature (a project name, a person, a recurring tag). An
+  earlier fix streamed the join, which bounded the MEMORY and left the work
+  untouched. Measured: a 20 000-note vault did not finish the pass in ten
+  minutes. Pair generation is now capped by document frequency, which is also
+  the better semantics — an entity in more than √n notes is background, not
+  evidence that two particular notes belong together (the same argument
+  `entityIdf` makes for the graph), and those pairs were already being
+  weighted to near-nothing by IDF *after* being generated at full cost.
+  Dream on 1 000 notes: **1 967 ms → 226 ms**; 20 000 notes now completes in
+  4.8 s.
+
+Measured on the fixed build (reproduce with `npm run scale`):
+
+| notes | full index | incremental | search p50 | p95 | dream | heap |
+|---|---|---|---|---|---|---|
+| 1 000 | 1.2 s | 32 ms | 3 ms | 4 ms | 0.2 s | 63 MB |
+| 5 000 | 6.1 s | 165 ms | 9 ms | 12 ms | 1.0 s | 145 MB |
+| 20 000 | 22.5 s | 656 ms | 38 ms | 53 ms | 4.8 s | 333 MB |
+
+Full index scales at 0.93× per note from 5 k to 20 k — linear or better.
+419 → 420 tests (the new one guards the blowup, not a millisecond budget).
+
 ## 0.29.0 — 2026-08-15
 
 The audit's last substantive batch — two of them broke the promise the whole
