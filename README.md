@@ -182,9 +182,17 @@ else. On the internal corpora it moves kestrel r@1 0.400 → 0.575.
   r@1 0.944 → 0.278 when it was allowed to overrule that. Where the query names
   a time or asks for the current state, retrieval order stands and temporal
   consistency stays at 100%.
-- On BEIR/SciFact it is nearly worthless: nDCG@10 0.681 → 0.688 for 45× the
-  latency. Long scientific claims against abstracts are where BM25 is already
-  strong; short natural questions against short passages are where this pays.
+- On BEIR/SciFact it is nearly worthless model-free (nDCG@10 0.681 → 0.688 for
+  45× the latency), and **actively harmful on top of embeddings**: 0.729 → 0.695.
+  Long scientific claims against abstracts are where BM25 is already strong;
+  short natural questions against short passages are where this pays.
+- **Stacking it on embeddings loses on both public benchmarks.** LongMemEval_S
+  R@5 goes 0.944 → 0.936 with reranking added, BEIR 0.729 → 0.695. The two
+  layers are fixing the same failure and then fighting: the cross-encoder
+  re-sorts a pool the embeddings had already ordered well and demotes correct
+  passages out of the window. **Turn on one or the other, not both** — and if
+  you consume a list rather than a single passage, embeddings alone is the
+  configuration that wins.
 
 ## Measured on public benchmarks
 

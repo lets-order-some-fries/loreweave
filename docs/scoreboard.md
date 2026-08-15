@@ -19,6 +19,7 @@ the nearest number that looks similar.
 | system | nDCG@10 | source |
 |---|---|---|
 | **loreweave + local embeddings** | **0.729** | `npm run bench:beir -- ./scifact --embed` |
+| loreweave + embeddings + reranking | 0.695 | `… --embed --rerank` |
 | loreweave, model-free | 0.681 | `npm run bench:beir -- ./scifact` |
 | BM25 (Anserini) | 0.665 | BEIR paper |
 
