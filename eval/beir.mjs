@@ -25,6 +25,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -63,7 +64,16 @@ for (const row of lines(join(DATA, 'qrels/test.tsv')).slice(1)) {
 console.log(`corpus ${corpus.length} docs · ${qrels.size} scored queries`);
 
 // ── build a vault out of it ───────────────────────────────────────────────
-const VAULT = join(HERE, 'beir-vault');
+// Per-process so concurrent arms (--embed, --rerank) cannot delete each
+// other's files mid-write. See the note in longmemeval.mjs.
+const VAULT = join(tmpdir(), `beir-vault-${process.pid}`);
+process.on('exit', () => {
+  try {
+    rmSync(VAULT, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+});
 rmSync(VAULT, { recursive: true, force: true });
 mkdirSync(join(VAULT, 'docs'), { recursive: true });
 const pathToDoc = new Map();

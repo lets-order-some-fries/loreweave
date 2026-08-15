@@ -21,6 +21,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -46,6 +47,8 @@ if (!existsSync(dist)) {
 }
 const WITH_EMBED = process.argv.includes('--embed');
 const WITH_RERANK = process.argv.includes('--rerank');
+/** `--chunk=N` splits each session into N-turn blocks. 0 keeps one block/session. */
+const CHUNK = Math.max(0, Number((process.argv.find((a) => a.startsWith('--chunk=')) ?? '').split('=')[1] ?? 0));
 const { openContext, indexVault, search, embedMissingBlocks, buildSimilarEdges } = await import(pathToFileURL(dist).href);
 
 console.log('loading dataset…');
@@ -58,7 +61,21 @@ const isoDate = (s) => {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 };
 
-const VAULT = join(HERE, 'lme-vault');
+/**
+ * Per-process scratch vault. This used to be a single shared `eval/lme-vault`,
+ * which meant two concurrent runs (an embeddings arm and a reranking arm, say)
+ * would delete each other's files mid-write and die on ENOTEMPTY. The pid
+ * suffix makes concurrent arms independent, and keeping it out of the repo
+ * stops a crashed run from leaving a half-built vault in `git status`.
+ */
+const VAULT = join(tmpdir(), `lme-vault-${process.pid}`);
+process.on('exit', () => {
+  try {
+    rmSync(VAULT, { recursive: true, force: true });
+  } catch {
+    /* best effort — a leftover temp dir is not worth failing a benchmark over */
+  }
+});
 const KS = [1, 3, 5, 10];
 const byCat = new Map();
 let done = 0;
@@ -80,9 +97,31 @@ for (const [qi, q] of data.entries()) {
     const d = isoDate(dates[i]);
     const rel = `sessions/${String(i).padStart(3, '0')}.md`;
     pathToId.set(rel, sid);
-    const body = (Array.isArray(turns) ? turns : [])
-      .map((t) => `**${t.role ?? 'speaker'}:** ${String(t.content ?? '').replace(/\n+/g, ' ')}`)
-      .join('\n\n');
+    const lines = (Array.isArray(turns) ? turns : []).map(
+      (t) => `**${t.role ?? 'speaker'}:** ${String(t.content ?? '').replace(/\n+/g, ' ')}`,
+    );
+    /**
+     * `--chunk=N` puts every N turns under their own `##` heading, so a session
+     * indexes as several blocks instead of one 50-turn wall of text. This is
+     * the more honest translation of a chat log into markdown — nobody writes a
+     * day of conversation as a single unbroken paragraph — and it matters for
+     * scoring: one giant block gets punished by BM25 length normalisation,
+     * averages to a single muddy embedding, and overflows a cross-encoder's
+     * 512-token window so the reranker only ever sees the opening turns.
+     * Evidence is still credited at session granularity (blocks dedupe to their
+     * note below), so this changes how the engine reads the haystack, not what
+     * counts as a correct answer.
+     */
+    const body = CHUNK
+      ? lines
+          .reduce((groups, line, li) => {
+            if (li % CHUNK === 0) groups.push([]);
+            groups[groups.length - 1].push(line);
+            return groups;
+          }, [])
+          .map((g, gi) => `## Part ${gi + 1}\n\n${g.join('\n\n')}`)
+          .join('\n\n')
+      : lines.join('\n\n');
     writeFileSync(
       join(VAULT, rel),
       `---\ntitle: session ${i}\n${d ? `date: ${d}\n` : ''}---\n\n# Session ${i}\n\n${body}\n`,
@@ -107,7 +146,15 @@ for (const [qi, q] of data.entries()) {
     buildSimilarEdges(ctx.store, ctx.config);
   }
   ctx.invalidateGraph();
-  const hits = await search(ctx, q.question, { k: 10, noLog: true });
+  /**
+   * Ask for enough BLOCKS to still yield 10 distinct SESSIONS after the dedupe
+   * below. Without chunking one block is one session, so 10 suffices; with
+   * chunking a single session can occupy many top slots, and asking for 10
+   * would score a short session list against a full one and make chunking look
+   * worse than it is. R@k is computed over the deduped session ranking either
+   * way, so the wider pull cannot inflate the result.
+   */
+  const hits = await search(ctx, q.question, { k: CHUNK ? 100 : 10, noLog: true });
   ctx.close();
 
   const ranked = [];

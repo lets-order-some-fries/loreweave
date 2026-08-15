@@ -17,6 +17,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -43,7 +44,16 @@ function isoDate(s) {
 }
 
 const data = JSON.parse(readFileSync(DATA, 'utf8'));
-const VAULT = join(HERE, 'locomo-vault');
+// Per-process so concurrent arms cannot delete each other's files mid-write.
+// See the note in longmemeval.mjs.
+const VAULT = join(tmpdir(), `locomo-vault-${process.pid}`);
+process.on('exit', () => {
+  try {
+    rmSync(VAULT, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
+});
 const KS = [1, 5, 10, 20];
 const byCat = new Map();
 const CAT_NAME = { 1: 'multi-hop', 2: 'temporal', 3: 'open-domain', 4: 'single-hop', 5: 'adversarial' };
