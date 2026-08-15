@@ -74,6 +74,39 @@ describe('answers do not depend on index build history', () => {
     upgraded.close();
   });
 
+  it('editing a note keeps the access history of its surviving blocks', async () => {
+    // access_log.block_id is ON DELETE SET NULL and every edit deletes all of
+    // a note's blocks, so one edit erased that note's whole retrieval history
+    // — including blocks whose text never changed and whose stability is
+    // carefully carried over. fitDecay trains on exactly those events, so the
+    // vaults someone actually works in trained on the least data.
+    const root = await mkdtemp(join(tmpdir(), 'lw-al-'));
+    const file = join(root, 'a.md');
+    await writeFile(file, '# A\n\nFirst paragraph is stable.\n\n## Second\n\nThis part changes.\n');
+    const store = openStore(':memory:');
+    await indexVault(store, root);
+    const first = store.db.prepare(`SELECT id FROM blocks ORDER BY ord LIMIT 1`).get() as { id: number };
+    store.logAccess('used', first.id, 'q');
+    store.logAccess('retrieved', first.id, 'q');
+
+    await writeFile(file, '# A\n\nFirst paragraph is stable.\n\n## Second\n\nEDITED text now.\n');
+    await indexVault(store, root);
+
+    const kept = store.db
+      .prepare(`SELECT COUNT(*) c FROM access_log WHERE block_id IS NOT NULL`)
+      .get() as { c: number };
+    expect(kept.c).toBe(2);
+    // and they point at the CURRENT row for that unchanged block
+    const nowId = store.db
+      .prepare(`SELECT id FROM blocks ORDER BY ord LIMIT 1`)
+      .get() as { id: number };
+    const pointed = store.db
+      .prepare(`SELECT COUNT(*) c FROM access_log WHERE block_id=?`)
+      .get(nowId.id) as { c: number };
+    expect(pointed.c).toBe(2);
+    store.close();
+  });
+
   it('a cache at the current parser version is left alone', async () => {
     // The heal must not fire on every open: that would reparse the whole
     // vault on every command.

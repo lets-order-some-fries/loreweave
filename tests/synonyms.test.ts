@@ -21,6 +21,7 @@ const VAULT = {
   'meridian-trust.md':
     '# Meridian Trust\n\nThe Meridian Trust makes small grants for field science.\n',
   'noise.md': '# Noise\n\nUnrelated commentary about calibration screws.\n',
+  'team.md': '# Team\n\nThe kestrel project is led by mira, who also led the refit.\n',
 };
 
 async function ctxFor(): Promise<LoreContext> {
@@ -67,6 +68,20 @@ describe('dead-term synonym rings', () => {
     const paths = res.map((r) => r.notePath);
     expect(paths).toContain('ridge-array.md');
     expect(paths).toContain('meridian-trust.md');
+    ctx.close();
+  });
+
+  it('rings that share a word expand identically for every member', async () => {
+    // The merge used to fold overlapping rings into the SHARED word's entry
+    // only: dead 'boss' reached 'led', while its own declared synonyms
+    // 'supervisor' and 'manager' reached nothing. Which synonym the user
+    // happened to type decided whether routing worked.
+    const ctx = await ctxFor();
+    const boss = expandDeadTerms(ctx.store, ['boss']);
+    expect(boss.length, 'the shared word still expands').toBeGreaterThan(0);
+    for (const mate of ['supervisor', 'manager']) {
+      expect(expandDeadTerms(ctx.store, [mate]), mate).toEqual(boss);
+    }
     ctx.close();
   });
 

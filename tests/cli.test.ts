@@ -14,6 +14,10 @@ async function run(...args: string[]): Promise<{ out: string; err: string }> {
     err: (s) => errLines.push(s),
   });
   program.exitOverride();
+  // Subcommands are built before this helper runs, so they do not inherit the
+  // override — without this an option-parser rejection calls process.exit and
+  // takes the test runner with it.
+  for (const c of program.commands) c.exitOverride();
   await program.parseAsync(['node', 'lore', '--vault', root, ...args]);
   return { out: outLines.join('\n'), err: errLines.join('\n') };
 }
@@ -24,6 +28,24 @@ beforeAll(async () => {
 });
 
 describe('cli', () => {
+  it('a non-numeric flag is rejected, never silently treated as NaN', async () => {
+    // `review --limit x` sliced to nothing and printed "nothing is fading" —
+    // an affirmative all-clear, exit 0, on a vault that had fading items.
+    // Every comparison against NaN is false, so a typo disabled the check it
+    // was meant to tune. The MCP layer has zod; the CLI needed the same.
+    await run('index');
+    for (const args of [
+      ['review', '--limit', 'x'],
+      ['review', '--threshold', 'nope'],
+      ['search', 'anything', '-k', 'lots'],
+      ['assert', 'S', 'p', 'o', '--confidence', 'high'],
+    ]) {
+      await expect(run(...args), args.join(' ')).rejects.toThrow(/must be a number/);
+    }
+    // and out-of-range values are refused too, not clamped in silence
+    await expect(run('review', '--threshold', '5')).rejects.toThrow(/must be <= 1/);
+  });
+
   it('index → search → stats → doctor journey', async () => {
     const idx = await run('index');
     expect(idx.out).toMatch(/indexed: \+\d+/);

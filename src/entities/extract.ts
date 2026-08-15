@@ -104,7 +104,7 @@ const ACRONYM_RE = /^[\p{Lu}][\p{Lu}\p{N}]{1,7}$/u;
  * an entity this way and then seeded graph expansion for "when should I use a
  * worktree", pulling in a note about persuasion technique.
  */
-function isAcronymToken(tok: string): boolean {
+export function isAcronymToken(tok: string): boolean {
   return (
     ACRONYM_RE.test(tok) && tok === tok.toUpperCase() && !COMMON_INITIAL.has(tok.toLowerCase())
   );
@@ -231,8 +231,14 @@ export function extractEntities(note: Note, useNlp = true): EntityMention[] {
     });
   }
 
-  const aliases = note.frontmatter.aliases ?? note.frontmatter.alias;
-  if (Array.isArray(aliases)) {
+  // `aliases: Bobby` is YAML Obsidian accepts, and the GRAPH layer already
+  // coerced the scalar form — but the extractor only read arrays, so the alias
+  // never became an entity and the same-as edge the graph was written to build
+  // silently never existed. Two layers disagreeing about the same frontmatter
+  // is worse than either rule alone.
+  const rawAliases = note.frontmatter.aliases ?? note.frontmatter.alias;
+  const aliases = Array.isArray(rawAliases) ? rawAliases : rawAliases ? [rawAliases] : [];
+  {
     for (const a of aliases) {
       if (typeof a === 'string' && a.trim()) {
         add({

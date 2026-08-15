@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
@@ -23,6 +23,34 @@ import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
 import { exportGraph } from './export.js';
 import { watchVault } from '../watch.js';
+
+/**
+ * A numeric option parser that refuses NaN.
+ *
+ * Bare parseInt/parseFloat let a typo through as NaN, and every comparison
+ * with NaN is false — so `review --limit x` sliced to nothing and printed
+ * "nothing is fading", an affirmative all-clear on a vault that had fading
+ * items, exit 0. That is the failure assertIsoDate exists to prevent for
+ * dates. The MCP layer has zod; the CLI had nothing.
+ */
+function num(
+  flag: string,
+  opts: { int?: boolean; min?: number; max?: number } = {},
+): (raw: string) => number {
+  return (raw: string): number => {
+    const v = opts.int ? parseInt(raw, 10) : parseFloat(raw);
+    if (!Number.isFinite(v)) {
+      throw new InvalidArgumentError(`${flag} must be a number, got: ${raw}`);
+    }
+    if (opts.min !== undefined && v < opts.min) {
+      throw new InvalidArgumentError(`${flag} must be >= ${opts.min}, got: ${raw}`);
+    }
+    if (opts.max !== undefined && v > opts.max) {
+      throw new InvalidArgumentError(`${flag} must be <= ${opts.max}, got: ${raw}`);
+    }
+    return v;
+  };
+}
 
 /**
  * True when a passage is nothing but this project's own fact-record syntax.
@@ -100,7 +128,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .description(
       'Loreweave — a temporal knowledge engine for markdown vaults.\nIndexes, links, remembers, forgets, and dreams. Local-first, agent-ready.',
     )
-    .version('0.27.0')
+    .version('0.28.0')
     .option('--vault <path>', 'vault root (default: nearest .lore, else cwd)');
 
   const vaultRoot = (): string => {
@@ -207,7 +235,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .command('search')
     .description('hybrid search (BM25 + graph + dense when configured)')
     .argument('<query...>')
-    .option('-k, --k <n>', 'results', (v) => parseInt(v, 10))
+    .option('-k, --k <n>', 'results', num('-k', { int: true, min: 1 }))
     .option('--since <date>', 'only content dated on/after ISO date')
     .option('--until <date>', 'only content dated on/before ISO date')
     .option(
@@ -402,8 +430,8 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
   program
     .command('review')
     .description('important-but-fading knowledge: revisit it or archive it')
-    .option('--threshold <r>', 'retrievability below this is fading (default 0.3)', parseFloat)
-    .option('--limit <n>', 'max items (default 20)', (v: string) => parseInt(v, 10))
+    .option('--threshold <r>', 'retrievability below this is fading (default 0.3)', num('--threshold', { min: 0, max: 1 }))
+    .option('--limit <n>', 'max items (default 20)', num('--limit', { int: true, min: 1 }))
     .option('--json', 'JSON output')
     .action(async (opts: { threshold?: number; limit?: number; json?: boolean }) => {
       await withCtx((ctx) => {
@@ -476,7 +504,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .argument('<object...>')
     .option('--valid-from <date>')
     .option('--valid-until <date>')
-    .option('--confidence <n>', 'confidence 0..1', parseFloat)
+    .option('--confidence <n>', 'confidence 0..1', num('--confidence', { min: 0, max: 1 }))
     .action(async (
       subject: string,
       predicate: string,
@@ -764,7 +792,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
   program
     .command('watch')
     .description('reindex automatically as the vault changes (Ctrl-C to stop)')
-    .option('--debounce <ms>', 'quiet period before reindexing', (v) => parseInt(v, 10))
+    .option('--debounce <ms>', 'quiet period before reindexing', num('--debounce', { int: true, min: 0 }))
     .action(async (opts: { debounce?: number }) => {
       const ctx = openContext(vaultRoot());
       const first = await indexVault(ctx.store, ctx.root, {

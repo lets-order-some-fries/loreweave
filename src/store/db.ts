@@ -253,10 +253,11 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     // preserve dynamics for unchanged blocks: capture old state by hash
     const old = db
       .prepare(
-        `SELECT anchor, hash, stability, last_accessed, access_count, importance
+        `SELECT id, anchor, hash, stability, last_accessed, access_count, importance
          FROM blocks WHERE note_path=? ORDER BY ord`,
       )
       .all(note.path) as {
+      id: number;
       anchor: string;
       hash: string;
       stability: number;
@@ -296,6 +297,24 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       if (next) claimed.add(next);
       return next;
     };
+    // access_log.block_id is ON DELETE SET NULL and every edit deletes ALL of
+    // a note's blocks — so one edit erased that note's entire retrieval/use
+    // history, including for blocks whose text never changed and whose
+    // stability is carefully carried over a few lines below. fitDecay trains
+    // on exactly those events, so the vaults someone actually works in trained
+    // on the least data. Capture the log rows here; re-point them at the new
+    // block ids under the same identity rule the carry-over uses.
+    const logRowsByOldBlock = new Map<number, number[]>();
+    for (const r of db
+      .prepare(
+        `SELECT id, block_id FROM access_log
+         WHERE block_id IN (SELECT id FROM blocks WHERE note_path=?)`,
+      )
+      .all(note.path) as { id: number; block_id: number }[]) {
+      const arr = logRowsByOldBlock.get(r.block_id);
+      if (arr) arr.push(r.id);
+      else logRowsByOldBlock.set(r.block_id, [r.id]);
+    }
     stmts.delBlocks.run(note.path);
     stmts.delLinks.run(note.path);
     const ids = new Map<string, number>();
@@ -328,6 +347,12 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
         db.prepare(
           `UPDATE blocks SET stability=?, last_accessed=?, access_count=?, importance=? WHERE id=?`,
         ).run(prev.stability, prev.last_accessed, prev.access_count, prev.importance, id);
+        const logIds = logRowsByOldBlock.get(prev.id);
+        if (logIds?.length) {
+          db.prepare(
+            `UPDATE access_log SET block_id=? WHERE id IN (${logIds.map(() => '?').join(',')})`,
+          ).run(id, ...logIds);
+        }
       }
     }
     for (const l of note.links) {

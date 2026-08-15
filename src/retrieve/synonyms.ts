@@ -38,16 +38,25 @@ const RINGS: string[][] = [
   ['salary', 'pay', 'compensation', 'wage'],
 ];
 
+/**
+ * Rings sharing any word are ONE ring, for every member.
+ *
+ * The old merge folded a shared word's rings together only in that word's own
+ * entry: 'boss' (in both the leadership and supervisor rings) reached
+ * 'lead'/'led', while 'supervisor' and 'manager' — its declared synonyms —
+ * reached nothing. Which word the user happened to type silently decided
+ * whether routing worked at all.
+ */
 const ringOf = new Map<string, string[]>();
-for (const ring of RINGS) {
-  for (const w of ring) {
-    const merged = ringOf.get(w);
-    if (merged) {
-      for (const x of ring) if (!merged.includes(x)) merged.push(x);
-    } else {
-      ringOf.set(w, [...ring]);
-    }
+{
+  const merged: string[][] = [];
+  for (const ring of RINGS) {
+    const overlapping = merged.filter((m) => m.some((w) => ring.includes(w)));
+    const union = new Set([...ring, ...overlapping.flat()]);
+    for (const m of overlapping) merged.splice(merged.indexOf(m), 1);
+    merged.push([...union]);
   }
+  for (const ring of merged) for (const w of ring) ringOf.set(w, ring);
 }
 
 /** Corpus document frequency of a single normalized term (0 = absent). */

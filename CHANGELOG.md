@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.28.0 — 2026-08-15
+
+Five more audit findings — the batch where a typo could tell you your vault
+was healthy.
+
+- **`lore review --limit x` printed "nothing is fading" and exited 0.** Bare
+  `parseInt`/`parseFloat` let a typo through as NaN, and every comparison
+  against NaN is false — so a mistyped flag silently disabled the check it was
+  meant to tune and returned an affirmative all-clear. Same shape on
+  `--threshold`, `search -k`, `assert --confidence`, `watch --debounce`. All
+  numeric flags now reject non-numbers and out-of-range values (exit 1 with
+  the offending value named), matching the zod bounds the MCP layer already
+  had.
+- **Identity edges could merge unrelated things.** The acronym layer built
+  initials from *every* word, so "The Old Mill" spelled `tom` and merged into
+  a person named Tom at full same-as weight — deep-propagating, and
+  indistinguishable downstream from a stated fact. Initials now skip
+  stopwords, and the target must actually look like an acronym in the vault
+  (`MTS` still merges with Motherson Technology Services).
+- **`aliases: Bobby` (scalar YAML) made no alias at all.** The graph layer
+  coerced the scalar form; the extractor only read arrays — so the entity
+  never existed and the edge the graph was written to build silently never
+  appeared. Both layers agree now.
+- **Synonym rings were asymmetric.** Rings sharing a word merged only into
+  that word's entry: dead `boss` reached `lead`/`led`, while its own declared
+  synonyms `supervisor` and `manager` reached nothing. Which word you happened
+  to type decided whether routing worked. Rings now merge transitively for
+  every member.
+- **Editing a note erased its access history.** `access_log.block_id` is
+  `ON DELETE SET NULL` and every edit deletes all of a note's blocks — so one
+  edit wiped the retrieval/use events of blocks whose text never changed and
+  whose stability is carefully carried over. FSRS decay-fitting trains on
+  exactly those events, so the vaults you actually work in trained on the
+  least data. History now follows a surviving block to its new row.
+  409 → 414 tests.
+
 ## 0.27.0 — 2026-08-15
 
 Two more audit findings, both attacking the same promise: **outputs are a
