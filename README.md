@@ -60,8 +60,16 @@ knowledge-graph spreading activation. Add embeddings when you want them:
 
 ```jsonc
 // .lore/config.json
-{ "embedding": { "provider": "ollama", "model": "nomic-embed-text" } }
+{ "embedding": { "provider": "ollama", "model": "mxbai-embed-large" } }
 ```
+
+**Which model.** The choice matters more than any tuning downstream of it —
+swapping `nomic-embed-text` for `mxbai-embed-large` moved LongMemEval_S R@5
+from 0.947 to 0.960 on an identical sample, a bigger gain than chunking and
+reranking combined. Pick `mxbai-embed-large` (670 MB) for quality,
+`nomic-embed-text` (274 MB) when disk or indexing speed matters more. Both get
+their required task prefixes applied automatically, as do BGE and Arctic —
+getting those wrong silently costs more than the model choice does.
 
 Everything degrades gracefully — no embedding provider means lexical + graph retrieval,
 still fully functional.
