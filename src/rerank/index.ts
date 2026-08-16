@@ -57,8 +57,14 @@ export async function resolveReranker(config: LoreConfig): Promise<Reranker | nu
   try {
     // Not a static import: the package is optional, and naming it statically
     // would make it a hard requirement of the bundle.
-    const mod = (await import(/* @vite-ignore */ '@huggingface/transformers')) as unknown as
-      TransformersModule;
+    //
+    // The specifier lives in a variable so the *compiler* does not resolve it
+    // either. Written inline it type-checks only where the optional package
+    // happens to be installed, so CI failed every job for sixteen consecutive
+    // runs with TS2307 while the local gate stayed green — a local gate cannot
+    // reproduce the absence of something already on the machine.
+    const spec = '@huggingface/transformers';
+    const mod = (await import(/* @vite-ignore */ spec)) as unknown as TransformersModule;
     // The text-classification PIPELINE is the wrong tool here: it softmaxes
     // over labels, and an ms-marco cross-encoder has exactly one output, so
     // every passage came back scored 1.000. The relevance signal is the raw
