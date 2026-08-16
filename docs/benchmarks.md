@@ -27,6 +27,27 @@ curl -sLO https://raw.githubusercontent.com/snap-research/locomo/main/data/locom
 node eval/locomo.mjs ./locomo10.json
 ```
 
+Add `--embed` for the local-embedding arm, `--model=NAME` to pick the model
+(`mxbai-embed-large` is the strongest we have measured; the default is
+`nomic-embed-text`), and `--stride=N` to sample every Nth question. Sample with
+a stride rather than a `limit`: the file is grouped by category, so the first N
+questions are all one category and report a number that looks like the whole
+benchmark.
+
+### Restart the embedding server before a long run
+
+**`ollama serve` degrades over hours of serving.** A full 500-question run that
+had been managing 25 questions per 16 minutes dropped to 25 per *67* against a
+server that had been up half a day — the embedding server was busy only 5% of
+the time, and the run was simply waiting on it. Restarting `ollama serve`
+restored the original rate exactly, with no other change.
+
+Nothing in the totals would have shown this, which is why the client logs every
+retry: a run that is silently waiting looks identical to one that is merely
+slow. If `[loreweave] ... retrying in` starts appearing during a long index,
+the server is stalling and wants a restart rather than a bigger
+`embedding.timeoutMs`.
+
 ## What is being measured
 
 loreweave is a **retrieval** engine: it finds the evidence, it does not write
