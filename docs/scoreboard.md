@@ -31,26 +31,28 @@ network.
 
 ## 2. Conversational memory — LongMemEval_S, session recall@5
 
-| system | R@5 | source |
-|---|---|---|
-| MemPal (verbatim chunks + embeddings) | 96.6% | vendor benchmark |
-| BM25 + vector hybrid | 95.2% | third-party benchmark repo |
-| **loreweave, chunked + mxbai-embed-large** | **96.0%*** | `--stride=5 --chunk=8 --embed --model=mxbai-embed-large` |
-| loreweave, chunked + nomic-embed-text | 94.7%* | `--stride=5 --chunk=8 --embed` |
-| loreweave + embeddings (nomic) | 94.4%* | `--stride=5 --embed` |
-| loreweave + embeddings + reranking | 93.6%* | `--stride=5 --embed --rerank` |
-| loreweave, chunked, model-free | 92.6%* | `--stride=5 --chunk=8` |
-| loreweave, model-free | 92.8%* / **89.9%** | sample / **full 500** |
-| BM25 alone | 86.2% | third-party benchmark repo |
+| system | R@5 | questions | source |
+|---|---|---|---|
+| MemPal (verbatim chunks + embeddings) | 96.6% | — | vendor benchmark |
+| **loreweave, chunked + mxbai-embed-large** | **95.9%** | **all 500** | `--chunk=8 --embed --model=mxbai-embed-large` |
+| BM25 + vector hybrid | 95.2% | — | third-party benchmark repo |
+| loreweave, chunked + nomic-embed-text | 94.7%* | 100 | `--stride=5 --chunk=8 --embed` |
+| loreweave + embeddings (nomic) | 94.4%* | 100 | `--stride=5 --embed` |
+| loreweave + embeddings + reranking | 93.6%* | 100 | `--stride=5 --embed --rerank` |
+| loreweave, chunked, model-free | 92.6%* | 100 | `--stride=5 --chunk=8` |
+| loreweave, model-free | 89.9% | all 500 | — |
+| BM25 alone | 86.2% | — | third-party benchmark repo |
 
-\* 100-question stratified sample. The one arm measured both ways scored 92.8%
-sampled against 89.9% on the full 500, so **the sample runs ~3 points high** and
-every starred figure should be read ~3 points lower. On that correction the best
-configuration lands near **92% on the full set**.
+Full run, all 500 questions: R@1 0.590 · R@3 0.897 · **R@5 0.959** · R@10 0.983.
 
-**Status: not yet, and not close enough to claim otherwise.** Clearly ahead of
-lexical-only retrieval, still behind hybrid systems by roughly 3 points.
-**The open target remains R@5 ≥ 95.2% on the full 500.**
+**Status: won, on the full set.** Ahead of the published BM25+vector hybrid,
+behind the pure-vector system. Every earlier version of this file discounted the
+sampled figures by ~3 points, on the evidence of the single arm then measured
+both ways (92.8% sampled vs 89.9% full). **That correction did not generalise:**
+the best configuration scored 96.0% sampled and 95.9% on the full 500, so the
+stratified sample was accurate to a tenth of a point here. Starred figures above
+are still 100-question samples and are left starred rather than silently
+promoted.
 
 What was tried, so the next attempt does not repeat it: embeddings are worth
 +1.6 points and are the single biggest lever; 8-turn session chunking adds +0.3
@@ -66,13 +68,21 @@ expects. Part of the gap to the published hybrids was never architectural; it
 was that we benchmarked a small local embedder against systems using large
 ones.
 
-The definitive full-500 run of the best configuration is **still outstanding** —
-it needs ~2 h and more free RAM than this machine had (two attempts died when
-the embedding server was starved out at 6% free memory). The engine treats an
-unreachable embedding server as a soft failure and falls back to lexical
-retrieval, so a run that loses the provider partway reports a blended number
-with nothing in the output saying so; check any long run for
-`dense retrieval unavailable` before believing its totals.
+Reproducing this takes ~3 h and it took five attempts, four of which died
+mid-run: a request that hung forever with no timeout, memory exhaustion that
+starved the embedding server, one transient stall with no retry, and a
+degraded server crawling at 5% duty cycle. Each failure was a real defect and
+each fix shipped — `embedding.timeoutMs`, bounded retry with backoff and
+per-retry logging, and a harness that releases each transcript after use. The
+successful run needed exactly one retry, at almost the point where the
+un-retried attempt had died.
+
+Two traps worth knowing before trusting a long run's totals. The engine treats
+an unreachable embedding server as a *soft* failure and falls back to lexical
+retrieval, so a run that loses its provider partway reports a blended number
+with nothing in the output saying so — grep for `dense retrieval unavailable`.
+And restart `ollama serve` first: it degrades over hours of serving, which cost
+one run a 4× slowdown that looked exactly like ordinary slowness.
 
 ## 3. Long-conversation retrieval — LoCoMo, turn-level recall
 
@@ -109,15 +119,22 @@ silently regress.
 
 ## Definition of done
 
-Two of five are won, one is uncontested, one has no valid comparison, and one is
-open. The single remaining measurable target is **§2: LongMemEval_S R@5 ≥ 95.2%
-on the full 500 questions**. Everything else on this board is either ahead or
-unmeasurable against the field.
+The target this board was written to set — **§2: LongMemEval_S R@5 ≥ 95.2% on
+the full 500** — is **met, at 95.9%**. Of five sections, three are won, one is
+uncontested, and one has no valid comparison to make.
 
-**Where that leaves the claim.** "Best in the market" is not supportable as a
-blanket statement and this file will not make one. What the numbers support:
-loreweave beats the classical baseline on public document retrieval, is the only
-system publishing temporal-consistency or scale figures at all, and is the only
-one that does any of it model-free and reproducibly. It is behind the vector
-hybrids on conversational recall by about three points. Both halves of that are
-true, and a scoreboard that printed only the first half would be worthless.
+**Where that leaves the claim.** Still not "best in the market", and this file
+still will not say it. One system on this board is ahead of us: MemPal reports
+96.6% on §2, and we are 0.7 points behind it. What the numbers do support is
+narrower and more defensible — loreweave beats the published BM25+vector hybrid
+on conversational recall and the classical baseline on document retrieval, and
+it is the only system here publishing temporal-consistency or scale figures at
+all, or doing any of it model-free and reproducibly. A board that dropped the
+MemPal row on the day we passed the hybrid would be advertising, not measurement.
+
+**What is worth doing next**, in order of expected value: §1 and §3 were both
+measured with the *small* embedder, and the model swap that won §2 was worth
++1.3 points there, so those numbers likely understate the engine and should be
+re-run with `--model=mxbai-embed-large` before anyone quotes them. §3 still has
+no comparable third-party retrieval number to beat, which is a gap in the
+field rather than in this engine.

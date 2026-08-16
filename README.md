@@ -232,20 +232,30 @@ session-level recall, model-free:
 | single-session (all) | 156 | 0.833 | 0.955 | 0.974 |
 | **overall** | **500** | **0.552** | **0.899** | **0.943** |
 
-Adding local embeddings helps, measured on an identical 100-question sample
-spanning all six categories (the sample runs ~3 points above the full set, so
-compare the two columns to each other, not to the table above):
+Embeddings and 8-turn session chunking together, on **all 500 questions**:
 
-| | R@1 | R@3 | R@5 | R@10 |
+| category | n | R@1 | R@5 | R@10 |
 |---|---|---|---|---|
-| model-free | 0.569 | 0.852 | 0.928 | 0.961 |
-| + embeddings | **0.589** | **0.886** | **0.944** | **0.974** |
+| knowledge-update | 78 | 0.494 | **1.000** | 1.000 |
+| temporal-reasoning | 133 | 0.452 | 0.916 | 0.965 |
+| multi-session | 133 | 0.395 | 0.946 | 0.981 |
+| single-session (all) | 156 | 0.918 | 0.987 | 0.994 |
+| **overall** | **500** | **0.590** | **0.959** | **0.983** |
+
+```bash
+node eval/longmemeval.mjs ./longmemeval_s --chunk=8 --embed --model=mxbai-embed-large
+```
 
 For context, a third-party benchmark of the same task reports **BM25 alone at
-86.2% R@5** and **BM25+vector hybrid at 95.2%**. Model-free loreweave sits
-comfortably above the lexical baseline and below the hybrid; with embeddings it
-narrows the gap but does not close it. That is the honest position, and it is
-why the multi-hop work below is not finished.
+86.2% R@5** and **BM25+vector hybrid at 95.2%**; a vendor benchmark puts a
+pure-vector system at 96.6%. At **95.9% on the full set** loreweave is past the
+hybrid and 0.7 points short of the vector system — and it gets there with a
+local model, no network, and a lexical index it can still fall back to.
+
+The lever that did it was not architectural. Swapping `nomic-embed-text` (137 M)
+for `mxbai-embed-large` (335 M) was worth +1.3 points on an identical sample,
+more than chunking, fusion tuning and reranking combined; the earlier gap was
+partly just a small embedder benchmarked against systems using large ones.
 
 **LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
 turn-level recall:
@@ -262,14 +272,18 @@ ceiling versus 40-48% for single-evidence categories. Embeddings do not fix it.
 
 **The pattern across all three benchmarks is one weakness, stated plainly.**
 Recall is strong and top-of-ranking is not: LoCoMo R@20 0.705 against R@1
-0.337, LongMemEval R@10 0.974 against R@1 0.589, BEIR Recall@10 0.869 against
-nDCG@10 0.729. The right answer reaches the candidate pool; putting it first is
-where this engine loses to hybrids that rerank. Two model-free attempts at it
-failed on measurement — pseudo-relevance feedback (flat) and scoring the
-coverage signal directly (harmful at every weight, see the comment in
-`search.ts`) — so the honest state is: known weakness, two ruled-out fixes, and
-a cross-encoder reranker as the remaining candidate, which would be an
-optional model on the same opt-in tier as embeddings.
+0.337, LongMemEval R@10 0.983 against R@1 0.590, BEIR Recall@10 0.869 against
+nDCG@10 0.729. The right answer reliably reaches the candidate pool; putting it
+*first* is the open problem, and it is why the numbers here are quoted at R@5
+rather than R@1.
+
+Four attempts at it, three of which failed on measurement: pseudo-relevance
+feedback (flat), scoring the coverage signal directly (harmful at every weight,
+see the comment in `search.ts`), and a cross-encoder reranker — which sharpens
+rank 1 but **loses** R@5 on both public benchmarks once embeddings are on, so it
+stays off by default. What did work was upstream of all of it: a larger
+embedding model. The honest state is a known weakness, three ruled-out fixes,
+and no current candidate that improves rank 1 without costing recall.
 
 Two things worth saying plainly. **None of these corpora have links, tags, or
 frontmatter** — the structure this engine exists to exploit — so it is being
