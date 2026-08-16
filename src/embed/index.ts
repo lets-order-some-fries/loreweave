@@ -138,18 +138,32 @@ async function withRetry(
   timeoutMs: number,
   what: string,
   maxRetries: number,
+  warn: (msg: string) => void = (msg) => console.error(`[loreweave] ${msg}`),
 ): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     const last = attempt >= maxRetries;
+    let reason: string;
     try {
       const res = await withTimeout(fetchImpl, url, init, timeoutMs, what);
       if (last || !TRANSIENT_STATUS.has(res.status)) return res;
+      reason = `HTTP ${res.status}`;
       // Drain the body we are discarding so the socket is released.
       await res.text().catch(() => undefined);
     } catch (err) {
       if (last) throw err;
+      reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
     }
-    await sleep(1000 * 2 ** attempt);
+    const backoff = 1000 * 2 ** attempt;
+    /**
+     * Say so, every time. A retry that recovers silently looks identical to a
+     * healthy run while costing a multiple of its time: a stalling server took
+     * one benchmark from 25 questions per 16 minutes to 25 per 67, with
+     * nothing in the output to distinguish it from ordinary slowness. Silence
+     * here converts a loud failure into an invisible one, which is the trade
+     * this whole function exists to avoid making.
+     */
+    warn(`${what} failed (${reason}); retrying in ${backoff}ms [${attempt + 1}/${maxRetries}]`);
+    await sleep(backoff);
   }
 }
 

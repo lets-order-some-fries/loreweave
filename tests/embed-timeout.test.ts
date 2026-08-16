@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveProvider } from '../src/embed/index.js';
 import { ConfigSchema } from '../src/config.js';
 
@@ -125,5 +125,66 @@ describe('embedding request retries', () => {
     const permanent = statusFetch(400);
     await expect(resolveProvider(cfg, permanent.impl)!.embed(['hello'])).rejects.toThrow(/400/);
     expect(permanent.calls()).toBe(1);
+  });
+});
+
+/**
+ * A retry that recovers silently looks exactly like a healthy run while
+ * costing a multiple of its time. Making the recovery visible is the point;
+ * without it, a stalling server is indistinguishable from a slow one.
+ */
+describe('retries are not silent', () => {
+  it('warns on each retry, naming the reason and the attempt', async () => {
+    let calls = 0;
+    const flakyFetch = (async (_url: string, init: RequestInit & { body: string }) => {
+      calls++;
+      if (calls === 1) throw Object.assign(new Error('aborted'), { name: 'TimeoutError' });
+      const body = JSON.parse(init.body) as { input: string[] };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ embeddings: body.input.map(() => [0.1]) }),
+      };
+    }) as unknown as typeof fetch;
+
+    const warnings: string[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((m: unknown) => {
+      warnings.push(String(m));
+    });
+    try {
+      const cfg = ConfigSchema.parse({
+        embedding: { provider: 'ollama', timeoutMs: 1000, maxRetries: 2 },
+      });
+      await resolveProvider(cfg, flakyFetch)!.embed(['hello']);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/ollama embed failed.*timed out.*retrying in 1000ms \[1\/2\]/s);
+  });
+
+  it('says nothing when the first attempt succeeds', async () => {
+    const okFetch = (async (_url: string, init: RequestInit & { body: string }) => {
+      const body = JSON.parse(init.body) as { input: string[] };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ embeddings: body.input.map(() => [0.1]) }),
+      };
+    }) as unknown as typeof fetch;
+
+    const warnings: string[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((m: unknown) => {
+      warnings.push(String(m));
+    });
+    try {
+      const cfg = ConfigSchema.parse({ embedding: { provider: 'ollama' } });
+      await resolveProvider(cfg, okFetch)!.embed(['hello']);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(warnings).toEqual([]);
   });
 });
