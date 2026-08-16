@@ -42,6 +42,9 @@ if (!existsSync(dist)) {
 }
 const WITH_EMBED = process.argv.includes('--embed');
 const WITH_RERANK = process.argv.includes('--rerank');
+/** `--model=NAME` picks the ollama embedding model. Prefixes are inferred from the name. */
+const EMBED_MODEL =
+  (process.argv.find((a) => a.startsWith('--model=')) ?? '').split('=')[1] || 'nomic-embed-text';
 const { openContext, indexVault, search, embedMissingBlocks, buildSimilarEdges } = await import(pathToFileURL(dist).href);
 
 const lines = (f) => readFileSync(f, 'utf8').split('\n').filter(Boolean);
@@ -86,7 +89,7 @@ for (const d of corpus) {
 mkdirSync(join(VAULT, '.lore'), { recursive: true });
   const cfgObj = {};
   if (WITH_EMBED) {
-    cfgObj.embedding = { provider: 'ollama', model: 'nomic-embed-text', url: 'http://localhost:11434' };
+    cfgObj.embedding = { provider: 'ollama', model: EMBED_MODEL, url: 'http://localhost:11434' };
   }
   if (WITH_RERANK) {
     cfgObj.rerank = { provider: 'transformers', model: 'Xenova/ms-marco-MiniLM-L-6-v2', topK: 30 };
