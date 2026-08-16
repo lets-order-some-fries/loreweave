@@ -35,8 +35,9 @@ network.
 |---|---|---|
 | MemPal (verbatim chunks + embeddings) | 96.6% | vendor benchmark |
 | BM25 + vector hybrid | 95.2% | third-party benchmark repo |
-| **loreweave, chunked + embeddings** | **94.7%*** | `--stride=5 --chunk=8 --embed` |
-| loreweave + embeddings | 94.4%* | `--stride=5 --embed` |
+| **loreweave, chunked + mxbai-embed-large** | **96.0%*** | `--stride=5 --chunk=8 --embed --model=mxbai-embed-large` |
+| loreweave, chunked + nomic-embed-text | 94.7%* | `--stride=5 --chunk=8 --embed` |
+| loreweave + embeddings (nomic) | 94.4%* | `--stride=5 --embed` |
 | loreweave + embeddings + reranking | 93.6%* | `--stride=5 --embed --rerank` |
 | loreweave, chunked, model-free | 92.6%* | `--stride=5 --chunk=8` |
 | loreweave, model-free | 92.8%* / **89.9%** | sample / **full 500** |
@@ -55,9 +56,15 @@ What was tried, so the next attempt does not repeat it: embeddings are worth
 +1.6 points and are the single biggest lever; 8-turn session chunking adds +0.3
 on top of embeddings and **nothing at all** model-free (92.6 vs 92.8), which
 kills the theory that BM25 length normalisation was the problem; cross-encoder
-reranking is **negative** here (−0.8) and on BEIR (−0.034 nDCG). The remaining
-untried levers are a stronger embedding model and a top-k sweep, and neither
-looks like 3 points.
+reranking is **negative** here (−0.8) and on BEIR (−0.034 nDCG).
+
+**The embedding model matters more than anything downstream of it.** Swapping
+nomic-embed-text (137 M) for mxbai-embed-large (335 M) is worth +1.3 points on
+the same sample — larger than chunking, fusion tuning and reranking put
+together, and it needs no code change beyond the task prefixes the model
+expects. Part of the gap to the published hybrids was never architectural; it
+was that we benchmarked a small local embedder against systems using large
+ones.
 
 The definitive full-500 run of the best configuration is **still outstanding** —
 it needs ~2 h and more free RAM than this machine had (two attempts died when
