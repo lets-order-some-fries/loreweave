@@ -246,11 +246,21 @@ Embeddings and 8-turn session chunking together, on **all 500 questions**:
 node eval/longmemeval.mjs ./longmemeval_s --chunk=8 --embed --model=mxbai-embed-large
 ```
 
-For context, a third-party benchmark of the same task reports **BM25 alone at
-86.2% R@5** and **BM25+vector hybrid at 95.2%**; a vendor benchmark puts a
-pure-vector system at 96.6%. At **95.9% on the full set** loreweave is past the
-hybrid and 0.7 points short of the vector system — and it gets there with a
-local model, no network, and a lexical index it can still fall back to.
+For context, [a third-party benchmark][lme] of the same task, also over all 500
+questions, reports **BM25 alone at 86.2% R@5**, **BM25+vector hybrid at 95.2%**
+and a **vector-only system at 96.6%**. At **95.9%** loreweave is past the hybrid
+and 0.7 points short of the vector-only system — with a local model, no network,
+and a lexical index it can still fall back to.
+
+[lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
+
+Those columns are **not computed identically**. The published figures use
+`recall_any@K` (a question scores 1 if *any* gold session is in the top K); the
+harness here scores the *fraction* of gold sessions found, so a question with
+three gold sessions and two retrieved counts 0.67 rather than 1.0. The
+definitions agree only on single-gold questions, which makes 95.9% the
+conservative side of the comparison — but it also means these numbers should
+not be read as precise to a tenth of a point against each other.
 
 The lever that did it was not architectural. Swapping `nomic-embed-text` (137 M)
 for `mxbai-embed-large` (335 M) was worth +1.3 points on an identical sample,

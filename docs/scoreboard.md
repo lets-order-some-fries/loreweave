@@ -33,20 +33,34 @@ network.
 
 | system | R@5 | questions | source |
 |---|---|---|---|
-| MemPal (verbatim chunks + embeddings) | 96.6% | — | vendor benchmark |
+| MemPalace raw (vector-only) | 96.6% | 500 | [agentmemory][lme] |
 | **loreweave, chunked + mxbai-embed-large** | **95.9%** | **all 500** | `--chunk=8 --embed --model=mxbai-embed-large` |
-| BM25 + vector hybrid | 95.2% | — | third-party benchmark repo |
+| agentmemory BM25+Vector hybrid | 95.2% | 500 | [agentmemory][lme] |
 | loreweave, chunked + nomic-embed-text | 94.7%* | 100 | `--stride=5 --chunk=8 --embed` |
 | loreweave + embeddings (nomic) | 94.4%* | 100 | `--stride=5 --embed` |
 | loreweave + embeddings + reranking | 93.6%* | 100 | `--stride=5 --embed --rerank` |
 | loreweave, chunked, model-free | 92.6%* | 100 | `--stride=5 --chunk=8` |
 | loreweave, model-free | 89.9% | all 500 | — |
-| BM25 alone | 86.2% | — | third-party benchmark repo |
+| agentmemory BM25-only | 86.2% | 500 | [agentmemory][lme] |
+
+[lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
 
 Full run, all 500 questions: R@1 0.590 · R@3 0.897 · **R@5 0.959** · R@10 0.983.
 
-**Status: won, on the full set.** Ahead of the published BM25+vector hybrid,
-behind the pure-vector system. Every earlier version of this file discounted the
+**The two columns are not computed identically, and the difference favours
+them.** The published figures use `recall_any@K` — a question scores 1 if *any*
+gold session appears in the top K. loreweave's harness scores the *fraction* of
+gold sessions retrieved (`found / gold.size`), so a question with three gold
+sessions and two retrieved scores 0.67 here and 1.0 there. The two definitions
+coincide only where a question has a single gold session. Our number is
+therefore the conservative one: under `recall_any@5` loreweave would score at
+or above 95.9%, never below. The comparison is left in the stricter form rather
+than restated in the flattering one, but no claim here should be read as
+precise to a tenth of a point across systems.
+
+**Status: ahead of the published hybrid, behind the pure-vector system** — with
+the metric caveat above, which means the gap to the hybrid is real but its size
+is not precise. Every earlier version of this file discounted the
 sampled figures by ~3 points, on the evidence of the single arm then measured
 both ways (92.8% sampled vs 89.9% full). **That correction did not generalise:**
 the best configuration scored 96.0% sampled and 95.9% on the full 500, so the
