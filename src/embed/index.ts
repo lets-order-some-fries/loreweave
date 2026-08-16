@@ -151,7 +151,7 @@ async function withRetry(
       await res.text().catch(() => undefined);
     } catch (err) {
       if (last) throw err;
-      reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+      reason = err instanceof Error ? (err.message.split('\n')[0] ?? err.message) : String(err);
     }
     const backoff = 1000 * 2 ** attempt;
     /**
