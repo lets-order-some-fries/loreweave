@@ -24,6 +24,18 @@ export const ConfigSchema = z
          */
         timeoutMs: z.number().int().min(1000).default(120_000),
         /**
+         * Retries after a failed attempt, for transient faults only.
+         *
+         * A local embedding server under memory pressure stops answering for a
+         * stretch and then recovers on its own. Without retries a single such
+         * stall aborts an index that may be hours in: observed here as a
+         * 500-question benchmark that died at question 450, losing three and a
+         * half hours to one hiccup from a server that answered in 67 ms once
+         * the run was gone. Backoff is exponential, so a server that needs a
+         * moment gets one.
+         */
+        maxRetries: z.number().int().min(0).max(10).default(2),
+        /**
          * Task prefixes for instruction-tuned embedding models.
          *
          * Asymmetric retrieval models are TRAINED with a task prefix and are

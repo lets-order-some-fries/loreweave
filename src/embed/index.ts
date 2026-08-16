@@ -50,7 +50,10 @@ export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fe
   if (e.provider === 'none') return null;
   const prefixes = prefixesFor(config);
   if (e.provider === 'ollama') {
-    return withPrefixes(ollamaProvider(e.url, e.model, fetchImpl, e.timeoutMs), prefixes);
+    return withPrefixes(
+      ollamaProvider(e.url, e.model, fetchImpl, e.timeoutMs, e.maxRetries),
+      prefixes,
+    );
   }
   if (e.provider === 'openai') {
     const key = process.env[e.apiKeyEnv];
@@ -59,7 +62,10 @@ export function resolveProvider(config: LoreConfig, fetchImpl: typeof fetch = fe
         `embedding provider 'openai' configured but env var ${e.apiKeyEnv} is not set`,
       );
     }
-    return withPrefixes(openaiProvider(e.url, e.model, key, fetchImpl, e.timeoutMs), prefixes);
+    return withPrefixes(
+      openaiProvider(e.url, e.model, key, fetchImpl, e.timeoutMs, e.maxRetries),
+      prefixes,
+    );
   }
   return null;
 }
@@ -106,17 +112,59 @@ async function withTimeout(
   }
 }
 
+/**
+ * Statuses worth trying again. A 4xx means the request itself is wrong and
+ * will be just as wrong next time; these five mean "not now".
+ */
+const TRANSIENT_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Timeout plus bounded retry with exponential backoff.
+ *
+ * Indexing a large vault is a long chain of requests where any one of them can
+ * hit a momentary stall, and dying on the first one throws away all the work
+ * before it. Retries cover the transient faults — timeouts, dropped sockets,
+ * 503s — and deliberately do not cover 4xx, where trying again just fails
+ * slower. The final attempt's response is returned even when it is a transient
+ * status, so the caller still reports the server's own error text rather than
+ * one invented here.
+ */
+async function withRetry(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  what: string,
+  maxRetries: number,
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const last = attempt >= maxRetries;
+    try {
+      const res = await withTimeout(fetchImpl, url, init, timeoutMs, what);
+      if (last || !TRANSIENT_STATUS.has(res.status)) return res;
+      // Drain the body we are discarding so the socket is released.
+      await res.text().catch(() => undefined);
+    } catch (err) {
+      if (last) throw err;
+    }
+    await sleep(1000 * 2 ** attempt);
+  }
+}
+
 function ollamaProvider(
   url: string,
   model: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+  maxRetries: number,
 ): EmbeddingProvider {
   return {
     name: 'ollama',
     model,
     async embed(texts) {
-      const res = await withTimeout(
+      const res = await withRetry(
         fetchImpl,
         `${url.replace(/\/$/, '')}/api/embed`,
         {
@@ -126,6 +174,7 @@ function ollamaProvider(
         },
         timeoutMs,
         'ollama embed',
+        maxRetries,
       );
       if (!res.ok) throw new Error(`ollama embed failed: ${res.status} ${await res.text()}`);
       const json = (await res.json()) as { embeddings: number[][] };
@@ -143,13 +192,14 @@ function openaiProvider(
   apiKey: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+  maxRetries: number,
 ): EmbeddingProvider {
   const base = baseUrl.includes('11434') ? 'https://api.openai.com/v1' : baseUrl.replace(/\/$/, '');
   return {
     name: 'openai',
     model,
     async embed(texts) {
-      const res = await withTimeout(
+      const res = await withRetry(
         fetchImpl,
         `${base}/embeddings`,
         {
@@ -162,6 +212,7 @@ function openaiProvider(
         },
         timeoutMs,
         'openai embed',
+        maxRetries,
       );
       if (!res.ok) throw new Error(`openai embed failed: ${res.status} ${await res.text()}`);
       const json = (await res.json()) as { data: { index: number; embedding: number[] }[] };
