@@ -129,6 +129,17 @@ for (const [qi, q] of data.entries()) {
       `---\ntitle: session ${i}\n${d ? `date: ${d}\n` : ''}---\n\n# Session ${i}\n\n${body}\n`,
     );
   });
+  /**
+   * Drop the transcript now that it is on disk. longmemeval_s is 278 MB of
+   * JSON that parses to several GB of objects, and every question's haystack
+   * stayed reachable through `data` for the whole run even though each is used
+   * exactly once. On a laptop that pushed free memory to 6%, macOS swapped the
+   * embedding server out, and requests to it stopped returning — which is why
+   * full-set runs kept dying around question 100 while the sampled runs, which
+   * finish just before the ceiling, always survived. Releasing here keeps peak
+   * memory flat across the run instead of climbing with every question.
+   */
+  q.haystack_sessions = null;
   mkdirSync(join(VAULT, '.lore'), { recursive: true });
   const cfgObj = {};
   if (WITH_EMBED) {
