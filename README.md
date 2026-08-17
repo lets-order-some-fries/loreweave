@@ -216,7 +216,8 @@ language model after retrieval.
 
 | system | nDCG@10 | Recall@10 |
 |---|---|---|
-| loreweave + local embeddings | **0.729** | **0.869** |
+| loreweave + mxbai-embed-large | **0.742** | **0.884** |
+| loreweave + nomic-embed-text | 0.727 | 0.865 |
 | loreweave, lexical channel | 0.682 | 0.808 |
 | loreweave, model-free pipeline | 0.681 | 0.817 |
 | BM25 (BEIR paper, Anserini) | 0.665 | — |
@@ -282,8 +283,8 @@ ceiling versus 40-48% for single-evidence categories. Embeddings do not fix it.
 
 **The pattern across all three benchmarks is one weakness, stated plainly.**
 Recall is strong and top-of-ranking is not: LoCoMo R@20 0.705 against R@1
-0.337, LongMemEval R@10 0.983 against R@1 0.590, BEIR Recall@10 0.869 against
-nDCG@10 0.729. The right answer reliably reaches the candidate pool; putting it
+0.337, LongMemEval R@10 0.983 against R@1 0.590, BEIR Recall@10 0.884 against
+nDCG@10 0.742. The right answer reliably reaches the candidate pool; putting it
 *first* is the open problem, and it is why the numbers here are quoted at R@5
 rather than R@1.
 

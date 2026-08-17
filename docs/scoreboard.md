@@ -18,16 +18,21 @@ the nearest number that looks similar.
 
 | system | nDCG@10 | source |
 |---|---|---|
-| **loreweave + local embeddings** | **0.729** | `npm run bench:beir -- ./scifact --embed` |
+| **loreweave + mxbai-embed-large** | **0.742** | `… --embed --model=mxbai-embed-large` |
+| loreweave + nomic-embed-text | 0.727 | `npm run bench:beir -- ./scifact --embed` |
 | loreweave + embeddings + reranking | 0.695 | `… --embed --rerank` |
 | loreweave, model-free | 0.681 | `npm run bench:beir -- ./scifact` |
 | BM25 (Anserini) | 0.665 | BEIR paper |
 
 **Status: won.** Ahead of the classical baseline model-free, and comfortably
-ahead with the optional layer. Modern large embedding retrievers score higher
-on SciFact than either figure; loreweave is competitive with, not ahead of,
-2026 dense retrieval — and it gets there with a small local model and no
-network.
+ahead with the optional layer. The embedding-model lever from §2 generalises:
+mxbai over nomic is worth +1.5 nDCG here (and Recall@10 0.865 → 0.884), the
+same-sized lift it gave conversational recall. Modern large embedding
+retrievers still score higher on SciFact; loreweave is competitive with, not
+ahead of, 2026 dense retrieval — and it gets there with a local model and no
+network. (The nomic figure was first published as 0.729; re-measured at 0.727
+this session — embedding-batch nondeterminism of ±0.002, worth knowing when
+reading any figure here to the third decimal.)
 
 ## 2. Conversational memory — LongMemEval_S, session recall@5
 
