@@ -14,9 +14,10 @@
 
 <p align="center">
   <a href="#quickstart">Quickstart</a> ·
-  <a href="#what-makes-it-different">Different how?</a> ·
+  <a href="#what-it-does">What it does</a> ·
   <a href="#the-cli">CLI</a> ·
   <a href="#use-it-as-agent-memory-mcp">Agent memory</a> ·
+  <a href="#benchmarks">Benchmarks</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#research-lineage">Research</a>
 </p>
@@ -36,296 +37,46 @@ Loreweave is the layer that fixes that. Point it at a folder of markdown (Obsidi
 plain) and it builds a knowledge graph, a bitemporal fact store, and a memory model over
 your notes — then hands them to you through a CLI and to your AI agents through MCP.
 
-Your files stay exactly as they are. **The vault is the source of truth; the index is a
-cache you can delete at any time.**
+Three guarantees, enforced by the code rather than promised:
 
-```bash
-npx loreweave init && npx loreweave index
-```
+- **Your files win.** User markdown is never mutated; the engine only appends, and only
+  under `lore/`. The vault is the source of truth — **the index is a cache you can
+  delete at any time** and rebuild identically (there's a test for that).
+- **No LLM anywhere in the core.** Indexing and retrieval use zero tokens and make zero
+  network calls. Same vault, same query, same answer — forever.
+- **Memory you can read.** Every fact an agent stores is a markdown line you can open,
+  edit, and `git diff`.
 
 ## Quickstart
 
 ```bash
 cd ~/my-vault
 npx loreweave init          # creates .lore/
-npx loreweave index         # incremental; ~1.2 ms per note (see Scale below)
+npx loreweave index         # incremental sync; one changed note: 32 ms at 1k notes, 656 ms at 20k (see Scale)
 
 npx loreweave search "why did we drop the queue design"
 npx loreweave ask "what's the status of project atlas"
 npx loreweave dream         # what's duplicated, contradicted, stale, unlinked
 ```
 
-Zero configuration required and no network calls: out of the box it runs on BM25 +
-knowledge-graph spreading activation. Add embeddings when you want them:
+Zero configuration and no network: out of the box it runs on BM25 + knowledge-graph
+spreading activation. Add local embeddings when you want them:
 
 ```jsonc
 // .lore/config.json
 { "embedding": { "provider": "ollama", "model": "mxbai-embed-large" } }
 ```
 
-**Which model.** The choice matters more than any tuning downstream of it —
-swapping `nomic-embed-text` for `mxbai-embed-large` moved LongMemEval_S R@5
-from 0.947 to 0.960 on an identical sample, a bigger gain than chunking and
-reranking combined. Pick `mxbai-embed-large` (670 MB) for quality,
-`nomic-embed-text` (274 MB) when disk or indexing speed matters more. Both get
-their required task prefixes applied automatically, as do BGE and Arctic —
-getting those wrong silently costs more than the model choice does.
-
-Everything degrades gracefully — no embedding provider means lexical + graph retrieval,
+Pick `mxbai-embed-large` (670 MB) for quality or `nomic-embed-text` (274 MB) when disk
+and indexing speed matter more — required task prefixes are applied automatically for
+both, and for the E5, BGE and Arctic families. The measured difference between the two
+is in [Benchmarks](#benchmarks). No embedding provider means lexical + graph retrieval,
 still fully functional.
 
 Works with non-English vaults: Chinese, Japanese and Korean text is segmented per
 character so it is searchable at all, and other scripts index as written.
 
-## Measured, not asserted
-
-Loreweave ships its own benchmark — `npm run eval` — over **three** purpose-built
-vaults, scored against a BM25 baseline and a graph-only baseline.
-
-The second corpus exists to catch overfitting: it is deliberately unlike the
-first in every dimension the config could have been tuned to (markdown links
-instead of `[[wiki links]]`, deep nesting, filenames unrelated to titles, real
-engineering note shapes). The third measures **time** instead of topicality:
-facts change across dated notes, every date lives only in frontmatter where
-BM25 cannot see it, and each windowed question is paired with a
-shifted-window twin whose correct answer is a *different* note — the
-perturbation test that exposes systems faking temporal competence through
-lexical overlap.
-
-| corpus | system | finds the answer | in top 5 | MRR | answer shown |
-|---|---|---|---|---|---|
-| kestrel (40 q) | **hybrid** | **100%** | **75%** | **0.545** | **55%** |
-| | BM25 | 75% | 65% | 0.532 | 55% |
-| northwind (24 q) | **hybrid** | **96%** | **92%** | **0.690** | **83%** |
-| | BM25 | 63% | 58% | 0.521 | 54% |
-| meridian (18 q) | **hybrid** | **100%** | **94%** | **0.952** | **94%** |
-| | BM25 | 94% | 83% | 0.437 | 83% |
-
-Multi-hop is where the graph earns its keep: **BM25 finds 0% on both prose
-corpora** — it cannot reach a note that shares no words with your query, at
-any depth — while hybrid finds 90% and 100%. Time is where the temporal
-machinery earns its keep: on meridian's windowed questions hybrid ranks the
-right note **first 100% of the time vs BM25's 0%** — and on the paired
-perturbation test (same question, shifted window, different correct answer,
-both directions must rank first) hybrid scores **100% vs BM25's 0%**. The
-consistency number is computed and regression-gated by `npm run eval`, not
-hand-derived.
-
-"answer shown" is the strictest measure: not just the right note, but a
-returned passage that literally contains the answer. Results are one per note,
-showing whichever of that note's sections best covers your query — ranking
-decides which notes matter, coverage decides which part of them you see.
-
-The same shipped config wins on all three corpora, and by more on the ones it
-was never tuned against. If you prefer pure lexical behaviour, set
-`retrieval.weights.expansion: 0`.
-
-Run it yourself: `npm run eval`. `npm run eval:gate` fails the build on any
-regression across all three corpora, and CI enforces it on every push.
-
-**What lexical + graph retrieval cannot do**, stated precisely: the kestrel
-multi-hop questions use words like "hardware" and "outpost" that appear in
-*zero* notes — the vault says "instrument" and "station". No statistic derived
-from the vault (co-occurrence, PPMI, LSA) can bridge that, because there are no
-occurrences to derive one from. Those answers are still *found* by following
-links; ranking them first needs semantics from outside the vault.
-
-**Embeddings supply it — once the model is asked correctly.** `npm run eval --
---embed` reruns everything with local dense vectors (Ollama). For three
-releases that measured *worse* than no embeddings at all, and the cause turned
-out to be ours: `nomic-embed-text` is an asymmetric model trained with task
-prefixes (`search_query:` / `search_document:`), and we were sending raw text
-for both — so queries and passages landed in the same region of the space and
-the dense channel stopped discriminating. With the prefixes sent:
-
-| corpus | | r@5 | MRR | answer shown |
-|---|---|---|---|---|
-| kestrel | model-free | 0.750 | 0.545 | 0.550 |
-| | + embeddings | **0.825** | **0.572** | **0.575** |
-| northwind | model-free | 0.917 | 0.690 | 0.833 |
-| | + embeddings | **0.958** | 0.681 | **0.875** |
-| meridian | either | 0.944 | 0.951 | 0.944 |
-
-Prefixes are inferred from the model name (nomic, E5 and BGE families are
-known) and overridable with `embedding.queryPrefix` / `documentPrefix`. The
-default is still **no models at all** — that is the guarantee this project is
-built on — but the optional layer now earns its place when you turn it on.
-
-## Optional: cross-encoder reranking
-
-Every benchmark below says the same thing about this engine — the right answer
-reaches the candidate pool, and putting it *first* is the weakness. A
-cross-encoder reads query and passage together, which is what retrieval
-scoring never does. It is **off by default** and needs an optional package:
-
-```bash
-npm i @huggingface/transformers          # optional peer dependency
-```
-```jsonc
-// .lore/config.json
-{ "rerank": { "provider": "transformers", "model": "Xenova/ms-marco-MiniLM-L-6-v2" } }
-```
-
-Measured on LoCoMo (1 982 evidence-labelled questions):
-
-| | R@1 | R@5 | multi-hop R@1 |
-|---|---|---|---|
-| model-free | 0.337 | 0.538 | 0.087 |
-| + reranking | **0.422** | **0.582** | **0.164** |
-
-Overall R@1 rises 25% relative, and multi-hop — the weakest category — nearly
-doubles, from 22% of its achievable ceiling to 42%, in line with everything
-else. On the internal corpora it moves kestrel r@1 0.400 → 0.575.
-
-**The honest costs**, all measured:
-
-- It sharpens rank 1 and scatters ranks 2-5 (northwind r@5 0.917 → 0.667). A
-  rank-sum blend with retrieval recovers most of that but gives up most of the
-  r@1 gain, so the trade is taken deliberately: an agent hands one passage to a
-  model, and rank 1 is the product. If you consume a list of five, leave this off.
-- It costs 200-850 ms per query depending on passage length, against 3-38 ms without.
-- It is **skipped on temporally-scoped queries**. A cross-encoder cannot see a
-  date, so on "status in 2026" it scores every passage about the subject alike
-  and discards what the temporal machinery just established — measured, meridian
-  r@1 0.944 → 0.278 when it was allowed to overrule that. Where the query names
-  a time or asks for the current state, retrieval order stands and temporal
-  consistency stays at 100%.
-- On BEIR/SciFact it is nearly worthless model-free (nDCG@10 0.681 → 0.688 for
-  45× the latency), and **actively harmful on top of embeddings**: 0.729 → 0.695.
-  Long scientific claims against abstracts are where BM25 is already strong;
-  short natural questions against short passages are where this pays.
-- **Stacking it on embeddings loses on both public benchmarks.** LongMemEval_S
-  R@5 goes 0.944 → 0.936 with reranking added, BEIR 0.729 → 0.695. The two
-  layers are fixing the same failure and then fighting: the cross-encoder
-  re-sorts a pool the embeddings had already ordered well and demotes correct
-  passages out of the window. **Turn on one or the other, not both** — and if
-  you consume a list rather than a single passage, embeddings alone is the
-  configuration that wins.
-
-## Measured on public benchmarks
-
-The corpora above are ours — we wrote the notes *and* the questions, which
-makes them good for regression and worthless as proof. These are third-party,
-with relevance labels nobody here chose. All runs are the **model-free**
-configuration (no LLM, no embeddings, no network), and all are **retrieval**
-metrics: loreweave finds the evidence, it does not write the answer, so these
-are not comparable to end-to-end QA accuracy quoted by systems that put a
-language model after retrieval.
-
-**BEIR / SciFact** — 5 183 abstracts, 300 queries, nDCG@10:
-
-| system | nDCG@10 | Recall@10 |
-|---|---|---|
-| loreweave + mxbai-embed-large | **0.742** | **0.884** |
-| loreweave + nomic-embed-text | 0.727 | 0.865 |
-| loreweave, lexical channel | 0.682 | 0.808 |
-| loreweave, model-free pipeline | 0.681 | 0.817 |
-| BM25 (BEIR paper, Anserini) | 0.665 | — |
-
-**LongMemEval_S** (ICLR 2025) — 500 questions, ~50-session history each,
-session-level recall, model-free:
-
-| category | n | R@1 | R@5 | R@10 |
-|---|---|---|---|---|
-| knowledge-update | 78 | 0.481 | 0.942 | 0.955 |
-| temporal-reasoning | 133 | 0.414 | 0.871 | 0.910 |
-| multi-session | 133 | 0.371 | 0.835 | 0.925 |
-| single-session (all) | 156 | 0.833 | 0.955 | 0.974 |
-| **overall** | **500** | **0.552** | **0.899** | **0.943** |
-
-Embeddings and 8-turn session chunking together, on **all 500 questions**:
-
-| category | n | R@1 | R@5 | R@10 |
-|---|---|---|---|---|
-| knowledge-update | 78 | 0.494 | **1.000** | 1.000 |
-| temporal-reasoning | 133 | 0.452 | 0.916 | 0.965 |
-| multi-session | 133 | 0.395 | 0.946 | 0.981 |
-| single-session (all) | 156 | 0.918 | 0.987 | 0.994 |
-| **overall** | **500** | **0.590** | **0.959** | **0.983** |
-
-```bash
-node eval/longmemeval.mjs ./longmemeval_s --chunk=8 --embed --model=mxbai-embed-large
-```
-
-For context, [a third-party benchmark][lme] of the same task, also over all 500
-questions, reports **BM25 alone at 86.2% R@5**, **BM25+vector hybrid at 95.2%**
-and a **vector-only system at 96.6%**. At **95.9%** loreweave is past the hybrid
-and 0.7 points short of the vector-only system — with a local model, no network,
-and a lexical index it can still fall back to.
-
-[lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
-
-Those columns are **not computed identically**. The published figures use
-`recall_any@K` (a question scores 1 if *any* gold session is in the top K); the
-harness here scores the *fraction* of gold sessions found, so a question with
-three gold sessions and two retrieved counts 0.67 rather than 1.0. The
-definitions agree only on single-gold questions, which makes 95.9% the
-conservative side of the comparison — but it also means these numbers should
-not be read as precise to a tenth of a point against each other.
-
-The lever that did it was not architectural. Swapping `nomic-embed-text` (137 M)
-for `mxbai-embed-large` (335 M) was worth +1.3 points on an identical sample,
-more than chunking, fusion tuning and reranking combined; the earlier gap was
-partly just a small embedder benchmarked against systems using large ones.
-
-**LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions,
-turn-level recall:
-
-| | R@1 | R@5 | R@10 | R@20 |
-|---|---|---|---|---|
-| model-free | **0.337** | **0.538** | 0.610 | 0.656 |
-| + embeddings | 0.318 | 0.532 | **0.627** | **0.705** |
-
-Strongest category is temporal (R@1 0.454). Multi-hop looks worst at R@1 0.088,
-but those questions carry **3.13 evidence turns on average**, so R@1 cannot
-exceed 0.390 there — against what is achievable, multi-hop reaches 22% of
-ceiling versus 40-48% for single-evidence categories. Embeddings do not fix it.
-
-**The pattern across all three benchmarks is one weakness, stated plainly.**
-Recall is strong and top-of-ranking is not: LoCoMo R@20 0.705 against R@1
-0.337, LongMemEval R@10 0.983 against R@1 0.590, BEIR Recall@10 0.884 against
-nDCG@10 0.742. The right answer reliably reaches the candidate pool; putting it
-*first* is the open problem, and it is why the numbers here are quoted at R@5
-rather than R@1.
-
-Four attempts at it, three of which failed on measurement: pseudo-relevance
-feedback (flat), scoring the coverage signal directly (harmful at every weight,
-see the comment in `search.ts`), and a cross-encoder reranker — which sharpens
-rank 1 but **loses** R@5 on both public benchmarks once embeddings are on, so it
-stays off by default. What did work was upstream of all of it: a larger
-embedding model. The honest state is a known weakness, three ruled-out fixes,
-and no current candidate that improves rank 1 without costing recall.
-
-Two things worth saying plainly. **None of these corpora have links, tags, or
-frontmatter** — the structure this engine exists to exploit — so it is being
-measured with one hand tied; that is the honest cost of using benchmarks we
-didn't design. And measuring them found a real defect: the graph channel was
-trusted even on corpora with no graph to walk, which cost 0.024 nDCG@10 on
-SciFact and 6 points of R@5 on LoCoMo. Fixed in 0.32.0. It is *not* uniformly
-better — LongMemEval's R@10 moved 0.955 → 0.943 — and the trade is documented
-rather than hidden.
-
-Reproduce every number: [`docs/benchmarks.md`](docs/benchmarks.md). How these
-compare to the field, with the apples-to-oranges traps called out:
-[`docs/scoreboard.md`](docs/scoreboard.md).
-
-## Scale
-
-Measured, like the quality numbers — `npm run scale` reproduces this on your
-own machine (synthetic vaults, 3 blocks per note, dense interlinking):
-
-| notes | blocks | entities | edges | full index | incremental | search p50 | p95 | dream | heap |
-|---|---|---|---|---|---|---|---|---|---|
-| 1 000 | 3 000 | 2 766 | 17 k | 1.2 s | 32 ms | 3 ms | 4 ms | 0.2 s | 63 MB |
-| 5 000 | 15 000 | 13 766 | 85 k | 6.1 s | 165 ms | 9 ms | 12 ms | 1.0 s | 145 MB |
-| 20 000 | 60 000 | 55 016 | 339 k | 22.5 s | 656 ms | 38 ms | 53 ms | 4.8 s | 333 MB |
-
-Full index scales at **0.93× per note** from 5 k to 20 k — linear or better,
-no superlinear step hiding in the middle. "Incremental" is one changed note,
-which is what `lore watch` actually does all day. Everything here is one
-process, one SQLite file, no daemon.
-
-## What makes it different
+## What it does
 
 **1. Knowledge that has a timeline.** Facts are bitemporal: when they were true in the
 world (`valid_from`/`valid_until`) and when the system learned them (`recorded_at`).
@@ -337,20 +88,14 @@ $ lore assert "Ledger Format" status final --valid-from 2026-08-01
 ✓ Ledger Format :: status :: final
   superseded: "draft" (now valid until 2026-08-01)
   journal: lore/journal/2026-08-01.md
-
-$ lore facts --subject "Ledger Format"
-Ledger Format :: status :: final  (2026-08-01 → now)
-    asserted · lore/journal/2026-08-01.md
-
-$ lore facts --subject "Ledger Format" --as-of 2026-03-01
-Ledger Format :: status :: draft  (2026-01-01 → 2026-08-01)  [superseded]
-    asserted · lore/journal/2026-08-01.md
 ```
 
-Both axes are queryable, which is the part that makes it bitemporal rather than
-merely historical. `--as-of` asks what was *true* then; `--as-known-at` asks what
-was *believed* then, excluding anything recorded later however far back it was
-backdated. They disagree exactly when you learn something after the fact — which
+(`lore` and `loreweave` are the same binary — `npm i -g loreweave` gives you both;
+`npx loreweave` works without installing.)
+
+Both time axes are queryable, which is what makes it bitemporal rather than merely
+historical. `--as-of` asks what was *true* then; `--as-known-at` asks what was
+*believed* then. They disagree exactly when you learn something after the fact — which
 is when you most need to reconstruct what a past decision was actually based on:
 
 ```bash
@@ -362,10 +107,9 @@ Vendor :: reliability :: good  (2024-01-01 → 2024-01-01)  [superseded]
 ```
 
 Which fact wins is decided **deterministically** (newest valid-time, provenance as
-tiebreak) — never by asking a language model which one looks fresher.
-
-And the whole history of anything is one command — every value change from the
-fact store merged chronologically with the dated prose that mentions it:
+tiebreak) — never by asking a language model which one looks fresher. And the whole
+history of anything is one command — every value change merged chronologically with the
+dated prose that mentions it:
 
 ```bash
 $ lore timeline Project Atlas
@@ -375,10 +119,9 @@ $ lore timeline Project Atlas
 2025-06-20  • The [[Project Atlas]] midpoint review went long but well.  [review.md]
 ```
 
-"What was X before it changed" is the query temporal-graph products market as
-their flagship — built there by running an LLM over every ingested document.
-Here the supersede chain has been maintained all along, so it is a read-side
-join: no LLM, no network, same answer every time.
+Temporal-graph systems build this by running an LLM over every document at ingestion.
+Here the supersede chain has been maintained all along, so it is a read-side join: no
+LLM, no network, same answer every time.
 
 **2. Retrieval that follows connections, not just words.** Queries fuse BM25, dense
 similarity (when configured), and Personalized PageRank over the vault's own graph —
@@ -399,8 +142,8 @@ instead of silently rotting. Nothing is ever deleted.
 and reports duplicate passages, contradicted facts, stale knowledge, missing links
 between notes that clearly belong together, and orphans. With `--apply` it writes a
 digest and a review queue — **append-only, under `lore/`**. It never rewrites your prose:
-LLM-driven whole-file rewriting is a documented failure mode (context collapse), so the
-architecture forbids it.
+LLM-driven whole-file rewriting is a documented failure mode — each rewrite quietly
+drops details until the file collapses to mush — so the architecture forbids it.
 
 **5. Questions retrieval can't answer.** Counting, grouping, and date-range queries run
 as deterministic SQL over the fact store, not as vibes over embeddings:
@@ -411,9 +154,8 @@ $ lore count --predicate trip_to --since 2025-01-01 --until 2025-12-31
     1  Kenya
 ```
 
-**6. Facts come from your notes, not from a form.** The fact store used to be
-empty on any real vault — nobody hand-writes `- [fact] X :: y :: z`. It now
-mines the conventions vaults already use:
+**6. Facts come from your notes, not from a form.** Nobody hand-writes
+`- [fact] X :: y :: z`, so the extractor mines the conventions vaults already use:
 
 ```yaml
 status: shipped              # frontmatter
@@ -422,30 +164,20 @@ status: shipped              # frontmatter
 ```
 
 Only unambiguous field syntax is accepted automatically. Prose formatting like
-`- **Owner:** Priya` is precise on entity notes and noisy on report notes, so
-it is opt-in (`facts.extract: "all"`) — or an agent can review candidates via
+`- **Owner:** Priya` is precise on entity notes and noisy on report notes, so it is
+opt-in (`facts.extract: "all"`) — or an agent can review candidates via
 `lore_propose_facts` and assert the real ones. Judgement stays out of the index.
 
 **7. Time means when it happened, not when you saved the file.** `--since` and
-`--until` filter on *content* time — taken from frontmatter dates, dated
-filenames (`2025-03-14-standup.md`), or dates in the text — falling back to
-file mtime only when a note carries no date of its own:
+`--until` filter on *content* time — frontmatter dates, dated filenames
+(`2025-03-14-standup.md`), or dates in the text — falling back to file mtime only when
+a note carries no date of its own. `lore watch` keeps the index current so you never
+have to remember to reindex.
 
-```bash
-$ lore search ledger --since 2025-01-01 --until 2025-12-31
-• 2025-03-14-standup.md › Standup  [all terms]
-  Discussed the ledger migration.
-```
-
-Both files were written seconds ago, so an mtime filter could not tell them
-apart. `lore watch` keeps the index current so you never have to remember to
-reindex.
-
-**8. Built for agents.** An MCP server exposes 15 typed tools so Claude Code, Cursor, or
-any MCP client can use your vault as durable memory — with a session context pack,
-fact assertion, point-in-time queries, and a reinforcement signal. Session
-continuity is a query, not a paraphrase: `lore resume` returns exactly what
-changed since the agent last connected, computed from record time —
+**8. Built for agents.** An MCP server exposes 15 typed tools so Claude Code, Cursor,
+or any MCP client can use your vault as durable memory. Session continuity is a query,
+not a paraphrase — `lore resume` returns exactly what changed since the agent last
+connected, computed from record time:
 
 ```bash
 $ lore resume
@@ -459,9 +191,8 @@ since 2026-08-11 15:56
 nothing changed
 ```
 
-— where the popular alternatives run an LLM over the previous session and
-inject the summary: a paraphrase, unreproducible, wrong exactly when it
-matters.
+Alternatives that summarize the previous session with an LLM inject a paraphrase; this
+is a deterministic diff. Full setup in [Agent memory](#use-it-as-agent-memory-mcp).
 
 ## The CLI
 
@@ -501,19 +232,118 @@ matters.
 }
 ```
 
-Tools: `lore_search`, `lore_context_pack`, `lore_read_note`, `lore_assert_fact`,
-`lore_invalidate_fact`, `lore_query_facts`, `lore_timeline`, `lore_resume`, `lore_review`, `lore_aggregate_facts`, `lore_capture`,
-`lore_mark_used`, `lore_propose_facts`, `lore_dream_report`, `lore_index`.
+| Tool | What the agent gets |
+|---|---|
+| `lore_search` | hybrid retrieval with provenance and temporal filters |
+| `lore_context_pack` | one-call session context: relevant passages + current facts + recent changes |
+| `lore_read_note` | full text of a note by path |
+| `lore_assert_fact` / `lore_invalidate_fact` | write/close facts — journalled, superseding, never destructive |
+| `lore_query_facts` | point-in-time fact queries (`asOf`, `asKnownAt`, history) |
+| `lore_timeline` | an entity's merged fact + prose chronology |
+| `lore_resume` | exactly what changed since the agent last connected |
+| `lore_review` | important-but-fading passages worth resurfacing |
+| `lore_aggregate_facts` | count/group-by over fact history |
+| `lore_capture` | append a timestamped line to the inbox |
+| `lore_mark_used` | reinforcement signal: this passage actually helped |
+| `lore_propose_facts` | extraction candidates for the agent to review and assert |
+| `lore_dream_report` | the consolidation report (duplicates, contradictions, stale, orphans) |
+| `lore_index` | trigger a reindex |
 
 Facts asserted through MCP are written back to `lore/journal/YYYY-MM-DD.md` as readable
-markdown lines, so an agent's memory is something you can open, read, edit, and
-`git diff`:
+markdown, so an agent's memory is something you can open, edit, and `git diff`:
 
 ```markdown
 - [fact] Ledger Format :: status :: final {valid_from=2026-08-01, confidence=0.9, source=stated}
 ```
 
 Delete `.lore/` and reindex — every fact and edge is reconstructed from those files.
+
+**Compared to hosted memory services** (Mem0, Zep): those run LLMs at write time to
+extract and summarize into their own store; loreweave runs no model in the core, keeps
+memory in your files under your version control, and makes every retrieval
+reproducible. The trade: they do abstractive summarization, this engine deliberately
+does not. Retrieval quality against their published benchmarks is below — with the
+caveats stated, because most published agent-memory numbers measure end-to-end QA with
+an LLM, which is a different quantity than retrieval.
+
+## Benchmarks
+
+These are third-party benchmarks with relevance labels nobody here chose. All loreweave
+numbers are **retrieval** metrics — it finds the evidence, it does not write the
+answer — so they are not comparable to the end-to-end QA accuracy quoted by systems
+that put a language model after retrieval. Reproduce any number:
+[`docs/benchmarks.md`](docs/benchmarks.md). Field comparison with the traps called out:
+[`docs/scoreboard.md`](docs/scoreboard.md).
+
+**LongMemEval_S** (ICLR 2025) — 500 questions, each with ~50 sessions of chat history;
+find the sessions holding the evidence. Session-level recall, all 500 questions:
+
+| configuration | R@1 | R@5 | R@10 |
+|---|---|---|---|
+| model-free (no embeddings, no network) | 0.552 | 0.899 | 0.943 |
+| + embeddings & 8-turn chunking | **0.590** | **0.959** | **0.983** |
+
+[A third-party benchmark][lme] of the same task reports BM25 alone at **86.2%** R@5,
+BM25+vector hybrid at **95.2%**, and a vector-only system at **96.6%**. One caveat
+before the comparison: their metric scores a question 1 if *any* gold session is
+retrieved, ours scores the *fraction* of gold sessions found — ours is the stricter
+definition, so treat cross-system gaps of under a point as noise. With that stated:
+**at 95.9% loreweave is past the hybrid and just short of the vector-only system**,
+with a local model, no network, and a lexical index it can fall back to.
+
+[lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
+
+**BEIR / SciFact** — 5 183 scientific abstracts, 300 claims, scored by nDCG@10
+(ranking quality: rewards putting relevant documents nearer the top):
+
+| configuration | nDCG@10 | Recall@10 |
+|---|---|---|
+| BM25 baseline (BEIR paper, Anserini) | 0.665 | — |
+| loreweave, model-free | 0.681 | 0.817 |
+| loreweave + nomic-embed-text | 0.727 | 0.865 |
+| loreweave + mxbai-embed-large | **0.742** | **0.884** |
+
+**LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions, turn-level
+recall. No comparable third-party *retrieval* number exists (published LoCoMo results
+are LLM QA accuracy), so these are offered as a target rather than a comparison:
+
+| | R@1 | R@5 | R@10 | R@20 |
+|---|---|---|---|---|
+| model-free | 0.337 | 0.538 | 0.610 | 0.656 |
+| + embeddings | 0.318 | 0.532 | **0.627** | **0.705** |
+
+**What the numbers say, plainly.** Recall is strong and rank-1 is the weakness —
+LongMemEval R@10 0.983 vs R@1 0.590 — which is why figures here are quoted at R@5 and
+why an agent consuming these results should read a top-5 list, not trust rank 1. The
+single biggest quality lever measured is the embedding model itself: mxbai over nomic
+is worth more than every downstream tuning combined, on both benchmarks it was tried
+on. A cross-encoder reranker is available (`rerank` in config) but earns its keep only
+for rank-1 consumers without embeddings — stacked on embeddings it *loses* recall on
+both public benchmarks, so leave it off unless that trade is yours. Full analysis,
+including the failed experiments and the defect that benchmarking caught:
+[`docs/evaluation.md`](docs/evaluation.md).
+
+Loreweave also ships an internal regression benchmark (`npm run eval`) over three
+purpose-built vaults — including a temporal-perturbation test where the shipped config
+scores **100% consistency vs BM25's 0%**, gated in CI on every push. Internal corpora
+are good for regression and worthless as proof, so the details live in
+[`docs/evaluation.md`](docs/evaluation.md) rather than here.
+
+## Scale
+
+Measured, like the quality numbers — `npm run scale` reproduces this on your own
+machine (synthetic vaults, 3 blocks per note, dense interlinking):
+
+| notes | blocks | entities | edges | full index | incremental | search p50 | p95 | dream | heap |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 000 | 3 000 | 2 766 | 17 k | 1.2 s | 32 ms | 3 ms | 4 ms | 0.2 s | 63 MB |
+| 5 000 | 15 000 | 13 766 | 85 k | 6.1 s | 165 ms | 9 ms | 12 ms | 1.0 s | 145 MB |
+| 20 000 | 60 000 | 55 016 | 339 k | 22.5 s | 656 ms | 38 ms | 53 ms | 4.8 s | 333 MB |
+
+Full index scales at **0.93× per note** from 5 k to 20 k — linear or better, no
+superlinear step hiding in the middle. "Incremental" is one changed note, which is what
+`lore watch` actually does all day. Everything here is one process, one SQLite file, no
+daemon — and search at 3-38 ms p50 is fast enough to sit inside an agent loop.
 
 ## How it works
 
@@ -547,20 +377,17 @@ Design rules the code enforces:
 
 ## Research lineage
 
-Every significant choice traces to 2024-2026 literature; the full 87-finding survey lives
-in [`docs/research/`](docs/research/) and the reasoning in
-[`docs/superpowers/specs/`](docs/superpowers/specs/).
+Every significant choice traces to 2024-2026 literature; the survey lives in
+[`docs/research/`](docs/research/).
 
 | Choice | Source |
 |---|---|
 | Dense-sparse fusion + PPR with dense reset probabilities | HippoRAG 2 (ICML 2025), [2502.14802](https://arxiv.org/abs/2502.14802) |
 | Shallow 2-iteration PPR, heterogeneous nodes | NodeRAG (2025), [2504.11544](https://arxiv.org/abs/2504.11544) |
-| Relation-free graph — no LLM triple extraction | LinearRAG (ICLR 2026), [2510.10114](https://arxiv.org/abs/2510.10114); AtomicRAG (2026) |
+| Relation-free graph — no LLM triple extraction | LinearRAG (ICLR 2026), [2510.10114](https://arxiv.org/abs/2510.10114) |
 | No index-time community summarization | LazyGraphRAG (Microsoft, 2024) — same quality at 0.1% index cost |
 | Route/fuse instead of graph-everything | GraphRAG-Bench (ICLR 2026), [2506.05690](https://arxiv.org/abs/2506.05690) |
 | Bitemporal facts, invalidate-never-delete | Zep/Graphiti (2025), [2501.13956](https://arxiv.org/abs/2501.13956) |
-| Typed version links (`updates`/`extends`/`derives`) | Supermemory, SOTA on LongMemEval |
-| Deterministic freshness, not LLM-judged | "Don't Ask the LLM to Track Freshness" (2026) |
 | Power-law forgetting, use-gated reinforcement | FSRS; RMM (ACL 2025), [2503.08026](https://arxiv.org/abs/2503.08026) |
 | Consolidation as idle-time work | Sleep-time compute (Letta, 2025), [2504.13171](https://arxiv.org/abs/2504.13171) |
 | Never let an LLM rewrite whole memory files | ACE (2025), [2510.04618](https://arxiv.org/abs/2510.04618) |
@@ -585,7 +412,7 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 432 tests
+npm test          # 440 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build

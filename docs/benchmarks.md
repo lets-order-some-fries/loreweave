@@ -59,9 +59,11 @@ the kind of apples-to-oranges claim this file exists to avoid.
 
 Runs default to the **model-free configuration**: no LLM, no embeddings, no
 network. That is the floor, and the floor is what ships by default. Append
-`--embed` to any harness to add local dense vectors (Ollama +
-`nomic-embed-text`) — measured on SciFact that takes nDCG@10 from 0.682 to
-**0.729**, at roughly 9× the per-query cost (12 ms → 106 ms).
+`--embed` to any harness to add local dense vectors via Ollama — measured on
+SciFact that takes nDCG@10 from 0.681 to 0.727 (`nomic-embed-text`) or
+**0.742** (`--model=mxbai-embed-large`), at roughly 10× the per-query cost
+(11 ms → 120-170 ms). Repeat runs vary by about ±0.002 nDCG from
+embedding-batch nondeterminism, so read no figure here to the third decimal.
 
 ## Adapting the data
 
