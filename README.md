@@ -316,8 +316,9 @@ are LLM QA accuracy), so these are offered as a target rather than a comparison:
 LongMemEval R@10 0.983 vs R@1 0.590 — which is why figures here are quoted at R@5 and
 why an agent consuming these results should read a top-5 list, not trust rank 1. The
 single biggest quality lever measured is the embedding model itself: mxbai over nomic
-is worth more than every downstream tuning combined, on both benchmarks it was tried
-on. A cross-encoder reranker is available (`rerank` in config) but earns its keep only
+is worth more than every downstream tuning combined on document (BEIR) and session
+(LongMemEval) retrieval — and measures flat on LoCoMo's single-turn passages, so it
+is a scale effect, not magic. A cross-encoder reranker is available (`rerank` in config) but earns its keep only
 for rank-1 consumers without embeddings — stacked on embeddings it *loses* recall on
 both public benchmarks, so leave it off unless that trade is yours. Full analysis,
 including the failed experiments and the defect that benchmarking caught:

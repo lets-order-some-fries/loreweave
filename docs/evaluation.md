@@ -95,6 +95,10 @@ BEIR/SciFact nDCG@10 from 0.727 to 0.742 — on each benchmark a bigger gain
 than chunking, fusion tuning and reranking combined. The full-500 LongMemEval
 run of the winning configuration confirmed the sample almost exactly: **0.959**,
 which is the number the README quotes.
+The exception that bounds the finding: on LoCoMo's turn-level task the same
+swap measures **flat** (R@5 0.529 vs 0.532, R@20 0.707 vs 0.705) with rank 1
+slightly worse — single turns are too short for the larger model to
+differentiate, so the lever is a document- and session-scale effect.
 
 ## Cross-encoder reranking: measured, and mostly rejected
 
@@ -110,6 +114,7 @@ full arm comparison, including the embeddings arm the README's table shows:
 |---|---|---|---|---|---|
 | model-free | 0.337 | 0.538 | 0.610 | 0.656 | 0.087 |
 | + embeddings | 0.318 | 0.532 | 0.627 | 0.705 | — |
+| + mxbai embeddings | 0.286 | 0.529 | 0.628 | 0.707 | — |
 | + reranking | **0.422** | **0.582** | 0.628 | 0.661 | **0.164** |
 
 (Embeddings trade a little rank-1 for the deep list; reranking does the

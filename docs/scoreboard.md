@@ -10,31 +10,31 @@ every competitor figure carries its source.
 **end-to-end QA accuracy**: retrieve, feed an LLM, have a judge grade the
 written answer. loreweave's numbers are **retrieval metrics**. A system can
 retrieve perfectly and answer badly, or retrieve poorly and get lucky. These
-are different quantities and are not compared here — where no comparable
+are different quantities and are not compared here â where no comparable
 third-party retrieval number exists, this file says so instead of reaching for
 the nearest number that looks similar.
 
-## 1. Document retrieval — BEIR / SciFact, nDCG@10
+## 1. Document retrieval â BEIR / SciFact, nDCG@10
 
 | system | nDCG@10 | source |
 |---|---|---|
-| **loreweave + mxbai-embed-large** | **0.742** | `… --embed --model=mxbai-embed-large` |
+| **loreweave + mxbai-embed-large** | **0.742** | `â¦ --embed --model=mxbai-embed-large` |
 | loreweave + nomic-embed-text | 0.727 | `npm run bench:beir -- ./scifact --embed` |
-| loreweave + embeddings + reranking | 0.695 | `… --embed --rerank` |
+| loreweave + embeddings + reranking | 0.695 | `â¦ --embed --rerank` |
 | loreweave, model-free | 0.681 | `npm run bench:beir -- ./scifact` |
 | BM25 (Anserini) | 0.665 | BEIR paper |
 
 **Status: won.** Ahead of the classical baseline model-free, and comfortably
-ahead with the optional layer. The embedding-model lever from §2 generalises:
-mxbai over nomic is worth +1.5 nDCG here (and Recall@10 0.865 → 0.884), the
+ahead with the optional layer. The embedding-model lever from Â§2 generalises:
+mxbai over nomic is worth +1.5 nDCG here (and Recall@10 0.865 â 0.884), the
 same-sized lift it gave conversational recall. Modern large embedding
 retrievers still score higher on SciFact; loreweave is competitive with, not
-ahead of, 2026 dense retrieval — and it gets there with a local model and no
+ahead of, 2026 dense retrieval â and it gets there with a local model and no
 network. (The nomic figure was first published as 0.729; re-measured at 0.727
-this session — embedding-batch nondeterminism of ±0.002, worth knowing when
+this session â embedding-batch nondeterminism of Â±0.002, worth knowing when
 reading any figure here to the third decimal.)
 
-## 2. Conversational memory — LongMemEval_S, session recall@5
+## 2. Conversational memory â LongMemEval_S, session recall@5
 
 | system | R@5 | questions | source |
 |---|---|---|---|
@@ -45,15 +45,15 @@ reading any figure here to the third decimal.)
 | loreweave + embeddings (nomic) | 94.4%* | 100 | `--stride=5 --embed` |
 | loreweave + embeddings + reranking | 93.6%* | 100 | `--stride=5 --embed --rerank` |
 | loreweave, chunked, model-free | 92.6%* | 100 | `--stride=5 --chunk=8` |
-| loreweave, model-free | 89.9% | all 500 | — |
+| loreweave, model-free | 89.9% | all 500 | â |
 | agentmemory BM25-only | 86.2% | 500 | [agentmemory][lme] |
 
 [lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
 
-Full run, all 500 questions: R@1 0.590 · R@3 0.897 · **R@5 0.959** · R@10 0.983.
+Full run, all 500 questions: R@1 0.590 Â· R@3 0.897 Â· **R@5 0.959** Â· R@10 0.983.
 
 **The two columns are not computed identically, and the difference favours
-them.** The published figures use `recall_any@K` — a question scores 1 if *any*
+them.** The published figures use `recall_any@K` â a question scores 1 if *any*
 gold session appears in the top K. loreweave's harness scores the *fraction* of
 gold sessions retrieved (`found / gold.size`), so a question with three gold
 sessions and two retrieved scores 0.67 here and 1.0 there. The two definitions
@@ -63,7 +63,7 @@ or above 95.9%, never below. The comparison is left in the stricter form rather
 than restated in the flattering one, but no claim here should be read as
 precise to a tenth of a point across systems.
 
-**Status: ahead of the published hybrid, behind the pure-vector system** — with
+**Status: ahead of the published hybrid, behind the pure-vector system** â with
 the metric caveat above, which means the gap to the hybrid is real but its size
 is not precise. Every earlier version of this file discounted the
 sampled figures by ~3 points, on the evidence of the single arm then measured
@@ -77,11 +77,11 @@ What was tried, so the next attempt does not repeat it: embeddings are worth
 +1.6 points and are the single biggest lever; 8-turn session chunking adds +0.3
 on top of embeddings and **nothing at all** model-free (92.6 vs 92.8), which
 kills the theory that BM25 length normalisation was the problem; cross-encoder
-reranking is **negative** here (−0.8) and on BEIR (−0.034 nDCG).
+reranking is **negative** here (â0.8) and on BEIR (â0.034 nDCG).
 
 **The embedding model matters more than anything downstream of it.** Swapping
 nomic-embed-text (137 M) for mxbai-embed-large (335 M) is worth +1.3 points on
-the same sample — larger than chunking, fusion tuning and reranking put
+the same sample â larger than chunking, fusion tuning and reranking put
 together, and it needs no code change beyond the task prefixes the model
 expects. Part of the gap to the published hybrids was never architectural; it
 was that we benchmarked a small local embedder against systems using large
@@ -91,7 +91,7 @@ Reproducing this takes ~3 h and it took five attempts, four of which died
 mid-run: a request that hung forever with no timeout, memory exhaustion that
 starved the embedding server, one transient stall with no retry, and a
 degraded server crawling at 5% duty cycle. Each failure was a real defect and
-each fix shipped — `embedding.timeoutMs`, bounded retry with backoff and
+each fix shipped â `embedding.timeoutMs`, bounded retry with backoff and
 per-retry logging, and a harness that releases each transcript after use. The
 successful run needed exactly one retry, at almost the point where the
 un-retried attempt had died.
@@ -99,22 +99,30 @@ un-retried attempt had died.
 Two traps worth knowing before trusting a long run's totals. The engine treats
 an unreachable embedding server as a *soft* failure and falls back to lexical
 retrieval, so a run that loses its provider partway reports a blended number
-with nothing in the output saying so — grep for `dense retrieval unavailable`.
+with nothing in the output saying so â grep for `dense retrieval unavailable`.
 And restart `ollama serve` first: it degrades over hours of serving, which cost
-one run a 4× slowdown that looked exactly like ordinary slowness.
+one run a 4Ã slowdown that looked exactly like ordinary slowness.
 
-## 3. Long-conversation retrieval — LoCoMo, turn-level recall
+## 3. Long-conversation retrieval â LoCoMo, turn-level recall
 
-| | R@1 | R@5 |
-|---|---|---|
-| loreweave + reranking | 0.422 | 0.582 |
-| loreweave, model-free | 0.337 | 0.538 |
+| | R@1 | R@5 | R@20 |
+|---|---|---|---|
+| loreweave + reranking | 0.422 | 0.582 | 0.661 |
+| loreweave, model-free | 0.337 | 0.538 | 0.656 |
+| loreweave + nomic embeddings | 0.318 | 0.532 | 0.705 |
+| loreweave + mxbai embeddings | 0.286 | 0.529 | 0.707 |
 
 **Status: no comparable number exists.** Everything published on LoCoMo by
 memory vendors is QA accuracy over a different task definition. We report ours
 so it can be beaten; we do not claim a win we cannot support.
 
-## 4. Temporal correctness — perturbation-paired consistency
+Worth recording: the embedding-model lever that won §1 and §2 is **flat
+here** — mxbai against nomic moves R@5 by −0.003 and R@20 by +0.002, noise
+both — and slightly worse at rank 1. Single conversation turns are short
+enough that the larger model has nothing extra to grip; the lever is a
+document- and session-scale effect, not a universal one.
+
+## 4. Temporal correctness â perturbation-paired consistency
 
 | system | consistency |
 |---|---|
@@ -122,13 +130,13 @@ so it can be beaten; we do not claim a win we cannot support.
 | BM25 baseline | 0% |
 
 Same question, shifted window, *different* correct answer; consistent only when
-both directions rank their answer first. **Status: won, and uncontested** — no
+both directions rank their answer first. **Status: won, and uncontested** â no
 competitor publishes this metric at all. It is gated in CI, so it cannot
 silently regress.
 
 ## 5. Properties no competitor number captures
 
-- **Model-free by default.** Same vault, same query, same answer — forever, with
+- **Model-free by default.** Same vault, same query, same answer â forever, with
   no model in the loop. QMD is local but runs local *models*; Mem0 and Zep call
   out to LLMs at write time. The guarantee here is reproducibility, not privacy.
 - **Markdown is the source of truth**, the index is a deletable cache, and every
@@ -138,22 +146,22 @@ silently regress.
 
 ## Definition of done
 
-The target this board was written to set — **§2: LongMemEval_S R@5 ≥ 95.2% on
-the full 500** — is **met, at 95.9%**. Of five sections, three are won, one is
+The target this board was written to set â **Â§2: LongMemEval_S R@5 â¥ 95.2% on
+the full 500** â is **met, at 95.9%**. Of five sections, three are won, one is
 uncontested, and one has no valid comparison to make.
 
 **Where that leaves the claim.** Still not "best in the market", and this file
 still will not say it. One system on this board is ahead of us: MemPal reports
-96.6% on §2, and we are 0.7 points behind it. What the numbers do support is
-narrower and more defensible — loreweave beats the published BM25+vector hybrid
+96.6% on Â§2, and we are 0.7 points behind it. What the numbers do support is
+narrower and more defensible â loreweave beats the published BM25+vector hybrid
 on conversational recall and the classical baseline on document retrieval, and
 it is the only system here publishing temporal-consistency or scale figures at
 all, or doing any of it model-free and reproducibly. A board that dropped the
 MemPal row on the day we passed the hybrid would be advertising, not measurement.
 
-**What is worth doing next**, in order of expected value: §1 and §3 were both
-measured with the *small* embedder, and the model swap that won §2 was worth
+**What is worth doing next**, in order of expected value: Â§1 and Â§3 were both
+measured with the *small* embedder, and the model swap that won Â§2 was worth
 +1.3 points there, so those numbers likely understate the engine and should be
-re-run with `--model=mxbai-embed-large` before anyone quotes them. §3 still has
+re-run with `--model=mxbai-embed-large` before anyone quotes them. Â§3 still has
 no comparable third-party retrieval number to beat, which is a gap in the
 field rather than in this engine.
