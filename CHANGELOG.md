@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.36.0 — 2026-08-18
+
+Reliability of the embedding path, and first-class support for the models
+that measure best.
+
+- **Task prefixes for `mxbai-embed-large` and Snowflake Arctic.** Both are
+  asymmetric retrieval models; without their trained query prefix they
+  silently underperform. This is the release that makes the README's
+  recommended model actually work as recommended — measured, the mxbai swap
+  is worth +1.3 R@5 on LongMemEval and +1.5 nDCG on BEIR over nomic.
+- **Embedding requests time out instead of hanging forever**
+  (`embedding.timeoutMs`, default 120 s). A socket that died without closing
+  — laptop suspended mid-index, container paused — used to leave the indexer
+  waiting silently, forever.
+- **Transient provider failures retry with exponential backoff**
+  (`embedding.maxRetries`, default 2). Timeouts, dropped sockets and
+  408/429/5xx retry; 4xx does not — a malformed request stays malformed.
+  Every retry logs its reason, backoff and attempt, so a stalling server is
+  distinguishable from a slow one. One transient stall no longer costs an
+  hours-long index run.
+- **Typecheck no longer requires the optional `@huggingface/transformers`**
+  package to be installed (fixes CI-red-everywhere since 0.35.0).
+
+Benchmarks, re-measured on the full sets this release (see
+`docs/scoreboard.md`): LongMemEval_S R@5 **95.9%** on all 500 questions —
+past the published BM25+vector hybrid (95.2%); BEIR/SciFact nDCG@10 **0.742**
+with mxbai. README restructured around what users need first; the deep
+evaluation record moved intact to `docs/evaluation.md`.
+
 ## 0.35.0 — 2026-08-15
 
 Optional cross-encoder reranking — the fix for the one weakness every external
