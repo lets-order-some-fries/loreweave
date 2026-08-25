@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.lets-order-some-fries/loreweave",
+  "description": "Durable agent memory over a markdown vault: bitemporal facts, timelines, hybrid graph search.",
+  "version": "0.36.0",
+  "repository": {
+    "url": "https://github.com/lets-order-some-fries/loreweave",
+    "source": "github",
+    "id": "1324110251"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "loreweave",
+      "version": "0.36.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "--vault",
+          "valueHint": "vault-flag"
+        },
+        {
+          "type": "positional",
+          "valueHint": "vault_path",
+          "description": "Absolute path to your markdown vault",
+          "format": "filepath",
+          "isRequired": true
+        },
+        {
+          "type": "positional",
+          "value": "serve",
+          "valueHint": "serve"
+        },
+        {
+          "type": "positional",
+          "value": "--mcp",
+          "valueHint": "mcp-flag"
+        }
+      ]
+    }
+  ]
+}
