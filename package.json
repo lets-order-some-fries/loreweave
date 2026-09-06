@@ -63,6 +63,10 @@
     "wink-nlp": "^2.3.0",
     "zod": "^3.24.0"
   },
+  "overrides": {
+    "fast-uri": "^3.1.6",
+    "qs": "^6.16.0"
+  },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
