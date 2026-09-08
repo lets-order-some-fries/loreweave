@@ -48,6 +48,29 @@ describe('vault containment', () => {
     expect(readNoteRaw(vault, 'linked/secret.md')).toContain('Outside the vault');
   });
 
+  it('refuses to read anything that is not a note, even through a symlink', async () => {
+    // The symlink exemption above exists so INDEXED NOTES stay openable. The
+    // vault scanner indexes non-dotfile .md and nothing else, so anything else
+    // reachable through that symlink was never a note and was never in an
+    // answer — but read_note returned it anyway: a .env, an SSH private key
+    // and a credentials JSON all came back in full over MCP. SECURITY.md names
+    // "the CLI or MCP server reading files outside the vault it was pointed at"
+    // as a highest-priority bug, and a prompt injection in any indexed note is
+    // enough to steer an agent into asking for one.
+    const { vault, outside } = await vaultWithSymlink();
+    await writeFile(join(outside, '.env'), 'AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI\n');
+    await writeFile(join(outside, 'id_ed25519'), '-----BEGIN OPENSSH PRIVATE KEY-----\n');
+    await mkdir(join(outside, 'nested'), { recursive: true });
+    await writeFile(join(outside, 'nested', 'creds.json'), '{"token":"ghp_secret"}\n');
+
+    for (const rel of ['linked/.env', 'linked/id_ed25519', 'linked/nested/creds.json']) {
+      expect(() => readNoteRaw(vault, rel)).toThrow(/not a readable note/);
+    }
+    // Same rule applies without a symlink in the way.
+    await writeFile(join(vault, '.env'), 'SECRET=1\n');
+    expect(() => readNoteRaw(vault, '.env')).toThrow(/not a readable note/);
+  });
+
   it('refuses to WRITE through a symlink', async () => {
     // Linking a folder in so its notes can be found does not ask the engine to
     // create files inside it. Before this, capture appended to a file outside

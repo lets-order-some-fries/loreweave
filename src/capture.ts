@@ -85,7 +85,28 @@ export function capture(ctx: LoreContext, text: string, to = 'lore/inbox.md'): s
   return to;
 }
 
-/** Read a note's raw markdown (path-validated). */
+/**
+ * Read a note's raw markdown (path-validated).
+ *
+ * Only files the vault scanner would index are readable. Reading a note reached
+ * through a symlinked folder is deliberate — scanVault follows those folders, so
+ * their notes are indexed and returned by search, and refusing to open them
+ * would leave search returning results that cannot be read. That rationale only
+ * ever covered NOTES. Without this gate the same symlink also handed back the
+ * `.env`, SSH keys and credential JSON sitting beside them, none of which were
+ * ever indexed, which is the class SECURITY.md calls highest priority.
+ *
+ * The condition mirrors vault/scan.ts: a non-dotfile `.md` file, and nothing
+ * else. `capture` has enforced the same extension rule on the write side all
+ * along; the two sides now agree.
+ */
 export function readNoteRaw(root: string, rel: string): string {
-  return readFileSync(safeVaultPath(root, rel), 'utf8');
+  // Containment first, so a traversal attempt is still reported as one rather
+  // than as a file-type complaint.
+  const abs = safeVaultPath(root, rel);
+  const name = rel.split(/[\\/]/).pop() ?? rel;
+  if (!/\.md$/i.test(name) || name.startsWith('.')) {
+    throw new Error(`not a readable note (vault notes are .md files): ${rel}`);
+  }
+  return readFileSync(abs, 'utf8');
 }
