@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.37.0 — 2026-09-08
+
+Three things the engine was saying that were not true.
+
+- **`read_note` returns notes, and nothing else.** Path containment was
+  checked; file type was not. A vault that symlinks in a folder — an
+  attachments directory, a code repo, an ordinary Obsidian setup — exposed
+  every file in it through `lore_read_note`, whatever its type and whether or
+  not it had ever been indexed. The symlink exemption itself is deliberate and
+  stays: the scanner follows those folders, so their notes are indexed and must
+  be openable. But that reasoning only ever covered notes. `read_note` now
+  applies exactly the scanner's condition, which `capture` has enforced on the
+  write side all along.
+- **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
+  so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
+  `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is
+  a lexical string compare, so an impossible date sorted as though it were
+  real: it beat a genuinely later fact in supersession, persisted into the
+  journal markdown a rebuild re-ingests, and came back as currently valid. The
+  calendar check already guarded content dates; it now guards arguments too.
+  Dates already stored are left alone.
+- **Results name the signal that found them.** With zero term coverage both the
+  CLI and the MCP server said "linked", without checking the dense score or
+  whether the result had any links. In a vault with no links and embeddings on,
+  a correct semantic hit was reported as a graph edge that does not exist.
+  Ranking is unchanged; only the explanation is.
+
+## 0.36.2 — 2026-09-06
+
+Two correctness fixes, no behaviour change to retrieval.
+
+- **`--version` reports the real version.** It printed `0.35.0` while the
+  package was `0.36.1` — the string in `main.ts` was frozen at an old release.
+  It is now resolved from `package.json` at runtime, so the CLI version cannot
+  drift from the published one again.
+- **All six npm advisories cleared without touching the MCP SDK.** `fast-uri`
+  and `qs` are pinned to their first patched versions (3.1.6, 6.16.0) through
+  an `overrides` block; npm's own suggested fix was to downgrade
+  `@modelcontextprotocol/sdk` to 1.5.0, which would break the MCP server.
+  Stated honestly: npm honours `overrides` only from a root project, so this
+  protects this repository, its CI and anyone who clones it. Installing
+  loreweave as a dependency resolves that subtree independently and is
+  unaffected until the SDK bumps `ajv` upstream.
+
+## 0.36.1 — 2026-08-26
+
+MCP Registry publication, and a benchmark result that narrows an earlier claim.
+
+- **Listed in the official MCP Registry.** Adds `server.json` (schema
+  2025-12-11) and the `mcpName` ownership link the registry validates against
+  the npm package, so loreweave is indexed by the registry that MCP clients and
+  directories ingest from.
+- **The embedding-model lever does not generalise to LoCoMo.** `mxbai-embed-large`
+  against nomic on turn-level retrieval measured R@5 0.529 vs 0.532 and R@20
+  0.707 vs 0.705 — noise in both directions, with rank 1 slightly worse. The
+  swap worth +1.3 R@5 on LongMemEval and +1.5 nDCG on BEIR does nothing for
+  single conversation turns; they are too short for the larger model to
+  differentiate. The README, `evaluation.md` and the scoreboard now claim the
+  lever at its measured scope — documents and sessions — rather than as a
+  universal.
+
 ## 0.36.0 — 2026-08-18
 
 Reliability of the embedding path, and first-class support for the models
