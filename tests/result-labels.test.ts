@@ -43,3 +43,15 @@ describe('result labels name the reason the result is here', () => {
     expect(leanHit(hit({ coverage: 1, dense: 0.9 })).match).toBe('all query terms');
   });
 });
+
+describe('the MCP handshake reports the real package version', () => {
+  it('matches package.json, not a string frozen at an old release', async () => {
+    // The CLI had exactly this bug and it was fixed in 0.36.2; the MCP server
+    // kept its own hardcoded copy, which drifted two minor versions behind.
+    // Every client sees this in the handshake.
+    const { createRequire } = await import('node:module');
+    const pkg = createRequire(import.meta.url)('../package.json') as { version: string };
+    const { mcpServerVersion } = await import('../src/mcp/server.js');
+    expect(mcpServerVersion).toBe(pkg.version);
+  });
+});

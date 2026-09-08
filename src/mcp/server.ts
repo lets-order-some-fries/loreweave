@@ -20,6 +20,7 @@ import { extractFactsFromNote } from '../facts/extract.js';
 import { buildTimeline } from '../temporal/timeline.js';
 import { resumeDelta } from '../resume.js';
 import { normalizeKey } from '../normalize.js';
+import { createRequire } from 'node:module';
 
 function text(data: unknown): { content: { type: 'text'; text: string }[] } {
   return {
@@ -49,6 +50,16 @@ function safe<A extends unknown[]>(
     }
   };
 }
+
+/**
+ * The version reported in the MCP handshake, read from package.json rather than
+ * written out again here. The CLI carried its own hardcoded copy until 0.36.2,
+ * where it had drifted a full minor version behind; this is the same string in
+ * the same trap, and every connecting client sees it.
+ */
+export const mcpServerVersion: string = (
+  createRequire(import.meta.url)('../../package.json') as { version: string }
+).version;
 
 /** The fields an agent acts on; score internals stay behind verbose. */
 export function leanHit(h: {
@@ -85,7 +96,7 @@ export function leanHit(h: {
 }
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
-  const server = new McpServer({ name: 'loreweave', version: '0.35.0' });
+  const server = new McpServer({ name: 'loreweave', version: mcpServerVersion });
 
   server.registerTool(
     'lore_search',

@@ -21,6 +21,10 @@ Three things the engine was saying that were not true.
   journal markdown a rebuild re-ingests, and came back as currently valid. The
   calendar check already guarded content dates; it now guards arguments too.
   Dates already stored are left alone.
+- **The MCP handshake reports the real version.** `serverInfo` carried its own
+  hardcoded `0.35.0`, two minor versions behind the package, so every client saw
+  the wrong number. The CLI had the identical bug and it was fixed in 0.36.2;
+  the server kept a second copy of the same string. Both now read package.json.
 - **Results name the signal that found them.** With zero term coverage both the
   CLI and the MCP server said "linked", without checking the dense score or
   whether the result had any links. In a vault with no links and embeddings on,
