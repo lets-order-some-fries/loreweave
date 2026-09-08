@@ -39,9 +39,23 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z?)?$/;
  * returned "no results" as if the vault were empty.
  */
 export function assertIsoDate(name: string, v: string | undefined): void {
-  if (v !== undefined && !ISO_DATE_RE.test(v)) {
+  if (v === undefined) return;
+  const reject = (): never => {
     throw new Error(`${name} must be an ISO date (YYYY-MM-DD) or datetime, got: ${v}`);
-  }
+  };
+  if (!ISO_DATE_RE.test(v)) reject();
+  // Shape is not enough: 2026-13-01 and 2026-02-30 match the regex. Every
+  // comparison downstream is a lexical string compare, so an impossible date
+  // sorts as though it were real — it beats a genuinely later fact in
+  // supersession, is persisted to SQLite and to the journal markdown a rebuild
+  // re-ingests, and comes back as currently valid. parseDateExpression below
+  // has applied this same calendar check to content dates since 2026-08-05,
+  // for exactly that reason; the dates agents and users pass in were never
+  // given it.
+  const y = Number(v.slice(0, 4));
+  const mo = Number(v.slice(5, 7));
+  const day = Number(v.slice(8, 10));
+  if (mo < 1 || mo > 12 || day < 1 || day > lastDay(y, mo)) reject();
 }
 
 /** Parse a single date expression into an inclusive range. */

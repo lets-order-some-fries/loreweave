@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertIsoDate,
   extractDates,
   parseDateExpression,
   parseQueryTime,
@@ -135,5 +136,31 @@ describe('extractDates', () => {
 
   it('ignores impossible month values', () => {
     expect(extractDates('version 2024-99-99 of the spec')).toBeNull();
+  });
+});
+
+describe('assertIsoDate', () => {
+  it('accepts real dates, datetimes and an absent value', () => {
+    expect(() => assertIsoDate('--since', '2026-02-28')).not.toThrow();
+    expect(() => assertIsoDate('--since', '2024-02-29')).not.toThrow(); // a real leap day
+    expect(() => assertIsoDate('--since', '2026-09-08T12:30:00Z')).not.toThrow();
+    expect(() => assertIsoDate('--since', undefined)).not.toThrow();
+  });
+
+  it('refuses a date that cannot exist', () => {
+    // The regex checked shape only. Every comparison downstream is a lexical
+    // string compare, so an impossible date sorts as though it were real: it
+    // beats a genuinely later fact in supersession, persists into the journal
+    // markdown that a rebuild re-ingests, and is then returned as currently
+    // valid. parseDateExpression has guarded content dates this way since
+    // 2026-08; the arguments agents and users pass were never checked.
+    for (const bad of ['2025-13-01', '2025-02-30', '2026-00-10', '2026-01-32',
+                       '2026-02-29', '9999-99-99']) {
+      expect(() => assertIsoDate('--valid-from', bad)).toThrow(/ISO date/);
+    }
+  });
+
+  it('still refuses something that is not a date at all', () => {
+    expect(() => assertIsoDate('--since', 'not-a-date')).toThrow(/ISO date/);
   });
 });
