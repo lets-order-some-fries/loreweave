@@ -51,17 +51,22 @@ function safe<A extends unknown[]>(
 }
 
 /** The fields an agent acts on; score internals stay behind verbose. */
-function leanHit(h: {
+export function leanHit(h: {
   notePath: string;
   heading: string;
   coverage: number;
   lexicalScore: number;
   snippet: string;
+  parts: { dense: number };
   via: string[];
 }) {
   return {
     note: h.notePath,
     section: h.heading || undefined,
+    // The reason this result is here, named honestly. Falling through to
+    // 'linked, no term match' whenever coverage was zero attributed correct
+    // semantic hits to a graph edge that need not exist — and an agent reads
+    // that as grounds to discard the whole set.
     match:
       h.coverage >= 0.99
         ? 'all query terms'
@@ -69,7 +74,11 @@ function leanHit(h: {
           ? `${Math.round(h.coverage * 100)}% of query terms`
           : h.lexicalScore > 0
             ? 'weak — query had no distinctive words'
-            : 'linked, no term match',
+            : h.parts.dense > 0
+              ? 'semantic match — no query terms in common'
+              : h.via.length > 0
+                ? 'linked, no term match'
+                : 'no direct match — ranked by graph and recency',
     text: h.snippet,
     ...(h.via.length ? { linkedVia: h.via } : {}),
   };

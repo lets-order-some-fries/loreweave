@@ -67,11 +67,22 @@ function isFactRecord(snippet: string): boolean {
 }
 
 /** Label absolute match strength so a bullseye and a miss don't look alike. */
-function strength(r: { coverage: number; lexicalScore: number }): string {
+export function strength(r: {
+  coverage: number;
+  lexicalScore: number;
+  parts: { dense: number };
+  via: string[];
+}): string {
   if (r.coverage >= 0.99) return 'all terms';
   if (r.coverage >= 0.6) return `${Math.round(r.coverage * 100)}% of terms`;
   if (r.coverage > 0) return `${Math.round(r.coverage * 100)}% of terms — weak`;
-  return r.lexicalScore > 0 ? 'partial' : 'linked only';
+  if (r.lexicalScore > 0) return 'partial';
+  // Zero lexical coverage used to mean "linked only" unconditionally, which
+  // named a graph edge even when the vault had no links and the result came
+  // from the embedding index. Say which signal actually put it here.
+  if (r.parts.dense > 0) return 'semantic — no shared words';
+  if (r.via.length > 0) return 'linked only';
+  return 'no direct match';
 }
 
 /** How a fact came to exist, in one readable line. */
@@ -116,6 +127,7 @@ function fmtResult(r: {
   lexicalScore: number;
   coverage: number;
   snippet: string;
+  parts: { dense: number };
   via: string[];
 }): string {
   const via = r.via.length ? `  ⟨via ${r.via.join(', ')}⟩` : '';
@@ -274,7 +286,17 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         } else {
           const best = Math.max(...res.map((r) => r.coverage));
           if (best <= 0) {
-            io.out('no term matched — showing linked neighbours only:');
+            // Same correction as the per-result label: do not announce links
+            // that may not exist. Say which signal actually produced the set.
+            const anyDense = res.some((r) => r.parts.dense > 0);
+            const anyLink = res.some((r) => r.via.length > 0);
+            io.out(
+              anyDense
+                ? 'no term matched — showing semantically similar notes:'
+                : anyLink
+                  ? 'no term matched — showing linked neighbours only:'
+                  : 'no term matched — showing the closest notes:',
+            );
           } else if (best < 0.6) {
             io.out(`no strong match — best covers ${Math.round(best * 100)}% of your terms:`);
           }
