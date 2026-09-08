@@ -274,6 +274,14 @@ export async function embedMissingBlocks(
   store: Store,
   provider: EmbeddingProvider,
   batchSize = 32,
+  /**
+   * Called after each batch with (embedded so far, total to embed). The pass is
+   * the slowest part of an index run and used to print nothing at all from
+   * start to finish, which benchmarks.md warns is indistinguishable from a
+   * stalled provider: "a run that is silently waiting looks identical to one
+   * that is merely slow."
+   */
+  onProgress?: (done: number, total: number) => void,
 ): Promise<number> {
   const candidates = store.db
     .prepare(
@@ -313,6 +321,7 @@ export async function embedMissingBlocks(
     });
     tx();
     done += batch.length;
+    onProgress?.(done, rows.length);
   }
   return done;
 }

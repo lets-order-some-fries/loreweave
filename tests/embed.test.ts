@@ -32,6 +32,31 @@ describe('embeddings', () => {
     expect(resolveProvider(cfg)).toBeNull();
   });
 
+  it('reports progress per batch so a long embedding pass is not silent', async () => {
+    // The embedding phase printed nothing from start to finish: 34.5s of dead
+    // terminal on a 2000-note vault, and roughly 5.7 minutes at the 20k-note
+    // scale the README quotes. benchmarks.md already warns that ollama degrades
+    // over hours of serving, and that "a run that is silently waiting looks
+    // identical to one that is merely slow" — which is exactly what this was.
+    const cfg = ConfigSchema.parse({ embedding: { provider: 'ollama' } });
+    const f = mockFetch((_url, init) => {
+      const body = JSON.parse(String(init.body)) as { input: string[] };
+      return { embeddings: body.input.map(toyVec) };
+    });
+    const provider = resolveProvider(cfg, f)!;
+    const store = openStore(':memory:');
+    for (let i = 0; i < 5; i++) store.upsertNote(parseNote(`n${i}.md`, `word${i} text here\n`, 1));
+
+    const seen: [number, number][] = [];
+    const n = await embedMissingBlocks(store, provider, 2, (done, total) => seen.push([done, total]));
+
+    expect(n).toBe(5);
+    expect(seen.length).toBeGreaterThan(1);              // per batch, not once at the end
+    expect(seen.every(([, total]) => total === 5)).toBe(true);
+    expect(seen.map(([done]) => done)).toEqual([...seen.map(([done]) => done)].sort((a, b) => a - b));
+    expect(seen[seen.length - 1]![0]).toBe(5);           // finishes at the total
+  });
+
   it('openai provider requires the env var', () => {
     const cfg = ConfigSchema.parse({ embedding: { provider: 'openai', apiKeyEnv: 'LW_TEST_MISSING' } });
     expect(() => resolveProvider(cfg)).toThrow(/LW_TEST_MISSING/);

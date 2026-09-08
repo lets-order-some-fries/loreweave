@@ -226,7 +226,24 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         );
         for (const w of r.warnings) io.err(`warn: ${w}`);
         if (ctx.provider) {
-          const n = await embedMissingBlocks(ctx.store, ctx.provider, ctx.config.embedding.batchSize);
+          // The embedding pass is the slow half of an index run and printed
+          // nothing at all until it finished — indistinguishable from a stalled
+          // provider, which benchmarks.md explicitly warns about. Ticks go to
+          // stderr so stdout and --json stay byte-identical, at most one a
+          // second, and none at all for a run short enough not to need them.
+          let lastTick = 0;
+          const n = await embedMissingBlocks(
+            ctx.store,
+            ctx.provider,
+            ctx.config.embedding.batchSize,
+            (done, total) => {
+              if (done >= total) return; // the summary line below reports the end
+              const now = Date.now();
+              if (now - lastTick < 1000) return;
+              lastTick = now;
+              io.err(`embedding ${done}/${total} blocks…`);
+            },
+          );
           if (n > 0) io.out(`embedded ${n} blocks`);
           // Similarity edges are an all-pairs rebuild — measured ~1.07µs per
           // comparison, i.e. hours on a 20k-block vault. Editing one note must

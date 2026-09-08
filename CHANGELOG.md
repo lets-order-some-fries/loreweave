@@ -21,6 +21,13 @@ Three things the engine was saying that were not true.
   journal markdown a rebuild re-ingests, and came back as currently valid. The
   calendar check already guarded content dates; it now guards arguments too.
   Dates already stored are left alone.
+- **`lore index` shows progress through the embedding pass.** It printed
+  nothing from the moment parsing finished until the whole pass was done — 34.5
+  seconds of dead terminal on a 2000-note vault, and linear from there. The
+  project's own benchmark notes warn that a run silently waiting on a degraded
+  provider looks identical to one that is merely slow; this is that case. Ticks
+  go to stderr at most once a second, so stdout and `--json` are unchanged, and
+  a run short enough not to need them stays quiet.
 - **The MCP handshake reports the real version.** `serverInfo` carried its own
   hardcoded `0.35.0`, two minor versions behind the package, so every client saw
   the wrong number. The CLI had the identical bug and it was fixed in 0.36.2;
