@@ -24,6 +24,21 @@ that were not true.
   be openable. But that reasoning only ever covered notes. `read_note` now
   applies exactly the scanner's condition, which `capture` has enforced on the
   write side all along.
+- **One definition of "note", shared by the scanner, `read_note` and
+  `capture`.** The three disagreed, and every disagreement leaked something.
+  A symlink named `leak.md` pointing at `~/.ssh/id_rsa` was indexed, returned
+  by search and served verbatim by `lore_read_note` — both gates looked at the
+  link's name and then followed it. `read_note` served `.private/diary.md`,
+  `node_modules/pkg/README.md` and `.lore/notes.md`, none of which the scanner
+  ever indexes. And `capture --to .lore/x.md` reported success, was searchable
+  for a moment, and was deleted by the next index as a note that had
+  disappeared. All three now ask `whyNotNote` (exported): no hidden or ignored
+  directory in the path, not engine-generated, a non-dotfile `.md` basename,
+  and — for reading and indexing — a resolved target that is itself a regular
+  `.md` file. A symlinked folder of genuine notes, and a symlink to a genuine
+  note, are still indexed and readable. Behaviour change: a capture into a
+  hidden, ignored or derived path is now refused with the reason, and a
+  `.md`-named symlink to a non-note is no longer indexed.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is

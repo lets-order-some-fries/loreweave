@@ -206,7 +206,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
         'Read the raw markdown of a note by vault-relative path (as returned in search results). After reading a note that answered the question, call lore_mark_used to reinforce it.',
       inputSchema: { path: z.string().min(1).max(1024).describe('vault-relative path, e.g. projects/x.md') },
     },
-    safe(({ path }) => readNoteRaw(ctx.root, path)),
+    safe(({ path }) => readNoteRaw(ctx.root, path, ctx.config.ignore)),
   );
 
   server.registerTool(

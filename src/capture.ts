@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { LoreContext } from './context.js';
 import { indexNoteFile } from './index/indexer.js';
+import { whyNotNote } from './vault/scan.js';
 
 /** Deepest ancestor of `abs` that exists, with symlinks resolved. */
 function realExistingAncestor(abs: string): { real: string; tail: string[] } {
@@ -70,10 +71,18 @@ export function safeVaultPath(
 export function capture(ctx: LoreContext, text: string, to = 'lore/inbox.md'): string {
   const clean = text.trim();
   if (!clean) throw new Error('nothing to capture');
-  if (!/\.md$/i.test(to)) throw new Error('capture target must be a .md file');
   // Writes never leave the real vault, even through a symlink the user put
   // there for reading.
   const abs = safeVaultPath(ctx.root, to, { followSymlinks: false });
+  // Only where the scanner will look. A capture into `.lore/`, `node_modules/`
+  // or `lore/digests/` used to report success and be searchable — until the
+  // next index, which never sees those paths and so deleted the note as
+  // gone. Lexical only: the target may not exist yet, and the symlink case
+  // is already settled above.
+  const reason = whyNotNote(to, { ignore: ctx.config.ignore });
+  if (reason !== null) {
+    throw new Error(`capture target would never be indexed (${reason}): ${to}`);
+  }
   mkdirSync(dirname(abs), { recursive: true });
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   appendFileSync(abs, `- ${stamp} — ${clean.replace(/\r?\n+/g, ' ')}\n`, 'utf8');
@@ -88,25 +97,28 @@ export function capture(ctx: LoreContext, text: string, to = 'lore/inbox.md'): s
 /**
  * Read a note's raw markdown (path-validated).
  *
- * Only files the vault scanner would index are readable. Reading a note reached
- * through a symlinked folder is deliberate — scanVault follows those folders, so
- * their notes are indexed and returned by search, and refusing to open them
- * would leave search returning results that cannot be read. That rationale only
- * ever covered NOTES. Without this gate the same symlink also handed back the
- * `.env`, SSH keys and credential JSON sitting beside them, none of which were
- * ever indexed, which is the class SECURITY.md calls highest priority.
+ * Exactly the files the vault scanner would index are readable — the one
+ * definition lives in vault/scan.ts (`whyNotNote`), and this is a caller of
+ * it, not a second copy. Reading a note reached through a symlinked folder is
+ * deliberate: scanVault follows those folders, so their notes are indexed and
+ * returned by search, and refusing to open them would leave search returning
+ * results that cannot be read. That rationale only ever covered NOTES. The
+ * gate before this one checked the basename of the path it was GIVEN, which
+ * let through two things the scanner never indexes: a note inside a hidden
+ * or ignored directory (`.private/diary.md`), and a symlink named `x.md`
+ * whose target is `~/.ssh/id_rsa`. The resolved-target clause closes the
+ * second; the per-segment clause closes the first.
  *
- * The condition mirrors vault/scan.ts: a non-dotfile `.md` file, and nothing
- * else. `capture` has enforced the same extension rule on the write side all
- * along; the two sides now agree.
+ * `ignore` is the vault's config.ignore, so a folder the scanner skips on
+ * the user's instruction is skipped here too.
  */
-export function readNoteRaw(root: string, rel: string): string {
+export function readNoteRaw(root: string, rel: string, ignore: string[] = []): string {
   // Containment first, so a traversal attempt is still reported as one rather
   // than as a file-type complaint.
   const abs = safeVaultPath(root, rel);
-  const name = rel.split(/[\\/]/).pop() ?? rel;
-  if (!/\.md$/i.test(name) || name.startsWith('.')) {
-    throw new Error(`not a readable note (vault notes are .md files): ${rel}`);
+  const reason = whyNotNote(rel, { ignore, root });
+  if (reason !== null) {
+    throw new Error(`not a readable note (${reason}): ${rel}`);
   }
   return readFileSync(abs, 'utf8');
 }

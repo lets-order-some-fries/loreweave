@@ -1,5 +1,6 @@
 import { readdir, realpath, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { realpathSync, statSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import type { VaultFile } from '../types.js';
 
 const DEFAULT_IGNORES = new Set(['node_modules', '.git', '.obsidian', '.lore', '.trash']);
@@ -15,6 +16,71 @@ const DERIVED_PREFIXES = ['lore/digests/', 'lore/review-queue'];
 
 export function isDerivedNote(path: string): boolean {
   return DERIVED_PREFIXES.some((p) => path.startsWith(p));
+}
+
+/** The basename rule, shared by the lexical and the resolved check. */
+function isNoteBasename(name: string): boolean {
+  return /\.md$/i.test(name) && !name.startsWith('.');
+}
+
+export interface NoteCheck {
+  /** Extra directory names to skip, on top of the defaults (config.ignore). */
+  ignore?: string[];
+  /**
+   * When set, `rel` is also resolved against this vault root and the REAL
+   * file behind it — symlinks followed — must itself be a regular `.md` file.
+   * Reading and indexing want this; a write to a path that does not exist
+   * yet cannot.
+   */
+  root?: string;
+}
+
+/**
+ * Why a vault-relative path is not a note, or null when it is one.
+ *
+ * This is the single definition of "note" for the engine. The scanner, the
+ * MCP `read_note` tool and `capture` each used to carry their own, and the
+ * three disagreed in ways that all leaked something:
+ *
+ * - `read_note` checked only the basename, so `.private/diary.md`,
+ *   `node_modules/pkg/README.md` and `.lore/notes.md` — none of which the
+ *   scanner ever indexes — were handed back in full on request.
+ * - The scanner and `read_note` both gated on the LINK's name, so a symlink
+ *   called `leak.md` pointing at `~/.ssh/id_rsa` was indexed, returned by
+ *   search and served verbatim. SECURITY.md's highest-priority class.
+ * - `capture` wrote into `.lore/`, `node_modules/` and `lore/digests/`,
+ *   reported success, and the next index deleted the note.
+ *
+ * A path is a note iff no directory segment starts with `.` or is in the
+ * ignore set, it is not under a derived prefix, its basename is a non-dotfile
+ * `.md`, and — when `root` is given — the resolved target is a regular file
+ * whose own basename is a non-dotfile `.md`. The last clause is what keeps a
+ * symlinked FOLDER of genuine notes indexable (the real file is `x.md`) while
+ * refusing a symlink whose target is anything else.
+ */
+export function whyNotNote(rel: string, opts: NoteCheck = {}): string | null {
+  const ignoreSet = new Set([...DEFAULT_IGNORES, ...(opts.ignore ?? [])]);
+  const segments = rel.split(/[\\/]/);
+  const name = segments[segments.length - 1] ?? '';
+  for (const dir of segments.slice(0, -1)) {
+    if (dir.startsWith('.')) return `inside a hidden directory (${dir})`;
+    if (ignoreSet.has(dir)) return `inside an ignored directory (${dir})`;
+  }
+  if (!/\.md$/i.test(name)) return 'vault notes are .md files';
+  if (name.startsWith('.')) return 'dotfiles are not notes';
+  if (isDerivedNote(segments.join('/'))) return 'engine-generated (lore/digests, review queue)';
+  if (opts.root !== undefined) {
+    // realpath follows every link in the chain; whatever it lands on is what
+    // would actually be read, so that is what has to be a note.
+    const real = realpathSync(join(opts.root, rel));
+    if (!statSync(real).isFile()) return 'not a regular file';
+    if (!isNoteBasename(basename(real))) return `resolves to ${basename(real)}, which is not a note`;
+  }
+  return null;
+}
+
+export function isNotePath(rel: string, opts: NoteCheck = {}): boolean {
+  return whyNotNote(rel, opts) === null;
 }
 
 /**
@@ -58,7 +124,8 @@ export async function scanVault(
       // simply invisible, with nothing to indicate why.
       let isDir = e.isDirectory();
       let isFile = e.isFile();
-      if (follow && e.isSymbolicLink()) {
+      const isLink = e.isSymbolicLink();
+      if (follow && isLink) {
         try {
           const st = await stat(join(dir, name)); // follows the link
           isDir = st.isDirectory();
@@ -70,10 +137,20 @@ export async function scanVault(
       if (isDir) {
         if (name.startsWith('.') || ignoreSet.has(name)) continue;
         await walk(join(dir, name), rel ? `${rel}/${name}` : name);
-      } else if (isFile && /\.md$/i.test(name) && !name.startsWith('.')) {
+      } else if (isFile) {
         const relPath = rel ? `${rel}/${name}` : name;
-        if (isDerivedNote(relPath)) continue;
+        if (whyNotNote(relPath, { ignore }) !== null) continue;
         const abs = join(dir, name);
+        // A regular entry's name IS its real name, and so is that of a file
+        // inside a symlinked folder. Only a symlinked FILE can be called one
+        // thing and be another, so only there is the target resolved.
+        if (isLink) {
+          try {
+            if (!isNoteBasename(basename(await realpath(abs)))) continue;
+          } catch {
+            continue;
+          }
+        }
         try {
           const s = await stat(abs);
           out.push({
