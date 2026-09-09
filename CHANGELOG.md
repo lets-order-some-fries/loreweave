@@ -2,8 +2,19 @@
 
 ## 0.37.0 — 2026-09-08
 
-Three things the engine was saying that were not true.
+A note could run code at index time, and three things the engine was saying
+that were not true.
 
+- **Frontmatter can no longer execute code.** gray-matter ships a JavaScript
+  frontmatter engine that is a bare `eval`, and picks the engine from the
+  language written after the opening fence — so a note beginning `---js` ran
+  arbitrary code the moment it was indexed. Vault notes are untrusted: shared
+  vaults, synced folders, notes written by other agents. Dropping one markdown
+  file into a watched folder was remote code execution. Every code-executing
+  engine is now inert; such a note indexes as an ordinary note with a warning,
+  its code is not indexed as prose, and YAML/JSON frontmatter are unchanged.
+  If you run any earlier version against a vault you do not fully control,
+  update.
 - **`read_note` returns notes, and nothing else.** Path containment was
   checked; file type was not. A vault that symlinks in a folder — an
   attachments directory, a code repo, an ordinary Obsidian setup — exposed

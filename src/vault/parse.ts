@@ -355,6 +355,33 @@ export function resolveTitle(
 }
 
 /**
+ * gray-matter ships a JavaScript frontmatter engine that is a bare `eval`, and
+ * selects the engine from the language written after the opening fence — so a
+ * note beginning `---js` ran arbitrary code at index time. Vault notes are
+ * untrusted (shared vaults, synced folders, notes written by other agents), so
+ * that was remote code execution by dropping a markdown file into a folder.
+ *
+ * Every code-executing engine is replaced with one that throws; parseNote's
+ * catch below then degrades the note to empty frontmatter plus a warning, and
+ * the fence is stripped so the code is not indexed as prose either. YAML and
+ * JSON frontmatter — every real vault — are untouched. Keyed on the canonical
+ * names gray-matter aliases to (`js`/`javascript` → javascript; `coffee`/
+ * `coffeescript`/`cson` → coffee), so spelling and case do not matter.
+ */
+const disabledEngine = (name: string) => ({
+  parse: (): never => {
+    throw new Error(`${name} frontmatter is disabled: it would execute code from the note`);
+  },
+  stringify: (): never => {
+    throw new Error(`${name} frontmatter is disabled`);
+  },
+});
+const INERT_ENGINES = {
+  javascript: disabledEngine('JavaScript'),
+  coffee: disabledEngine('CoffeeScript'),
+};
+
+/**
  * Parse one markdown file into a Note. Never throws on malformed input:
  * frontmatter errors degrade to empty frontmatter + a warning.
  */
@@ -363,13 +390,14 @@ export function parseNote(path: string, raw: string, mtimeMs: number, size?: num
   let fm: Record<string, unknown> = {};
   let body = raw;
   try {
-    const parsed = matter(raw);
+    const parsed = matter(raw, { engines: INERT_ENGINES });
     fm = (parsed.data ?? {}) as Record<string, unknown>;
     body = parsed.content;
   } catch (err) {
     warnings.push(`frontmatter parse failed: ${(err as Error).message}`);
-    // strip the bad frontmatter fence so it doesn't pollute blocks
-    body = raw.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+    // strip the bad frontmatter fence so it doesn't pollute blocks — including
+    // a fence that names a language (`---js`), which the plain form missed
+    body = raw.replace(/^---[A-Za-z]*\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
   }
 
   // tags: frontmatter (string | array) + inline

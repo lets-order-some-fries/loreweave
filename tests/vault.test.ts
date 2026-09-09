@@ -14,6 +14,29 @@ describe('parseNote', () => {
     expect(n.warnings).toEqual([]);
   });
 
+  it('never executes code in frontmatter, whatever language the fence names', () => {
+    // gray-matter's default engines include JavaScript, and its parser reads the
+    // language after the opening fence — so a note beginning `---js` was eval'd
+    // at index time. Vault notes are untrusted (shared vaults, synced folders,
+    // notes written by other agents); this was remote code execution by
+    // dropping a markdown file. Reproduced on the built CLI before this test.
+    const g = globalThis as unknown as { __lw_frontmatter_ran?: boolean };
+    delete g.__lw_frontmatter_ran;
+    for (const lang of ['js', 'javascript', 'JS', 'coffee', 'cson']) {
+      const raw = `---${lang}\n{ pwn: (globalThis.__lw_frontmatter_ran = true) }\n---\n# Innocent\n\nBody.\n`;
+      const n = parseNote('evil.md', raw, 1);
+      expect(g.__lw_frontmatter_ran, `${lang} frontmatter executed`).toBeUndefined();
+      expect(n.frontmatter).toEqual({});
+      expect(n.warnings.join(' ')).toMatch(/frontmatter/i);
+      // the code must not be indexed as prose either
+      expect(n.blocks.map((b) => b.text).join(' ')).not.toContain('__lw_frontmatter_ran');
+      expect(n.title).toBe('Innocent');
+    }
+    // yaml and json frontmatter keep working exactly as before
+    expect(parseNote('a.md', '---\ntitle: Real\n---\n\nx\n', 1).title).toBe('Real');
+    expect(parseNote('b.md', '---json\n{"title": "Json"}\n---\n\nx\n', 1).title).toBe('Json');
+  });
+
   it('survives broken frontmatter without throwing', () => {
     const raw = `---\ntitle: [unclosed\n  bad: {yaml\n---\n\nContent survives.\n`;
     const n = parseNote('x.md', raw, 1);
