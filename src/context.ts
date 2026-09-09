@@ -4,7 +4,7 @@ import { openStore, type Store } from './store/db.js';
 import { resolveProvider, type EmbeddingProvider } from './embed/index.js';
 import { buildGraph, type LoreGraph } from './graph/build.js';
 import { buildNoteLinkGraph, type NoteLinkGraph } from './retrieve/expand.js';
-import { indexVault } from './index/indexer.js';
+import { configIndexOptions, indexVault } from './index/indexer.js';
 import { scanVault } from './vault/scan.js';
 
 /** Shared runtime handle passed to retrieval, facts, dream, CLI, MCP. */
@@ -103,10 +103,7 @@ export async function ensureIndexed(
   const files = await scanVault(ctx.root, ctx.config.ignore);
   if (files.length === 0) return false; // genuinely empty vault: "no results" is true
   onFirstIndex?.(files.length);
-  await indexVault(ctx.store, ctx.root, {
-    factExtract: ctx.config.facts.extract,
-    nlp: ctx.config.nlp,
-  });
+  await indexVault(ctx.store, ctx.root, configIndexOptions(ctx.config));
   ctx.invalidateGraph();
   return true;
 }

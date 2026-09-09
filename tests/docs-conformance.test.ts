@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildProgram } from '../src/cli/main.js';
+import { openContext } from '../src/context.js';
 import { createLoreMcpServer } from '../src/mcp/server.js';
 import { openStore } from '../src/store/db.js';
 import { ConfigSchema } from '../src/config.js';
@@ -107,33 +108,76 @@ describe('README conformance', () => {
 });
 
 describe('config', () => {
-  it('every key `lore init` writes is actually honoured', async () => {
-    // A key the schema does not know is stripped in silence, so a default
-    // config that drifted from the schema would configure nothing and say
-    // nothing.
+  it('every key `lore init` writes changes what the engine does', async () => {
+    // This used to assert that the written values survive ConfigSchema.parse —
+    // a schema round trip, which passed while `nlp: false` was being dropped
+    // by `lore index` and `ignore` was wired to nothing. A key is honoured
+    // when flipping it changes behaviour, so each one is flipped and the
+    // effect observed through the real CLI.
     const root = await mkdtemp(join(tmpdir(), 'lw-cfg-'));
+    await writeFile(
+      join(root, 'note.md'),
+      '# Note\n\nAlice Johnson met Bob Martinez in Paris.\n\nowner:: Priya Sharma\n',
+    );
     const prog = buildProgram({ out: () => {}, err: () => {} });
     await prog.parseAsync(['node', 'lore', '--vault', root, 'init']);
-    const written = JSON.parse(
-      await readFile(join(root, '.lore', 'config.json'), 'utf8'),
-    ) as Record<string, unknown>;
-
+    const cfgPath = join(root, '.lore', 'config.json');
+    const written = JSON.parse(await readFile(cfgPath, 'utf8')) as {
+      embedding: { provider: string; model: string; url: string };
+      facts: { extract: string };
+      nlp: boolean;
+    };
+    // the file init writes is recognised in full
     const warnings: string[] = [];
     loadConfig(root, (m) => warnings.push(m));
     expect(warnings).toEqual([]);
+    expect(Object.keys(written).sort()).toEqual(['embedding', 'facts', 'nlp']);
 
-    // and the values survive the round trip, not just the key names
-    const parsed = ConfigSchema.parse(written) as Record<string, unknown>;
-    const leafPaths = (o: unknown, p = ''): string[] =>
-      o && typeof o === 'object' && !Array.isArray(o)
-        ? Object.entries(o as Record<string, unknown>).flatMap(([k, v]) =>
-            leafPaths(v, p ? `${p}.${k}` : k),
-          )
-        : [p];
-    const get = (o: unknown, path: string) =>
-      path.split('.').reduce<any>((a, k) => a?.[k], o);
-    for (const path of leafPaths(written)) {
-      expect(get(parsed, path), `config key ${path}`).toEqual(get(written, path));
+    const runIndex = async () => {
+      const p = buildProgram({ out: () => {}, err: () => {} });
+      await p.parseAsync(['node', 'lore', '--vault', root, 'index', '--full']);
+    };
+    const query = <T>(sql: string): T[] => {
+      const ctx = openContext(root);
+      try {
+        return ctx.store.db.prepare(sql).all() as T[];
+      } finally {
+        ctx.close();
+      }
+    };
+    const sources = () =>
+      query<{ source: string }>('SELECT DISTINCT source FROM mentions').map((r) => r.source);
+    const factCount = () => query('SELECT 1 FROM facts').length;
+
+    // as written: NLP on, explicit fact extraction on, no embedding provider
+    await runIndex();
+    expect(sources()).toContain('nlp');
+    expect(factCount()).toBeGreaterThan(0);
+    {
+      const ctx = openContext(root);
+      expect(ctx.provider).toBeNull();
+      ctx.close();
+    }
+
+    // nlp: false → no NLP mentions
+    await writeFile(cfgPath, JSON.stringify({ ...written, nlp: false }));
+    await runIndex();
+    expect(sources()).not.toContain('nlp');
+
+    // facts.extract: off → nothing mined from the note
+    await writeFile(cfgPath, JSON.stringify({ ...written, facts: { extract: 'off' } }));
+    await runIndex();
+    expect(factCount()).toBe(0);
+
+    // embedding.provider: ollama → a provider is constructed (no network yet)
+    await writeFile(
+      cfgPath,
+      JSON.stringify({ ...written, embedding: { ...written.embedding, provider: 'ollama' } }),
+    );
+    {
+      const ctx = openContext(root);
+      expect(ctx.provider).not.toBeNull();
+      ctx.close();
     }
   });
 

@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
-import { indexVault } from '../index/indexer.js';
+import { configIndexOptions, indexVault } from '../index/indexer.js';
 import { search } from '../retrieve/search.js';
 import {
   aggregateFacts,
@@ -496,7 +496,7 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
       inputSchema: { full: z.boolean().optional() },
     },
     safe(async ({ full }) => {
-      const r = await indexVault(ctx.store, ctx.root, { full });
+      const r = await indexVault(ctx.store, ctx.root, { ...configIndexOptions(ctx.config), full });
       ctx.invalidateGraph();
       return r;
     }),

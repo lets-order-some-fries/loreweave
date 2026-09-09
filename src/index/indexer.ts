@@ -3,6 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { IndexReport, Note } from '../types.js';
 import type { Store } from '../store/db.js';
+import type { LoreConfig } from '../config.js';
 import { parseNote, sha1 } from '../vault/parse.js';
 import { isDerivedNote, scanVault } from '../vault/scan.js';
 import { extractEntities } from '../entities/extract.js';
@@ -18,6 +19,21 @@ export interface IndexOptions {
   /** Disable wink-nlp proper-noun extraction (faster; links/tags only). */
   nlp?: boolean;
   ignore?: string[];
+}
+
+/**
+ * The index options a vault's config asks for.
+ *
+ * Five call sites built this object by hand and each forgot a different key:
+ * CLI `lore index` and `lore watch` dropped `ignore`, MCP `lore_index`
+ * dropped all three, and the first-run auto-index behind `lore search` used
+ * `ignore` to decide whether the vault was empty and then indexed without it.
+ * Measured: `"ignore": ["drafts"]` excluded nothing anywhere, and
+ * `"nlp": false` was overridden by the CLI flag's default of true. Spread
+ * this first; put the command's own overrides after it.
+ */
+export function configIndexOptions(config: LoreConfig): IndexOptions {
+  return { factExtract: config.facts.extract, nlp: config.nlp, ignore: config.ignore };
 }
 
 /** Replace all entity mentions derived from one note. */

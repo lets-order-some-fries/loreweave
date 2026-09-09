@@ -39,6 +39,16 @@ that were not true.
   note, are still indexed and readable. Behaviour change: a capture into a
   hidden, ignored or derived path is now refused with the reason, and a
   `.md`-named symlink to a non-note is no longer indexed.
+- **`.lore/config.json` is honoured by every command that indexes.** `ignore`
+  was read by nothing that indexes: the folders it named were scanned, indexed
+  and searchable. `nlp: false` was overridden by the CLI flag's default of
+  true, and MCP `lore_index` dropped `nlp` and `facts.extract` entirely. The
+  first-run auto-index behind `lore search` used `ignore` only to decide
+  whether the vault was empty. One helper now turns the config into index
+  options and every entry point — `lore index`, `lore watch`, `lore_index`,
+  the auto-index — spreads it first. Behaviour change: a vault with `ignore`
+  set will report those notes removed on its next index, which is what the
+  setting always claimed.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is

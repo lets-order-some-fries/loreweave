@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
 import type { LoreContext } from './context.js';
-import { indexVault } from './index/indexer.js';
+import { configIndexOptions, indexVault } from './index/indexer.js';
 import { isDerivedNote } from './vault/scan.js';
 import type { IndexReport } from './types.js';
 
@@ -54,8 +54,7 @@ export function watchVault(ctx: LoreContext, opts: WatchOptions = {}): Watcher {
     running = true;
     try {
       const report = await indexVault(ctx.store, ctx.root, {
-        factExtract: ctx.config.facts.extract,
-        nlp: ctx.config.nlp,
+        ...configIndexOptions(ctx.config),
       });
       ctx.invalidateGraph();
       if (report.added || report.updated || report.removed) opts.onReindex?.(report);

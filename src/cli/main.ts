@@ -10,7 +10,7 @@ import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
 import { buildTimeline } from '../temporal/timeline.js';
 import { resumeDelta } from '../resume.js';
-import { indexVault, indexState } from '../index/indexer.js';
+import { configIndexOptions, indexVault, indexState } from '../index/indexer.js';
 import { bestSnippet, search } from '../retrieve/search.js';
 import {
   aggregateFacts,
@@ -216,9 +216,12 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .action(async (opts: { full?: boolean; nlp?: boolean; rebuildSimilar?: boolean }) => {
       await withCtx(async (ctx) => {
         const r = await indexVault(ctx.store, ctx.root, {
+          ...configIndexOptions(ctx.config),
           full: opts.full,
-          nlp: opts.nlp,
-          factExtract: ctx.config.facts.extract,
+          // `--no-nlp` can only turn NLP off. Commander gives a negatable flag
+          // a default of true, and passing that through overrode a config
+          // that had turned it off — the file said false, the index ran NLP.
+          nlp: ctx.config.nlp && opts.nlp !== false,
         });
         ctx.invalidateGraph();
         io.out(
@@ -835,10 +838,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
     .option('--debounce <ms>', 'quiet period before reindexing', num('--debounce', { int: true, min: 0 }))
     .action(async (opts: { debounce?: number }) => {
       const ctx = openContext(vaultRoot());
-      const first = await indexVault(ctx.store, ctx.root, {
-        factExtract: ctx.config.facts.extract,
-        nlp: ctx.config.nlp,
-      });
+      const first = await indexVault(ctx.store, ctx.root, configIndexOptions(ctx.config));
       ctx.invalidateGraph();
       io.out(`watching ${ctx.root} (indexed ${first.added + first.updated} notes) — Ctrl-C to stop`);
       const w = watchVault(ctx, {
