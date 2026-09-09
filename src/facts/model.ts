@@ -28,6 +28,26 @@ export interface AssertFactResult {
 
 const checkDate = assertIsoDate;
 
+/**
+ * A fact's slot is (normalizeKey(subject), normalizeKey(predicate)), and
+ * normalizeKey keeps only letters and digits. A value made of nothing else —
+ * an emoji, a dash, a run of punctuation — normalises to '', and every such
+ * value lands in the SAME slot. Measured: `assert 🚀 status launched`, then
+ * `assert — status cancelled` reported "superseded: launched", and
+ * `invalidate 🎯 status` closed the `—` fact. Three unrelated subjects
+ * contradicting one another through a key none of them had. Refuse the key,
+ * name the value, and say why, so the caller can add a word to it.
+ */
+function keyOf(name: 'subject' | 'predicate', value: string): string {
+  const key = normalizeKey(value);
+  if (!key) {
+    throw new Error(
+      `${name} "${value.trim()}" normalises to nothing — a fact ${name} needs at least one letter or digit`,
+    );
+  }
+  return key;
+}
+
 const GROUP_BY_COLUMNS = { object: 'object', subject: 'subject', predicate: 'predicate' } as const;
 
 function rowToFact(r: Record<string, unknown>): Fact {
@@ -91,8 +111,8 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
   const sourceType = input.sourceType ?? 'stated';
   const recordedAt = new Date().toISOString();
   const validFrom = input.validFrom ?? recordedAt.slice(0, 10);
-  const subject = normalizeKey(input.subject);
-  const predicate = normalizeKey(input.predicate);
+  const subject = keyOf('subject', input.subject);
+  const predicate = keyOf('predicate', input.predicate);
 
   // Same rule as invalidate: a fact cannot stop being true before it started.
   // Accepted silently this produced intervals like (2025-01-01 → 2024-06-01),
@@ -206,6 +226,8 @@ export function invalidateFact(
   input: { subject: string; predicate: string; validUntil?: string },
 ): { closed: number; journalPath: string } {
   checkDate('validUntil', input.validUntil);
+  const subject = keyOf('subject', input.subject);
+  const predicate = keyOf('predicate', input.predicate);
   const until = input.validUntil ?? new Date().toISOString().slice(0, 10);
   // "It stopped being true before it started" is not a fact, it is a typo.
   // Accepted silently, it produced an interval like (2025-06-01 → 2025-01-01)
@@ -215,9 +237,7 @@ export function invalidateFact(
       `SELECT valid_from FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
        ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1`,
     )
-    .get(normalizeKey(input.subject), normalizeKey(input.predicate)) as
-    | { valid_from: string | null }
-    | undefined;
+    .get(subject, predicate) as { valid_from: string | null } | undefined;
   if (target?.valid_from && until < target.valid_from) {
     throw new Error(
       `validUntil ${until} is before the fact became valid (${target.valid_from})`,
@@ -240,7 +260,7 @@ export function invalidateFact(
          ORDER BY COALESCE(valid_from, recorded_at) DESC, recorded_at DESC, id DESC LIMIT 1
        )`,
     )
-    .run(until, until, normalizeKey(input.subject), normalizeKey(input.predicate));
+    .run(until, until, subject, predicate);
   indexNoteFile(ctx.store, ctx.root, journalPath, { nlp: ctx.config.nlp });
   ctx.invalidateGraph();
   return { closed: res.changes, journalPath };
