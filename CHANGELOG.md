@@ -62,6 +62,12 @@ that were not true.
   `capture`, `mark-used`, and their MCP tools — are refused up front with one
   line naming the file and that it is read-only, before a journal line or a
   captured note is written that the index could never see.
+- **An unreadable config is an error, not the defaults.** `loadConfig`
+  treated every read failure as "no config file": a `.lore/config.json` that
+  exists but cannot be read — a permissions slip, a directory in its place —
+  silently fell back to defaults, so a vault configured for embeddings ran
+  without them and said nothing. Only a missing file means defaults now;
+  anything else stops with a line naming the file and the reason.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is

@@ -241,11 +241,19 @@ function unknownConfigPaths(json: unknown): string[] {
 }
 
 export function loadConfig(vaultRoot: string, onWarn?: (msg: string) => void): LoreConfig {
+  const file = join(vaultRoot, LORE_DIR, 'config.json');
   let raw: string;
   try {
-    raw = readFileSync(join(vaultRoot, LORE_DIR, 'config.json'), 'utf8');
-  } catch {
-    return ConfigSchema.parse({});
+    raw = readFileSync(file, 'utf8');
+  } catch (err) {
+    // Only "no such file" means "no config". Every other failure was caught
+    // here too, so an unreadable config — chmod 000, a directory in its
+    // place, a permissions slip on a shared vault — silently became the
+    // defaults: a vault set up for embeddings ran without them and nothing
+    // said so. Measured: `lore stats` on a chmod-000 config ran on defaults
+    // with no message at all.
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return ConfigSchema.parse({});
+    throw new Error(`cannot read ${file}: ${(err as Error).message}`);
   }
   let json: unknown;
   try {
