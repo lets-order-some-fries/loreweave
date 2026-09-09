@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
 import { configIndexOptions, indexVault } from '../index/indexer.js';
+import { isReadonlyError, readonlyError } from '../store/db.js';
 import { search } from '../retrieve/search.js';
 import {
   aggregateFacts,
@@ -37,18 +38,25 @@ function errText(message: string): {
   return { content: [{ type: 'text', text: `error: ${message}` }], isError: true };
 }
 
-/** Wrap a handler so domain errors surface as MCP tool errors, not crashes. */
-function safe<A extends unknown[]>(
-  fn: (...args: A) => unknown | Promise<unknown>,
-): (...args: A) => Promise<ReturnType<typeof text> | ReturnType<typeof errText>> {
-  return async (...args: A) => {
-    try {
-      const r = await fn(...args);
-      return text(r);
-    } catch (err) {
-      return errText((err as Error).message);
-    }
-  };
+/**
+ * Wrap a handler so domain errors surface as MCP tool errors, not crashes.
+ * A raw SQLite read-only failure from a write tool is reported as the one
+ * line naming the index path, the same one the CLI prints.
+ */
+function safeWith(dbPath: string) {
+  return <A extends unknown[]>(
+    fn: (...args: A) => unknown | Promise<unknown>,
+  ): ((...args: A) => Promise<ReturnType<typeof text> | ReturnType<typeof errText>>) =>
+    async (...args: A) => {
+      try {
+        const r = await fn(...args);
+        return text(r);
+      } catch (err) {
+        return errText(
+          isReadonlyError(err) ? readonlyError(dbPath).message : (err as Error).message,
+        );
+      }
+    };
 }
 
 /**
@@ -97,6 +105,7 @@ export function leanHit(h: {
 
 export function createLoreMcpServer(ctx: LoreContext): McpServer {
   const server = new McpServer({ name: 'loreweave', version: mcpServerVersion });
+  const safe = safeWith(ctx.store.path);
 
   server.registerTool(
     'lore_search',

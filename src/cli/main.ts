@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
-import { verifyOrReset } from '../store/db.js';
+import { isReadonlyError, readonlyError, verifyOrReset } from '../store/db.js';
 import { LORE_DIR, dbPath, findVaultRoot } from '../config.js';
 import { contentTerms, normalizeKey } from '../normalize.js';
 import { parseQueryTime } from '../temporal/dates.js';
@@ -171,6 +171,12 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         );
       }
       return await fn(ctx);
+    } catch (err) {
+      // Writes that go straight to the database (mark-used, resume's
+      // watermark, dream --apply) surface SQLite's raw "attempt to write a
+      // readonly database"; say which file and what to do instead.
+      if (isReadonlyError(err)) throw readonlyError(ctx.store.path);
+      throw err;
     } finally {
       ctx.close();
     }

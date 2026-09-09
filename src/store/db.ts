@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
-import { mkdirSync, rmSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import type { Note } from '../types.js';
 import { MIGRATIONS, PARSER_VERSION } from './schema.js';
 
@@ -28,6 +29,15 @@ export interface Store {
   logAccess(kind: 'retrieved' | 'used', blockId: number | null, query?: string): void;
   getMeta(key: string): string | null;
   setMeta(key: string, value: string): void;
+  /**
+   * True when the index cannot be written — a read-only file, a directory
+   * that forbids SQLite's -wal/-shm files, or the snapshot copy that case
+   * falls back to. Read commands work; every write is refused with one line
+   * naming the path (see assertWritable).
+   */
+  readonly readonly: boolean;
+  /** Throw the read-only error if the index cannot be written. */
+  assertWritable(): void;
 }
 
 export { normalizeKey } from '../normalize.js';
@@ -72,6 +82,34 @@ export function ftsQuery(text: string, joiner: ' ' | ' OR '): string | null {
 /** Block the thread briefly; openStore is synchronous by design. */
 function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * SQLite's family of "cannot write" errors, whatever the precise cause
+ * (SQLITE_READONLY, _DIRECTORY, _CANTINIT, ...). They all carry the same
+ * message, "attempt to write a readonly database", which is what every
+ * command used to die with — including the ones that only read.
+ */
+export function isReadonlyError(err: unknown): boolean {
+  const code = (err as { code?: string })?.code ?? '';
+  const m = (err as Error)?.message ?? '';
+  return code.startsWith('SQLITE_READONLY') || /readonly database/i.test(m);
+}
+
+/** The one line a write against a read-only index fails with. */
+export function readonlyError(dbPath: string, why?: string): Error {
+  return new Error(
+    `the index is read-only: ${dbPath}${why ? ` (${why})` : ''} — make .lore/ and index.db writable to run commands that change the index`,
+  );
+}
+
+function fileWritable(p: string): boolean {
+  try {
+    accessSync(p, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** True for the SQLite errors that mean "this file is not a usable index". */
@@ -131,6 +169,17 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
   const accessLogRows = opts.accessLogRows ?? 5000;
   let sinceTrim = 0;
 
+  // Read-only is a state, not an error. A vault on a read-only mount, a
+  // `.lore/` owned by another account, a backup opened in place: every
+  // command failed with SQLite's raw "attempt to write a readonly database",
+  // including search, facts, stats and timeline, which only read. The
+  // bookkeeping below (schema stamp, parser stamp, the access log) was what
+  // wrote. Known up front when the file itself is not writable; otherwise
+  // learned from the first write that fails, so no probe write is needed —
+  // a probe would queue every read command behind a running indexer.
+  let readonly = dbPath !== ':memory:' && existsSync(dbPath) && !fileWritable(dbPath);
+  let snapshotDir: string | null = null;
+
   let db: Database.Database;
   try {
     db = new Database(dbPath);
@@ -138,12 +187,29 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     // as a raw SQLite error in the middle of an unrelated command.
     db.prepare('SELECT count(*) FROM sqlite_master').get();
   } catch (err) {
-    if (!heal || !isCorruption(err)) throw err;
-    rmSync(dbPath, { force: true });
-    rmSync(`${dbPath}-wal`, { force: true });
-    rmSync(`${dbPath}-shm`, { force: true });
-    opts.onHeal?.(`index was corrupt and has been reset — re-run 'lore index' to rebuild`);
-    db = new Database(dbPath);
+    if (heal && isCorruption(err)) {
+      rmSync(dbPath, { force: true });
+      rmSync(`${dbPath}-wal`, { force: true });
+      rmSync(`${dbPath}-shm`, { force: true });
+      opts.onHeal?.(`index was corrupt and has been reset — re-run 'lore index' to rebuild`);
+      db = new Database(dbPath);
+    } else if (dbPath !== ':memory:' && isReadonlyError(err)) {
+      // A WAL-mode database needs a -shm file beside it even to READ, and
+      // when the directory forbids creating one SQLite reports
+      // SQLITE_READONLY_DIRECTORY on the first statement — the same message
+      // as a failed write. Measured: `chmod 555 .lore` with no -shm left
+      // behind made every command fail before reading a row. A snapshot in
+      // a writable temp directory is a copy of a file nobody can change, so
+      // reading it is reading the index; it is removed on close.
+      snapshotDir = mkdtempSync(join(tmpdir(), 'loreweave-ro-'));
+      const copy = join(snapshotDir, 'index.db');
+      copyFileSync(dbPath, copy);
+      if (existsSync(`${dbPath}-wal`)) copyFileSync(`${dbPath}-wal`, `${copy}-wal`);
+      db = new Database(copy, { readonly: true });
+      readonly = true;
+    } else {
+      throw err;
+    }
   }
   // busy_timeout must be set first: `journal_mode = WAL` needs a brief
   // exclusive lock, so setting the timeout afterwards left the one pragma
@@ -158,6 +224,10 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       db.pragma('journal_mode = WAL');
       break;
     } catch (err) {
+      if (isReadonlyError(err)) {
+        readonly = true; // cannot switch modes; reads work in whichever it is
+        break;
+      }
       if (attempt >= 20 || !/locked|busy/i.test((err as Error).message)) throw err;
       sleepSync(25);
     }
@@ -177,17 +247,30 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     const row = db.prepare(`SELECT value FROM meta WHERE key='schema_version'`).get() as
       | { value: string }
       | undefined;
-    let version = row ? Number(row.value) : 0;
+    const stored = row ? Number(row.value) : 0;
+    let version = stored;
     for (let i = version; i < MIGRATIONS.length; i++) {
       db.exec(MIGRATIONS[i]!.replace(/CREATE TABLE meta[^;]+;/, '')); // meta pre-created
       version = i + 1;
     }
-    db.prepare(
-      `INSERT INTO meta(key,value) VALUES('schema_version',?)
-       ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-    ).run(String(version));
+    // Stamp only when something changed. Upserting unconditionally was a
+    // write on every open of a current index, which is what made a
+    // read-only index unusable for reading.
+    if (version !== stored) {
+      db.prepare(
+        `INSERT INTO meta(key,value) VALUES('schema_version',?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      ).run(String(version));
+    }
   });
-  migrate();
+  try {
+    migrate();
+  } catch (err) {
+    if (!isReadonlyError(err)) throw err;
+    // The only write in there is a pending migration, and the code that
+    // follows assumes the new schema — so this cannot be read either.
+    throw readonlyError(dbPath, 'and its schema is older than this version');
+  }
 
   // Parser-version check: see PARSER_VERSION. A vault indexed by an older
   // parser keeps stale titles and dates forever, because the incremental
@@ -198,14 +281,38 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     | { value: string }
     | undefined;
   if (Number(stampedParser?.value ?? 0) !== PARSER_VERSION) {
-    db.transaction(() => {
-      db.exec(`UPDATE notes SET hash = '', mtime_ms = -1, size = -1`);
-      db.prepare(
-        `INSERT INTO meta(key,value) VALUES('parser_version',?)
-         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-      ).run(String(PARSER_VERSION));
-    })();
+    try {
+      db.transaction(() => {
+        db.exec(`UPDATE notes SET hash = '', mtime_ms = -1, size = -1`);
+        db.prepare(
+          `INSERT INTO meta(key,value) VALUES('parser_version',?)
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+        ).run(String(PARSER_VERSION));
+      })();
+    } catch (err) {
+      if (!isReadonlyError(err)) throw err;
+      // Reads do not need the reparse; the next index does, and it will
+      // find the stamp still mismatched once the file is writable again.
+      readonly = true;
+    }
   }
+
+  const assertWritable = (): void => {
+    if (readonly) throw readonlyError(dbPath);
+  };
+  /** Run a write; a read-only failure becomes the clear error and is remembered. */
+  const guarded = <T>(fn: () => T): T => {
+    assertWritable();
+    try {
+      return fn();
+    } catch (err) {
+      if (isReadonlyError(err)) {
+        readonly = true;
+        throw readonlyError(dbPath);
+      }
+      throw err;
+    }
+  };
 
   const stmts = {
     insNote: db.prepare(
@@ -403,10 +510,17 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
   return {
     db,
     path: dbPath,
-    close: () => db.close(),
-    upsertNote: (n) => upsertNoteTx(n),
+    get readonly() {
+      return readonly;
+    },
+    assertWritable,
+    close: () => {
+      db.close();
+      if (snapshotDir) rmSync(snapshotDir, { recursive: true, force: true });
+    },
+    upsertNote: (n) => guarded(() => upsertNoteTx(n)),
     deleteNote: (p) => {
-      stmts.delNote.run(p);
+      guarded(() => stmts.delNote.run(p));
     },
     listNotes: () => {
       const m = new Map<string, { hash: string; mtimeMs: number; size: number }>();
@@ -422,16 +536,23 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
     },
     searchLexical,
     logAccess: (kind, blockId, query) => {
-      if (accessLogRows === 0) return;
-      stmts.logAccess.run(new Date().toISOString(), kind, query ?? null, blockId);
-      // Trim on a margin rather than on every insert: the DELETE walks the
-      // table, and paying that per search to remove one row would cost more
-      // than the rows do.
-      sinceTrim++;
-      if (sinceTrim >= TRIM_EVERY) {
-        sinceTrim = 0;
-        const { c } = stmts.countAccess.get() as { c: number };
-        if (c > accessLogRows) stmts.trimAccess.run(accessLogRows);
+      // Bookkeeping, not the answer: on a read-only index it is skipped, so
+      // a search still returns its results.
+      if (accessLogRows === 0 || readonly) return;
+      try {
+        stmts.logAccess.run(new Date().toISOString(), kind, query ?? null, blockId);
+        // Trim on a margin rather than on every insert: the DELETE walks the
+        // table, and paying that per search to remove one row would cost more
+        // than the rows do.
+        sinceTrim++;
+        if (sinceTrim >= TRIM_EVERY) {
+          sinceTrim = 0;
+          const { c } = stmts.countAccess.get() as { c: number };
+          if (c > accessLogRows) stmts.trimAccess.run(accessLogRows);
+        }
+      } catch (err) {
+        if (!isReadonlyError(err)) throw err;
+        readonly = true;
       }
     },
     getMeta: (k) => {
@@ -439,7 +560,7 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       return r ? r.value : null;
     },
     setMeta: (k, v) => {
-      stmts.setMeta.run(k, v);
+      guarded(() => stmts.setMeta.run(k, v));
     },
   };
 }

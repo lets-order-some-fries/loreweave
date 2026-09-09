@@ -67,6 +67,7 @@ export function indexNoteFile(
   // by a full run, so indexing it here would create a note a rebuild deletes —
   // a transient divergence from the disposability property.
   if (isDerivedNote(relPath)) return;
+  store.assertWritable();
   const abs = join(root, relPath);
   const st = statSync(abs);
   const raw = readFileSync(abs, 'utf8');
@@ -175,6 +176,9 @@ export async function indexVault(
   root: string,
   opts: IndexOptions = {},
 ): Promise<IndexReport> {
+  // Refused before the scan, and before any marker is set: on a read-only
+  // index the first setMeta would fail anyway, after a full walk of the vault.
+  store.assertWritable();
   const attempts = opts.lockRetries ?? 5;
   // Was an index already running in this process when we were called? If so, a
   // leftover own-PID marker is genuinely live, not stale. Captured before we

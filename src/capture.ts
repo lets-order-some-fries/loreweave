@@ -71,6 +71,7 @@ export function safeVaultPath(
 export function capture(ctx: LoreContext, text: string, to = 'lore/inbox.md'): string {
   const clean = text.trim();
   if (!clean) throw new Error('nothing to capture');
+  ctx.store.assertWritable(); // before the append: a captured line the index cannot see is a lost line
   // Writes never leave the real vault, even through a symlink the user put
   // there for reading.
   const abs = safeVaultPath(ctx.root, to, { followSymlinks: false });

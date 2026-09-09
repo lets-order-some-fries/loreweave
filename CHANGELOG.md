@@ -49,6 +49,19 @@ that were not true.
   the auto-index — spreads it first. Behaviour change: a vault with `ignore`
   set will report those notes removed on its next index, which is what the
   setting always claimed.
+- **A read-only index still answers.** `chmod 444 .lore/index.db` — a vault
+  on a read-only mount, a `.lore/` owned by another account, a backup opened
+  in place — made every command fail with SQLite's raw "attempt to write a
+  readonly database", including `search`, `facts`, `stats` and `timeline`,
+  which only read. The schema stamp was upserted on every open whether or not
+  it had changed, and each search wrote its results to the access log. The
+  stamp is now written only when a migration ran, the access log is skipped
+  on a read-only index, and when the directory itself forbids the `-shm`
+  file WAL needs even to read, the index is snapshotted to a temp file and
+  read from there. Commands that write — `index`, `assert`, `invalidate`,
+  `capture`, `mark-used`, and their MCP tools — are refused up front with one
+  line naming the file and that it is read-only, before a journal line or a
+  captured note is written that the index could never see.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is

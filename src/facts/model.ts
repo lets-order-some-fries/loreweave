@@ -113,6 +113,10 @@ export function assertFact(ctx: LoreContext, input: AssertFactInput): AssertFact
   const validFrom = input.validFrom ?? recordedAt.slice(0, 10);
   const subject = keyOf('subject', input.subject);
   const predicate = keyOf('predicate', input.predicate);
+  // The journal line is written before the row on purpose — the markdown is
+  // the source of truth — so a read-only index has to be refused before
+  // either, or the next rebuild replays a fact the user was told was refused.
+  ctx.store.assertWritable();
 
   // Same rule as invalidate: a fact cannot stop being true before it started.
   // Accepted silently this produced intervals like (2025-01-01 → 2024-06-01),
@@ -228,6 +232,7 @@ export function invalidateFact(
   checkDate('validUntil', input.validUntil);
   const subject = keyOf('subject', input.subject);
   const predicate = keyOf('predicate', input.predicate);
+  ctx.store.assertWritable(); // same reason as assertFact: before the journal line
   const until = input.validUntil ?? new Date().toISOString().slice(0, 10);
   // "It stopped being true before it started" is not a fact, it is a typo.
   // Accepted silently, it produced an interval like (2025-06-01 → 2025-01-01)
