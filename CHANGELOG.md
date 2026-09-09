@@ -68,6 +68,17 @@ that were not true.
   silently fell back to defaults, so a vault configured for embeddings ran
   without them and said nothing. Only a missing file means defaults now;
   anything else stops with a line naming the file and the reason.
+- **UTF-16 notes are indexed as text; a note that is not UTF-8 says so.**
+  Every file was read as UTF-8 whatever it was. A UTF-16 note — what Notepad
+  and PowerShell's `>` write by default — indexed with the title `utf16`, a
+  first block of `EFBFBDEFBFBD23…`, not one searchable word, and no warning;
+  a Latin-1 note lost every accented word the same way, in silence. A
+  byte-order mark is now obeyed (UTF-16LE, UTF-16BE, UTF-8 with the mark
+  stripped), `lore_read_note` decodes the same way, and when a decode still
+  yields U+FFFD — or the text is riddled with NUL bytes, the shape of UTF-16
+  without a mark — the note is indexed best-effort and `lore index` prints a
+  warning naming the file and the reason. A UTF-16 note already in an index
+  is re-read on its next change or on `lore index --full`.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is

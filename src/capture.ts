@@ -2,6 +2,7 @@ import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import type { LoreContext } from './context.js';
 import { indexNoteFile } from './index/indexer.js';
+import { decodeNote } from './vault/read.js';
 import { whyNotNote } from './vault/scan.js';
 
 /** Deepest ancestor of `abs` that exists, with symlinks resolved. */
@@ -121,5 +122,7 @@ export function readNoteRaw(root: string, rel: string, ignore: string[] = []): s
   if (reason !== null) {
     throw new Error(`not a readable note (${reason}): ${rel}`);
   }
-  return readFileSync(abs, 'utf8');
+  // Decoded the way the indexer decodes it, so a UTF-16 note reads as its
+  // text over MCP rather than as the U+FFFD-and-NUL string it indexed as.
+  return decodeNote(readFileSync(abs)).text;
 }

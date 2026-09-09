@@ -5,6 +5,7 @@ import type { IndexReport, Note } from '../types.js';
 import type { Store } from '../store/db.js';
 import type { LoreConfig } from '../config.js';
 import { parseNote, sha1 } from '../vault/parse.js';
+import { decodeNote } from '../vault/read.js';
 import { isDerivedNote, scanVault } from '../vault/scan.js';
 import { extractEntities } from '../entities/extract.js';
 import { rebuildFactsFromNotes } from '../facts/journal.js';
@@ -70,7 +71,9 @@ export function indexNoteFile(
   store.assertWritable();
   const abs = join(root, relPath);
   const st = statSync(abs);
-  const raw = readFileSync(abs, 'utf8');
+  // The engine wrote this file itself, as UTF-8; the decoder is used so the
+  // index has one reading of "text", not for its warning.
+  const raw = decodeNote(readFileSync(abs)).text;
   const note = parseNote(relPath, raw, st.mtimeMs, st.size);
   const tx = store.db.transaction(() => {
     store.upsertNote(note);
@@ -260,7 +263,9 @@ async function indexVaultOnce(
     }
     let raw: string;
     try {
-      raw = await readFile(f.absPath, 'utf8');
+      const decoded = decodeNote(await readFile(f.absPath));
+      raw = decoded.text;
+      if (decoded.warning) report.warnings.push(`${f.path}: ${decoded.warning}`);
     } catch (err) {
       report.warnings.push(`${f.path}: unreadable (${(err as Error).message})`);
       continue;

@@ -18,6 +18,7 @@ export {
   type LexicalHit,
 } from './store/db.js';
 export { parseNote, sha1 } from './vault/parse.js';
+export { decodeNote, type DecodedNote } from './vault/read.js';
 export { scanVault } from './vault/scan.js';
 export { indexVault, type IndexOptions } from './index/indexer.js';
 export { extractEntities } from './entities/extract.js';
