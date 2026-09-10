@@ -23,6 +23,7 @@ import { capture } from '../capture.js';
 import { markUsed, resolveBlockIds } from '../dynamics/usage.js';
 import { buildSimilarEdges, embedMissingBlocks } from '../embed/index.js';
 import { exportGraph } from './export.js';
+import { display } from './display.js';
 import { watchVault } from '../watch.js';
 
 /**
@@ -131,7 +132,9 @@ function fmtResult(r: {
   via: string[];
 }): string {
   const via = r.via.length ? `  ⟨via ${r.via.join(', ')}⟩` : '';
-  return `• ${fmtLocation(r.notePath, r.anchor)}  [${strength(r)}]${via}\n  ${r.snippet}`;
+  // Path, heading, link names and snippet all come out of the vault; the
+  // frame around them is the only part of this line the engine wrote.
+  return display(`• ${fmtLocation(r.notePath, r.anchor)}  [${strength(r)}]${via}\n  ${r.snippet}`);
 }
 
 export function buildProgram(io: { out: (s: string) => void; err: (s: string) => void }): Command {
@@ -380,7 +383,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           for (const f of relevantFacts) {
             const from = f.validFrom ? ` (since ${f.validFrom.slice(0, 10)})` : '';
             const until = f.validUntil ? ` until ${f.validUntil.slice(0, 10)}` : '';
-            io.out(`  ★ ${f.subjectDisplay} — ${f.predicate} — ${f.object}${from}${until}`);
+            io.out(display(`  ★ ${f.subjectDisplay} — ${f.predicate} — ${f.object}${from}${until}`));
           }
           io.out('');
         }
@@ -438,11 +441,11 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
         for (const f of rows) {
           const window = `${f.validFrom?.slice(0, 10) ?? '…'} → ${f.validUntil?.slice(0, 10) ?? 'now'}`;
           const sup = f.supersededBy ? '  [superseded]' : '';
-          io.out(`${f.subjectDisplay} :: ${f.predicate} :: ${f.object}  (${window})${sup}`);
+          io.out(display(`${f.subjectDisplay} :: ${f.predicate} :: ${f.object}  (${window})${sup}`));
           // A fact with no visible source cannot be checked, and "where did
           // this come from" is the first thing anyone asks of a fact an
           // engine produced rather than a human typed.
-          io.out(`    ${provenance(f)}`);
+          io.out(display(`    ${provenance(f)}`));
         }
       });
     });
@@ -528,7 +531,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
             if (e.kind === 'change') {
               const arrow = e.previous ? `${e.previous} → ${e.value}` : String(e.value);
               const until = e.until === null ? '' : `  (until ${e.until})`;
-              io.out(`${e.date}  ${e.predicate}: ${arrow}${until}`);
+              io.out(display(`${e.date}  ${e.predicate}: ${arrow}${until}`));
             } else {
               // Show the line that MENTIONS the subject, not whatever the
               // block starts with — a table block's first line is
@@ -538,7 +541,7 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
                 bestSnippet(e.text ?? '', contentTerms(subject), 100) ||
                 ((e.text ?? '').split('\n').find((l) => l.trim()) ?? '');
               const snip = line.length > 100 ? `${line.slice(0, 100)}…` : line;
-              io.out(`${e.date}  • ${snip}  [${e.notePath}]`);
+              io.out(display(`${e.date}  • ${snip}  [${e.notePath}]`));
             }
           }
         });
@@ -569,8 +572,8 @@ export function buildProgram(io: { out: (s: string) => void; err: (s: string) =>
           validUntil: opts.validUntil,
           confidence: opts.confidence,
         });
-        io.out(`✓ ${r.fact.subjectDisplay} :: ${r.fact.predicate} :: ${r.fact.object}`);
-        for (const s of r.superseded) io.out(`  superseded: "${s.object}" (now valid until ${s.validUntil})`);
+        io.out(display(`✓ ${r.fact.subjectDisplay} :: ${r.fact.predicate} :: ${r.fact.object}`));
+        for (const s of r.superseded) io.out(display(`  superseded: "${s.object}" (now valid until ${s.validUntil})`));
         io.out(`  journal: ${r.journalPath}`);
       });
     });

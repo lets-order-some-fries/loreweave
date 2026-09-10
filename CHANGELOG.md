@@ -79,6 +79,18 @@ that were not true.
   without a mark — the note is indexed best-effort and `lore index` prints a
   warning naming the file and the reason. A UTF-16 note already in an index
   is re-read on its next change or on `lore index --full`.
+- **Note text is sanitised before it reaches the terminal.** `lore search`,
+  `ask`, `facts` and `timeline` printed note text and fact values verbatim, so
+  a note holding `\x1b[31m…` or an OSC title-set `\x1b]0;…\x07` was carried
+  out by the terminal that showed it: spoofed colours, a rewritten window
+  title, and — on the same channel — cursor moves that overwrite earlier lines
+  to fake a result, or a clipboard write on terminals that allow OSC 52. Every
+  C0 and C1 control character except tab and newline now prints as U+FFFD, so
+  the attempt stays visible instead of taking effect; CJK, emoji, combining
+  marks and typographic punctuation are untouched. Display only: the index,
+  the journal and `--json` carry the text exactly as written. The other
+  commands that print note-derived text — `review`, `dream`, `resume`,
+  `doctor`, `stats`, `count` — are not yet covered.
 - **A date that cannot exist is refused.** `assertIsoDate` checked shape only,
   so `2025-13-01` and `2026-02-30` were accepted for `--since`, `--until`,
   `--as-of`, `--as-known-at` and `--valid-from`. Every comparison downstream is
