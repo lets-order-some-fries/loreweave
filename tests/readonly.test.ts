@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { chmod, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -134,3 +134,40 @@ describe('a read-only index', () => {
     }
   });
 });
+
+describe('a read-only index that still carries a -wal', () => {
+  it('answers a search for rows that only the WAL holds', async () => {
+    // A backup copied while the engine was open, or a .lore/ shared from
+    // another account, commonly carries an un-checkpointed -wal. The snapshot
+    // fallback only triggered on SQLITE_READONLY; with a -wal present SQLite
+    // reports SQLITE_CANTOPEN instead, and every command died with the raw
+    // "unable to open database file".
+    const src = await mkdtemp(join(tmpdir(), 'lw-wal-src-'));
+    await mkdir(join(src, '.lore'), { recursive: true });
+    await writeFile(join(src, 'a.md'), '# A\n\nplain words here.\n');
+    const ctx = openContext(src);
+    await indexVault(ctx.store, ctx.root);
+    await writeFile(join(src, 'b.md'), '# B\n\nthe word quokkatrail appears only here.\n');
+    await indexVault(ctx.store, ctx.root); // still open: these rows sit in the -wal
+    const dst = await mkdtemp(join(tmpdir(), 'lw-wal-dst-'));
+    await mkdir(join(dst, '.lore'), { recursive: true });
+    await copyFile(join(src, '.lore', 'index.db'), join(dst, '.lore', 'index.db'));
+    await copyFile(join(src, '.lore', 'index.db-wal'), join(dst, '.lore', 'index.db-wal'));
+    ctx.close();
+    await chmod(join(dst, '.lore', 'index.db'), 0o444);
+    await chmod(join(dst, '.lore', 'index.db-wal'), 0o444);
+    await chmod(join(dst, '.lore'), 0o555);
+    try {
+      const out: string[] = [];
+      const err: string[] = [];
+      const program = buildProgram({ out: (s) => out.push(s), err: (s) => err.push(s) });
+      program.exitOverride();
+      for (const c of program.commands) c.exitOverride();
+      await program.parseAsync(['node', 'lore', '--vault', dst, 'search', 'quokkatrail']);
+      expect(out.join('\n')).toContain('b.md');
+    } finally {
+      await chmod(join(dst, '.lore'), 0o755);
+    }
+  });
+});
+

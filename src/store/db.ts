@@ -193,7 +193,17 @@ export function openStore(dbPath: string, opts: OpenStoreOptions = {}): Store {
       rmSync(`${dbPath}-shm`, { force: true });
       opts.onHeal?.(`index was corrupt and has been reset — re-run 'lore index' to rebuild`);
       db = new Database(dbPath);
-    } else if (dbPath !== ':memory:' && isReadonlyError(err)) {
+    } else if (
+      dbPath !== ':memory:' &&
+      (isReadonlyError(err) ||
+        // With an un-checkpointed -wal beside it — a backup copied while the
+        // engine was open, a .lore/ shared from another account — SQLite
+        // cannot create the -shm it needs and reports CANTOPEN instead of
+        // READONLY. Same situation, different code.
+        ((err as { code?: string }).code === 'SQLITE_CANTOPEN' &&
+          existsSync(dbPath) &&
+          !fileWritable(dirname(dbPath))))
+    ) {
       // A WAL-mode database needs a -shm file beside it even to READ, and
       // when the directory forbids creating one SQLite reports
       // SQLITE_READONLY_DIRECTORY on the first statement — the same message
