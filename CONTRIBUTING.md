@@ -14,11 +14,10 @@ Node >= 20 required. `npm run eval:gate` runs the retrieval-quality gate; run it
 
 ## Workflow
 
-All changes land through pull requests, including from the maintainer:
+This section describes what actually happens, not a policy the repository does not enforce.
 
-1. Branch from `main` (`feat/...`, `fix/...`, `docs/...`).
-2. Keep commits scoped; conventional prefixes (`feat:`, `fix:`, `docs:`, `chore:`).
-3. CI must be green before merge.
+- **The maintainer commits directly to `main`.** `main` is not a protected branch and there is no pull-request gate on the maintainer's own changes. The gate is local: `npm run typecheck` and `npm test` are green before the commit. CI runs on every push to `main`, but after the fact — it checks what landed; it does not stand in front of it.
+- **Outside contributions arrive as pull requests.** Branch from `main` (`feat/...`, `fix/...`, `docs/...`), keep commits scoped with conventional prefixes (`feat:`, `fix:`, `docs:`, `chore:`), and CI must be green on the pull request before it is merged.
 
 ## Reporting issues
 
