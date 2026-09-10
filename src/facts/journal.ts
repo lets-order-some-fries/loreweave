@@ -278,6 +278,7 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
           // closed by the supersession recompute at their successor's date.
           // (Closing all open facts here would diverge from the live path,
           // where supersession has already closed the older ones.)
+          if (!normalizeKey(f.subject) || !normalizeKey(f.predicate)) continue;
           db.prepare(
             `UPDATE facts SET valid_until=?, user_valid_until=? WHERE id IN (
                SELECT id FROM facts WHERE subject=? AND predicate=? AND valid_until IS NULL
@@ -288,6 +289,14 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
         }
         const subject = normalizeKey(f.subject);
         const predicate = normalizeKey(f.predicate);
+        // A subject or predicate made only of emoji or punctuation normalises
+        // to '', and every such line would land in one shared slot. assertFact
+        // refuses them at the API, but the journal is the source of truth and
+        // is replayed on every full re-index, so a line written by an older
+        // version — or by an agent writing [fact] into a note — would keep
+        // recreating those rows, which invalidate can no longer close.
+        // extractStructuredFacts below has always had this guard.
+        if (!subject || !predicate) continue;
         const recordedAt =
           f.attrs.recorded_at ??
           (dateFromPath ? `${dateFromPath}T00:00:00.000Z` : new Date(r.mtime_ms).toISOString());

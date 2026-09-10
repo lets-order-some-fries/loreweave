@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { mkdtemp, mkdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertFact, invalidateFact } from '../src/facts/model.js';
 import { openContext } from '../src/context.js';
+import { indexVault } from '../src/index/indexer.js';
 import { buildProgram } from '../src/cli/main.js';
 import { createLoreMcpServer } from '../src/mcp/server.js';
 
@@ -104,3 +105,29 @@ describe('fact keys that normalise to nothing', () => {
     }
   });
 });
+
+describe('the markdown source of truth cannot recreate an empty key', () => {
+  it('a journal line whose subject normalises to nothing is skipped on a full re-index', async () => {
+    // The API guard above only covers assertFact / invalidateFact. The journal
+    // is replayed on every `lore index --full`, so a line written by 0.36 (or
+    // by any agent writing a [fact] line into a note) kept re-creating the
+    // shared '' slot — and since invalidate now refuses the key, nothing could
+    // ever close those rows again.
+    const ctx = await freshCtx();
+    try {
+      await mkdir(join(ctx.root, 'lore', 'journal'), { recursive: true });
+      await writeFile(join(ctx.root, 'lore', 'journal', '2026-09-10.md'),
+        '- [fact] 🚀 :: status :: launched\n- [fact] Rocket :: status :: launched\n');
+      await indexVault(ctx.store, ctx.root, { full: true });
+      const row = ctx.store.db
+        .prepare("SELECT COUNT(*) AS n FROM facts WHERE subject = '' OR predicate = ''")
+        .get() as { n: number };
+      expect(row.n).toBe(0);
+      const real = ctx.store.db.prepare("SELECT COUNT(*) AS n FROM facts WHERE subject = 'rocket'").get() as { n: number };
+      expect(real.n).toBe(1); // the well-formed line beside it still lands
+    } finally {
+      ctx.close();
+    }
+  });
+});
+

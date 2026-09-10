@@ -56,12 +56,23 @@ that were not true.
   which only read. The schema stamp was upserted on every open whether or not
   it had changed, and each search wrote its results to the access log. The
   stamp is now written only when a migration ran, the access log is skipped
-  on a read-only index, and when the directory itself forbids the `-shm`
-  file WAL needs even to read, the index is snapshotted to a temp file and
-  read from there. Commands that write — `index`, `assert`, `invalidate`,
+  on a read-only index, and when the directory itself forbids the `-shm` file
+  WAL needs even to read, the index — with any un-checkpointed `-wal` beside
+  it — is snapshotted to a temp file and read from there, so a backup copied
+  while the engine was open reads correctly too. Commands that write — `index`, `assert`, `invalidate`,
   `capture`, `mark-used`, and their MCP tools — are refused up front with one
   line naming the file and that it is read-only, before a journal line or a
   captured note is written that the index could never see.
+- **A fact key that normalises to nothing is refused everywhere.** A subject
+  or predicate made only of emoji or punctuation normalises to the empty
+  string, and every such claim landed in one shared slot: asserting `🚀` and
+  then `—` reported the second as superseding the first, and invalidating
+  `🎯` closed it. Both are refused now, on the CLI and over MCP, naming the
+  value. The journal is replayed on every full re-index, so it is guarded
+  there too — otherwise a line written by an older version would keep
+  recreating rows that `invalidate` can no longer close. Rows an earlier
+  version already stored under the empty key are left alone; a full re-index
+  no longer recreates them.
 - **An unreadable config is an error, not the defaults.** `loadConfig`
   treated every read failure as "no config file": a `.lore/config.json` that
   exists but cannot be read — a permissions slip, a directory in its place —
