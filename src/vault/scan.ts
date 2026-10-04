@@ -60,6 +60,10 @@ export interface NoteCheck {
  * spellings of one directory and called every in-vault link outside it.
  * Measured on macOS, vault given as VAULT for a folder named Vault: the scan
  * dropped alias.md, and read_note refused it.
+ *
+ * Only a resolved root is cached. The fallback is the path as typed — one
+ * more spelling — and cached, a single failed resolve decided what every
+ * later check in the process compared against.
  */
 const realRoots = new Map<string, string>();
 function realVaultRoot(root: string): string {
@@ -67,10 +71,10 @@ function realVaultRoot(root: string): string {
   if (r === undefined) {
     try {
       r = realpathSync.native(root);
+      realRoots.set(root, r);
     } catch {
       r = resolve(root);
     }
-    realRoots.set(root, r);
   }
   return r;
 }

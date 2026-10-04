@@ -76,6 +76,24 @@ describe('the vault boundary on the read side', () => {
     expect(() => readNoteRaw(spelled, 'linkeddir/private-diary.md')).toThrow(/outside the vault/);
   });
 
+  it('does not hold on to a vault root it could not resolve the first time', async () => {
+    // A root that failed to resolve fell back to the path as typed, and that
+    // fallback was cached for the life of the process: one failure — the
+    // vault missing for a moment while a sync tool replaced it, or a library
+    // caller scanning before creating it — and every later check compared
+    // resolved paths with a spelling they need not share. `door` is the
+    // vault's path that does not resolve yet, and later does.
+    const { vault } = await escapeVault();
+    const door = join(dirname(vault), 'door');
+    expect(await scanVault(door)).toEqual([]);
+    await symlink(vault, door);
+    const paths = (await scanVault(door)).map((f) => f.path);
+    expect(paths).toContain('alias.md');
+    expect(readNoteRaw(door, 'a.md')).toContain('kestrels');
+    expect(readNoteRaw(door, 'alias.md')).toContain('inside the vault');
+    expect(() => readNoteRaw(door, 'linked.md')).toThrow(/outside the vault/);
+  });
+
   it('keeps the out-of-vault text out of the index and out of search', async () => {
     const { vault } = await escapeVault();
     const store = openStore(':memory:');
