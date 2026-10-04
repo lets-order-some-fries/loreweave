@@ -23,7 +23,7 @@
     "temporal"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "bin": {
     "lore": "./dist/cli/main.js",
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "better-sqlite3": "^11.8.0",
+    "better-sqlite3": "^12.11.1",
     "commander": "^13.1.0",
     "gray-matter": "^4.0.3",
     "wink-eng-lite-web-model": "^1.8.0",
