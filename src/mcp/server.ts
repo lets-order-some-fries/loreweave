@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import type { RequestId } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
 import { configIndexOptions, indexState, indexVault } from '../index/indexer.js';
@@ -551,6 +553,96 @@ export function createLoreMcpServer(ctx: LoreContext): McpServer {
   return server;
 }
 
+/**
+ * How long a server whose client has closed stdin keeps running to deliver what
+ * it already owes. An ordinary call finishes in milliseconds; this bounds only a
+ * pathological one — a full reindex of a huge vault, an embedding request that
+ * never returns — so an abandoned server can never again outlive its client
+ * indefinitely, which is the fault the hang-up handling exists to remove.
+ */
+const HANGUP_DRAIN_MS = 10_000;
+
+interface StdioEvents {
+  /** The client closed stdin, which is how an MCP client ends a stdio session. */
+  hangUp(): void;
+  /** A malformed or oversized message, or stdin failing. */
+  error(err: Error): void;
+  closed(): void;
+}
+
+/**
+ * The SDK's stdio transport, plus what loreweave needs from it that it does not
+ * do itself.
+ *
+ * It hears the client hang up. StdioServerTransport listens to stdin for 'data'
+ * and 'error' and nothing else — in every release from 1.12.0 to 1.32.0 — so
+ * the end of input reached no one.
+ *
+ * It keeps `owed`: the ids of requests received and not yet answered. This is
+ * the one place every request enters and every reply leaves, so the SDK's own
+ * methods (initialize, tools/list) count as well as the tools.
+ *
+ * And it reports errors and closure to loreweave directly. connect() takes over
+ * the callbacks of the transport it is given — documented as "replacing any
+ * callbacks that have already been set", and 1.12.0–1.13.1, inside this
+ * package's declared range, do exactly that — so a handler set on the SDK's
+ * transport before connect() was silently dropped there, and one set after it
+ * depends on nothing arriving in between. Here the SDK owns the callbacks of the
+ * object it is handed and this wrapper owns the stdio transport's, so neither
+ * question arises.
+ */
+function stdioTransport(owed: Set<RequestId>, on: StdioEvents): Transport {
+  const stdio = new StdioServerTransport();
+  const transport: Transport = {
+    async start() {
+      // Before stdio.start() adds the 'data' listener that sets stdin flowing,
+      // so no end of input can arrive unheard. 'close' covers a stdin that is
+      // destroyed without ever ending.
+      process.stdin.once('end', on.hangUp);
+      process.stdin.once('close', on.hangUp);
+      await stdio.start();
+    },
+    close: () => stdio.close(),
+    async send(message) {
+      try {
+        await stdio.send(message);
+      } finally {
+        // A reply has an id and no method; a request has both.
+        if ('id' in message && !('method' in message)) owed.delete(message.id as RequestId);
+      }
+    },
+  };
+  stdio.onmessage = (message) => {
+    if ('method' in message) {
+      if ('id' in message) owed.add(message.id as RequestId);
+      // A cancelled request is never answered, so nothing is owed for it.
+      else if (message.method === 'notifications/cancelled') {
+        const { requestId } = (message.params ?? {}) as { requestId?: RequestId };
+        if (requestId !== undefined) owed.delete(requestId);
+      }
+    }
+    transport.onmessage?.(message);
+  };
+  stdio.onerror = (err) => {
+    on.error(err);
+    transport.onerror?.(err);
+  };
+  stdio.onclose = () => {
+    on.closed();
+    transport.onclose?.();
+  };
+  return transport;
+}
+
+/** Polls `done` until it holds or `ms` have passed, and says which. */
+async function settled(done: () => boolean, ms: number): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (!done() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return done();
+}
+
 export async function startMcpServer(ctx: LoreContext): Promise<void> {
   // Before serving a single request. An agent handed an empty index does not
   // get an error it can react to — it gets `[]`, and reports to the user that
@@ -574,39 +666,70 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
   const watcher = watchVault(ctx, {
     onError: (err) => console.error(`[loreweave mcp] watch: ${err.message}`),
   });
-  const transport = new StdioServerTransport();
-  // Without these the server goes permanently deaf on a malformed or
-  // oversized message, with an empty stderr and exit code 0 — the worst
-  // possible failure mode for something an agent depends on.
-  transport.onerror = (err: Error) => {
-    console.error(`[loreweave mcp] transport error: ${err.message}`);
-    try {
-      watcher.close();
-      ctx.close();
-    } finally {
-      process.exit(1);
+
+  // Every way out comes through here — the client hanging up, a signal, a
+  // transport error, the transport closing — so the exit code is decided once,
+  // and the watcher and the database are each closed even if the other throws.
+  let exiting = false;
+  const exit = (code: number): void => {
+    if (exiting) return;
+    exiting = true;
+    for (const close of [() => watcher.close(), () => ctx.close()]) {
+      try {
+        close();
+      } catch (err) {
+        console.error(`[loreweave mcp] shutdown: ${(err as Error).message}`);
+      }
     }
+    process.exit(code);
   };
-  transport.onclose = () => {
-    try {
-      watcher.close();
-      ctx.close();
-    } finally {
-      process.exit(0);
-    }
+
+  // The client hanging up. Closing the server's stdin is how an MCP client ends
+  // a stdio session — the spec's shutdown sequence is: close the server's input,
+  // wait for it to exit, and only then resort to SIGTERM. Up to 0.38.0 that
+  // changed nothing: the vault watcher held the event loop open and the server
+  // ran on with no client, indefinitely. mcp-proxy 6.4.3, on SIGTERM, exits
+  // without signalling its child, so its exit closing this process's stdin is
+  // the only notice the server ever got — and it ran on as an orphan.
+  //
+  // What is owed goes out first. A client that pipes its requests in and
+  // half-closes is owed every reply, and exiting under a handler still running
+  // drops its reply without a word. Answered is not yet delivered, either: pipe
+  // writes are asynchronous on POSIX, and process.exit() discards whatever
+  // stdout has not handed to the OS.
+  const owed = new Set<RequestId>();
+  let hungUp = false;
+  const hangUp = (): void => {
+    if (hungUp || exiting) return;
+    hungUp = true;
+    watcher.close(); // a reindex now would be work for nobody
+    void (async () => {
+      const delivered = () => owed.size === 0 && process.stdout.writableLength === 0;
+      if (!(await settled(delivered, HANGUP_DRAIN_MS))) {
+        const n = owed.size;
+        console.error(
+          `[loreweave mcp] stdin closed; exiting after ${HANGUP_DRAIN_MS}ms with ${n} repl${n === 1 ? 'y' : 'ies'} unsent and ${process.stdout.writableLength} bytes of output unwritten`,
+        );
+        await settled(() => process.stderr.writableLength === 0, 1_000);
+      }
+      exit(0);
+    })();
   };
+
+  const transport = stdioTransport(owed, {
+    hangUp,
+    // Without this the server goes permanently deaf on a malformed or
+    // oversized message, with an empty stderr and exit code 0 — the worst
+    // possible failure mode for something an agent depends on.
+    error: (err) => {
+      console.error(`[loreweave mcp] transport error: ${err.message}`);
+      exit(1);
+    },
+    closed: () => exit(0),
+  });
+  process.on('SIGINT', () => exit(0));
+  process.on('SIGTERM', () => exit(0));
   await server.connect(transport);
-  // keep process alive; close store on exit
-  const shutdown = () => {
-    try {
-      watcher.close();
-      ctx.close();
-    } finally {
-      process.exit(0);
-    }
-  };
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
 }
 
 // direct exec: `node dist/mcp/server.js [vaultPath]`
