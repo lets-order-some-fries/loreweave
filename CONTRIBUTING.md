@@ -10,7 +10,7 @@ npm run build       # tsup
 npm run dev         # run the CLI from source
 ```
 
-Node >= 20 required. `npm run eval:gate` runs the retrieval-quality gate; run it if your change touches search, ranking, or fact resolution.
+Node >= 22 required. `npm run eval:gate` runs the retrieval-quality gate; run it if your change touches search, ranking, or fact resolution.
 
 ## Workflow
 

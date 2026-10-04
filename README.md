@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/loreweave"><img src="https://img.shields.io/npm/v/loreweave" alt="npm"></a>
   <a href="https://github.com/lets-order-some-fries/loreweave/actions/workflows/ci.yml"><img src="https://github.com/lets-order-some-fries/loreweave/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <img src="https://img.shields.io/badge/node-%E2%89%A520-brightgreen" alt="node >= 20">
+  <img src="https://img.shields.io/badge/node-%E2%89%A522-brightgreen" alt="node >= 22">
   <img src="https://img.shields.io/npm/l/loreweave" alt="MIT">
 </p>
 
@@ -418,14 +418,15 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 440 tests
+npm test          # 538 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
 ```
 
-Requires Node ≥ 20. Single native dependency (`better-sqlite3`). Tested in CI on
-Linux, macOS and Windows across Node 20 and 22.
+Requires Node ≥ 22. Tested in CI on Linux, macOS and Windows across Node 22, 24 and 26. The
+single native dependency, `better-sqlite3`, installs from a prebuilt binary on all of them — no
+compiler needed.
 
 ## License
 
