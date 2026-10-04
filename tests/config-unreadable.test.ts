@@ -18,13 +18,24 @@ async function vaultWith(config: string | null): Promise<string> {
   return root;
 }
 
+/**
+ * chmod 000 makes a file unreadable only where mode bits are enforced. On
+ * Windows, chmod can set or clear nothing but the read-only attribute — Node's
+ * libuv calls the CRT's _wchmod, and every file stays readable — so on
+ * windows-2022 the "unreadable" config read fine and loadConfig, correctly,
+ * did not throw. Root reads a mode-000 file on any POSIX system just the
+ * same. Neither is a loadConfig fault, and the directory test below drives the
+ * same not-ENOENT branch on every platform.
+ */
+const modeBitsDenyReads = process.platform !== 'win32' && process.getuid?.() !== 0;
+
 describe('an unreadable config', () => {
   it('a missing file still means defaults', async () => {
     const root = await vaultWith(null);
     expect(loadConfig(root).embedding.provider).toBe('none');
   });
 
-  it('a file that cannot be read is an error naming the file, not defaults', async () => {
+  it.skipIf(!modeBitsDenyReads)('a file that cannot be read is an error naming the file, not defaults', async () => {
     const root = await vaultWith(JSON.stringify({ embedding: { provider: 'ollama' } }));
     const file = join(root, '.lore', 'config.json');
     await chmod(file, 0o000);
