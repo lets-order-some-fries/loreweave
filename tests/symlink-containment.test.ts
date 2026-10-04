@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
 import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { scanVault } from '../src/vault/scan.js';
 import { readNoteRaw } from '../src/capture.js';
 import { openStore } from '../src/store/db.js';
@@ -41,6 +42,38 @@ describe('the vault boundary on the read side', () => {
     expect(paths).toContain('alias.md');
     expect(paths).toContain('inner/deep/in.md');
     expect(paths).toContain('a.md');
+  });
+
+  it('holds the same line when the vault path is spelled another way', async ({ skip }) => {
+    // One directory, several names: `C:\Users\RUNNER~1` is `runneradmin`
+    // (an 8.3 short name — GitHub's Windows runners put one in TEMP), and on a
+    // case-insensitive volume VAULT is vault. The root was resolved by one
+    // realpath and each link by the other, and only one of the two rewrites
+    // the spelling, so on windows-2022 the test above lost alias.md — every
+    // link inside the vault was "outside" it, while plain files were fine.
+    // Letter case reproduces that on macOS too. A link's own target can be
+    // written either way as well, so twin.md is alias.md with its target in
+    // the other spelling, and `current` is the folder shape of it: `archive`
+    // is ignored by name, so the link is the only way in.
+    const { vault } = await escapeVault();
+    const spelled = join(dirname(vault), 'VAULT');
+    if (!existsSync(spelled)) skip('case-sensitive volume: VAULT is not vault here');
+    await symlink(join(spelled, 'inner', 'deep', 'in.md'), join(vault, 'twin.md'));
+    await mkdir(join(vault, 'archive', '2026'), { recursive: true });
+    await writeFile(join(vault, 'archive', '2026', 'q3.md'), '# Q3\n\nthis quarter\n');
+    await symlink(join(spelled, 'archive', '2026'), join(vault, 'current'));
+    const paths = (await scanVault(spelled, ['archive'])).map((f) => f.path);
+    expect(paths).toContain('alias.md');
+    expect(paths).toContain('twin.md');
+    expect(paths).toContain('current/q3.md');
+    expect(paths).not.toContain('linked.md');
+    expect(paths).not.toContain('linkeddir/private-diary.md');
+    expect(readNoteRaw(spelled, 'alias.md')).toContain('inside the vault');
+    expect(readNoteRaw(spelled, 'twin.md')).toContain('inside the vault');
+    expect(readNoteRaw(spelled, 'current/q3.md')).toContain('this quarter');
+    expect(readNoteRaw(spelled, 'a.md')).toContain('kestrels');
+    expect(() => readNoteRaw(spelled, 'linked.md')).toThrow(/outside the vault/);
+    expect(() => readNoteRaw(spelled, 'linkeddir/private-diary.md')).toThrow(/outside the vault/);
   });
 
   it('keeps the out-of-vault text out of the index and out of search', async () => {

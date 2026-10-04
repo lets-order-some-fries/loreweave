@@ -46,13 +46,27 @@ export interface NoteCheck {
  * Every note check inside one scan resolves against it, and the vault root
  * does not move under a running process. Without the cache this is one extra
  * realpath syscall per file on every scan.
+ *
+ * Every real path in this file comes from the NATIVE resolver — this one, the
+ * one in whyNotNote, and fs/promises `realpath` in the scanner, which is the
+ * native one too. Node has two, and they do not spell a path alike: plain
+ * `realpathSync` is a JavaScript walk that replaces symlinks and keeps every
+ * other component exactly as it was typed, while the native one returns the
+ * name the OS itself has for the file. A directory can have several names —
+ * `C:\Users\RUNNER~1`, the 8.3 short name GitHub's Windows runners put in
+ * TEMP, is `C:\Users\runneradmin`; on a case-insensitive volume `~/notes` is
+ * `~/Notes`; a lowercase drive letter is the same drive — and with the root
+ * resolved one way and each link the other, the prefix check compared two
+ * spellings of one directory and called every in-vault link outside it.
+ * Measured on macOS, vault given as VAULT for a folder named Vault: the scan
+ * dropped alias.md, and read_note refused it.
  */
 const realRoots = new Map<string, string>();
 function realVaultRoot(root: string): string {
   let r = realRoots.get(root);
   if (r === undefined) {
     try {
-      r = realpathSync(root);
+      r = realpathSync.native(root);
     } catch {
       r = resolve(root);
     }
@@ -108,9 +122,10 @@ export function whyNotNote(rel: string, opts: NoteCheck = {}): string | null {
     // already stored, so one note deleted or renamed since the last index threw
     // ENOENT out of every retrieval, and over MCP that surfaced as a raw errno
     // carrying the vault's absolute path.
+    // Native, like the root it is compared with: see realVaultRoot.
     let real: string;
     try {
-      real = realpathSync(join(opts.root, rel));
+      real = realpathSync.native(join(opts.root, rel));
       if (!statSync(real).isFile()) return 'not a regular file';
     } catch {
       return 'no longer exists in the vault';
