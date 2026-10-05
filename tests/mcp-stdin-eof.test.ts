@@ -252,9 +252,11 @@ describe.skipIf(!existsSync(CLI))('mcp server over stdio (built CLI)', () => {
 
 describe.skipIf(!existsSync(CLI))('the other ways out of the stdio server', () => {
   it('a malformed message still exits 1 and says why', async () => {
-    // Before the transport had an error handler it went permanently deaf on a
-    // malformed line, with an empty stderr and exit code 0. The hang-up work
-    // rewired every exit, so this pins that one.
+    // Unheard, the SDK skips a malformed line without a word and serves the
+    // next one, so the request in it goes unanswered and nothing says why —
+    // what 0.38.0 did on SDK 1.12.0–1.13.1, whose connect() replaced the
+    // handlers it had set. The hang-up work rewired every exit, so this pins
+    // that one.
     const root = await makeVault({ 'note.md': '# Note\n\nSomething worth remembering.\n' });
     const server = startServer(root);
     await server.initialize();

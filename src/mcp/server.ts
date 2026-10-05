@@ -776,9 +776,13 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
 
   const transport = stdioTransport(owed, {
     hangUp,
-    // Without this the server goes permanently deaf on a malformed or
-    // oversized message, with an empty stderr and exit code 0 — the worst
-    // possible failure mode for something an agent depends on.
+    // A malformed or oversized message ends the session with exit 1 and the
+    // reason on stderr. Unheard, the SDK skips a line it cannot parse without a
+    // word and serves the next, so whatever request the line held goes
+    // unanswered with nothing anywhere to say why. That is what 0.38.0 did on
+    // SDK 1.12.0–1.13.1, whose connect() replaced the handlers loreweave had
+    // set. A message over the SDK's 10 MiB cap (1.30.0 on) also closes the
+    // transport, which unheard would pass for an ordinary hang-up and exit 0.
     error: (err) => {
       console.error(`[loreweave mcp] transport error: ${err.message}`);
       exit(1);
