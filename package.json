@@ -51,7 +51,7 @@
     "bench:locomo": "npm run build && node eval/locomo.mjs",
     "eval:baseline": "npm run build && node eval/run.mjs --json > eval/baseline.json && echo 'baseline recorded'",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test",
     "smoke": "bash scripts/smoke-package.sh"
   },
   "dependencies": {
