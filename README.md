@@ -50,13 +50,14 @@ Three guarantees, enforced by the code rather than promised:
 ## Quickstart
 
 ```bash
+npm i -g --allow-scripts=better-sqlite3 loreweave   # the flag is for npm 12: see Requirements
 cd ~/my-vault
-npx loreweave init          # creates .lore/
-npx loreweave index         # incremental sync; one changed note: 32 ms at 1k notes, 656 ms at 20k (see Scale)
+lore init          # creates .lore/
+lore index         # incremental sync; one changed note: 32 ms at 1k notes, 656 ms at 20k (see Scale)
 
-npx loreweave search "why did we drop the queue design"
-npx loreweave ask "what's the status of project atlas"
-npx loreweave dream         # what's duplicated, contradicted, stale, unlinked
+lore search "why did we drop the queue design"
+lore ask "what's the status of project atlas"
+lore dream         # what's duplicated, contradicted, stale, unlinked
 ```
 
 Zero configuration and no network: out of the box it runs on BM25 + knowledge-graph
@@ -90,8 +91,8 @@ $ lore assert "Ledger Format" status final --valid-from 2026-08-01
   journal: lore/journal/2026-08-01.md
 ```
 
-(`lore` and `loreweave` are the same binary — `npm i -g loreweave` gives you both;
-`npx loreweave` works without installing.)
+(`lore` and `loreweave` are the same binary — the global install gives you both;
+`npx --allow-scripts=better-sqlite3 loreweave` runs it without installing.)
 
 Both time axes are queryable, which is what makes it bitemporal rather than merely
 historical. `--as-of` asks what was *true* then; `--as-known-at` asks what was
@@ -226,11 +227,15 @@ is a deterministic diff. Full setup in [Agent memory](#use-it-as-agent-memory-mc
   "mcpServers": {
     "loreweave": {
       "command": "npx",
-      "args": ["-y", "loreweave", "--vault", "/path/to/vault", "serve", "--mcp"]
+      "args": ["--allow-scripts=better-sqlite3", "-y", "loreweave",
+               "--vault", "/path/to/vault", "serve", "--mcp"]
     }
   }
 }
 ```
+
+The `--allow-scripts` argument is for npm 12; [Requirements](#requirements) explains it, and how
+to clear an install npx already made without it.
 
 | Tool | What the agent gets |
 |---|---|
@@ -418,15 +423,31 @@ ctx.close();
 
 ```bash
 npm install
-npm test          # 540 tests
+npm test          # 546 tests
 npm run eval      # retrieval benchmark vs BM25 baseline
 npm run typecheck
 npm run build
 ```
 
-Requires Node ≥ 22. Tested in CI on Linux, macOS and Windows across Node 22, 24 and 26. The
-single native dependency, `better-sqlite3`, installs from a prebuilt binary on all of them — no
-compiler needed.
+## Requirements
+
+Node 22 or later. Tested in CI on Linux, macOS and Windows across Node 22, 24 and 26. The single
+native dependency, `better-sqlite3`, installs from a prebuilt binary on macOS, Linux and Windows
+with Node 22, 24, 25 or 26 — no compiler needed. Node 23 has none, so there npm compiles it from
+source, which needs a C++ toolchain.
+
+npm 12 no longer runs a dependency's install script unless told to, and better-sqlite3 fetches its
+binary in one: without `--allow-scripts=better-sqlite3` the install succeeds, but every command
+that opens the index fails with "Could not locate the bindings file". npm 10 and 11, which Node
+22, 24 and 26 ship with, accept the flag and need nothing.
+
+- `npm i -g` and `npx` take the flag, as in [Quickstart](#quickstart) and the
+  [MCP config](#use-it-as-agent-memory-mcp).
+- npx keeps reusing an install it made without the flag, even once you add it: find that install
+  with `npm cache npx ls` and remove it with `npm cache npx rm <key>`.
+- In a project — your own, or a clone of this repository — npm 12 refuses the flag. Approve the
+  script instead with `npm approve-scripts better-sqlite3`, which records it under `allowScripts`
+  in package.json, then run `npm rebuild better-sqlite3`.
 
 ## License
 

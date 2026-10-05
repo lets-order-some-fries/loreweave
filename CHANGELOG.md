@@ -13,16 +13,25 @@ longer supported** — loreweave now requires Node 22 or later. Node 20 reached 
   and 26 npm fell back to compiling it from source. On Node 24 that worked only where a working
   C++ toolchain was installed. On Node 26 the compile fails even then: Node 26's V8 no longer has
   `Object::GetPrototype`, `Context::GetIsolate` or `PropertyCallbackInfo::This`, all of which
-  the 11.10.0 source calls. loreweave now depends on better-sqlite3 12.11.1, which ships prebuilt
-  binaries for Node 22, 24, 25 and 26 on macOS, Linux and Windows, so installing needs no
-  compiler. SQLite moves from 3.49.2 to 3.53.2, and the retrieval eval reports the same
-  numbers on both.
+  the 11.10.0 source calls. loreweave now depends on better-sqlite3 `^12.11.1`, and 12.11.1 ships
+  prebuilt binaries for Node 22, 24, 25 and 26 on macOS, Linux and Windows, so on those installing
+  needs no compiler. Node 23, which `engines` also admits, has none, so there npm falls back to
+  compiling it from source. SQLite moves from 3.49.2 to 3.53.2, and the retrieval eval reports
+  the same numbers on both.
 - **Breaking: Node 20 is no longer supported.** `engines` is now `>=22`. better-sqlite3 dropped
   its Node 20 binaries in the release that added Node 26 (12.10.0), so no 12.x serves both. On
   Node 20, npm now warns `EBADENGINE Unsupported engine … required: { node: '>=22' }` and, finding
   no prebuilt better-sqlite3 for it, compiles one from source: with a working C++ toolchain the
   install completes, and without one it fails. Node 20 is no longer tested. To stay on Node 20
   without a compiler, pin `loreweave@0.38.0`, which still installs from a prebuilt binary there.
+- **With npm 12, installing needs `--allow-scripts=better-sqlite3`.** npm 12 no longer runs a
+  dependency's install script unless told to, and better-sqlite3 fetches its prebuilt binary in
+  one, so without the flag the install succeeds but every command that opens the index fails with
+  "Could not locate the bindings file". 0.38.0 fails the same way. The README's install command
+  and MCP config now pass the flag; npm 10 and 11, which Node 22, 24 and 26 ship with, accept it
+  and need nothing. npx keeps reusing an install it made without the flag, so remove that one
+  first: `npm cache npx ls`, then `npm cache npx rm <key>`. In a project npm 12 refuses the flag;
+  there, run `npm approve-scripts better-sqlite3`, then `npm rebuild better-sqlite3`.
 - **The MCP server now exits when its client hangs up.** Closing the server's stdin is how an MCP
   client ends a stdio session; the spec's shutdown sequence is to close the server's input, wait
   for it to exit, and only then send SIGTERM. loreweave ignored the end of its input and ran on
@@ -30,15 +39,22 @@ longer supported** — loreweave now requires Node 22 or later. Node 20 reached 
   (stdin on `/dev/null`, or closed), and after Ctrl-D at a terminal. Behind mcp-proxy 6.4.3, which
   never signals its child when it shuts down, stopping the proxy left loreweave running as an
   orphan. Now the end of input means the client has gone. The server stops watching the vault,
+  indexes the edits the watcher had already noticed, lets an index that is still running finish,
   finishes and delivers every reply it still owes — to a client that pipes its requests in and
   closes its end, and to one that reads its output only after hanging up — and exits 0. If that
-  takes more than 10 seconds, it says on stderr what it is abandoning and exits anyway.
-- **A malformed message no longer leaves the server deaf on older MCP SDKs.** `connect()` in
+  takes more than 10 seconds, it says on stderr what it is abandoning (requests unanswered,
+  output unwritten, an index still running) and exits anyway; an index cut off that way is
+  rebuilt at the next start. When writing to stdout fails because the client has closed it
+  (EPIPE), the server takes that as a hang-up too and exits 0, where 0.38.0 crashed with exit 1
+  and a stack trace.
+- **Library: `Watcher` gains `flush()`.** It stops watching, runs at once the reindex a change
+  already asked for, and waits for one that is running. The MCP server calls it on hang-up.
+- **A malformed message now ends the session on every MCP SDK in the range.** `connect()` in
   `@modelcontextprotocol/sdk` 1.12.0 to 1.13.1, which loreweave's `^1.12.0` range admits, replaced
-  the error and close handlers loreweave had already set, so a malformed message left the server
-  running but unresponsive instead of exiting 1 with the reason on stderr. The handlers now hold
-  on every SDK version in the range. A fresh install today resolves 1.32.0, which was not
-  affected.
+  the error and close handlers loreweave had already set, so on those versions a malformed message
+  was skipped without a word on stderr instead of ending the session with exit 1 and the reason.
+  The handlers now hold on every SDK version in the range. A fresh install today resolves 1.32.1,
+  which was not affected.
 - **In-vault links dropped out of the index when the vault's path had a second spelling.** The
   read-side boundary resolved the vault root with one of Node's two path resolvers and each link
   with the other, and they do not spell a path alike: the JavaScript walk keeps it as typed, while
@@ -46,20 +62,22 @@ longer supported** — loreweave now requires Node 22 or later. Node 20 reached 
   an 8.3 short name (GitHub's Windows runners put `C:\Users\RUNNER~1` in TEMP), different letter
   case, a mapped drive; on macOS letter case or Unicode normalisation — lost every symlinked note
   and folder inside it from the index, and, depending on how a link's target was written, from
-  `read_note` too. Links leaving the vault were refused throughout and still are: both sides of
-  every containment check now come from the native resolver, and the separator-bounded prefix
-  check is unchanged.
+  `lore_read_note` too. Links leaving the vault were refused by the scanner and `lore_read_note`
+  throughout and still are: both sides of the read-side checks now come from the native resolver,
+  and the separator-bounded prefix check is unchanged.
 - **One failed resolve of the vault root was kept for the life of the process.** If the root did
   not resolve once — the vault missing for a moment while a sync tool replaced it, or a library
-  caller scanning before creating it — the path as typed was cached as the root, and every later
-  read, plain notes included, was refused as outside the vault until the process restarted. Only
-  a resolved root is cached now.
+  caller scanning before creating it — the path as typed was cached as the root. Where that was
+  not how the path resolves — through a symlink such as macOS's `/tmp`, for one — every later
+  read, plain notes included, was then refused as outside the vault until the process restarted.
+  Only a resolved root is cached now.
 - **CI tests Node 22, 24 and 26** on Linux, macOS and Windows, where it tested Node 20 and 22. The
   packed-tarball check now runs on all three versions with the compiler disabled, so a Node
-  version that better-sqlite3 has no prebuilt binary for fails CI, instead of passing on a runner
-  that happens to have a compiler. Windows CI passes again: since 2026-09-10 it had failed on the
-  link bug above and on a test that cannot work there — `chmod 000` does not make a file
-  unreadable on Windows, or to root — which now skips in both places.
+  version that better-sqlite3 has no prebuilt Linux binary for fails CI, instead of passing on a
+  runner that happens to have a compiler. That check runs on Linux only: the macOS and Windows
+  test jobs have no such guard. Windows CI passes again: since 2026-09-10 it had failed on a test
+  that cannot work there — `chmod 000` does not make a file unreadable on Windows, or to root —
+  which now skips in both places, and since 2026-09-22 on the link bug above as well.
 
 ## 0.38.0 — 2026-09-23
 
