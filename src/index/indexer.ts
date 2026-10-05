@@ -131,12 +131,12 @@ export function pruneOrphanEntities(store: Store): number {
 export function indexState(store: Store): 'clean' | 'interrupted' | 'running' {
   const marker = store.getMeta('index_in_progress');
   if (marker === null || marker === '0') return 'clean';
-  const alive = marker === String(process.pid) ? indexInFlight : isRunning(marker);
+  const alive = marker === String(process.pid) ? indexesInFlight > 0 : isRunning(marker);
   return alive ? 'running' : 'interrupted';
 }
 
 /**
- * True while an index is genuinely in flight IN THIS PROCESS.
+ * How many indexes are genuinely in flight IN THIS PROCESS.
  *
  * `process.kill(pid, 0)` cannot distinguish "I set this marker and then died
  * mid-run" from "I am running right now" — a process can always signal itself.
@@ -148,8 +148,22 @@ export function indexState(store: Store): 'clean' | 'interrupted' | 'running' {
  * "interrupted", the half-built facts/mentions were never repaired, and the
  * marker was then cleared to 0 so no later run could self-heal either. Exactly
  * the "+0 ~0 -0 forever" failure the marker exists to prevent.
+ *
+ * A count, not a flag: in the MCP server the watcher's reindex and a lore_index
+ * call can overlap, and a flag cleared by whichever began first said "nothing
+ * in flight" while the other was still writing.
  */
-let indexInFlight = false;
+let indexesInFlight = 0;
+
+/**
+ * True while any index runs in this process — including one whose MCP call was
+ * cancelled, which keeps writing until it finishes. The MCP server waits on
+ * this before it exits, because leaving under a running index leaves it marked
+ * interrupted and the next start rebuilds it from scratch.
+ */
+export function indexingInThisProcess(): boolean {
+  return indexesInFlight > 0;
+}
 
 function isRunning(marker: string): boolean {
   const pid = Number(marker);
@@ -192,9 +206,9 @@ export async function indexVault(
   const attempts = opts.lockRetries ?? 5;
   // Was an index already running in this process when we were called? If so, a
   // leftover own-PID marker is genuinely live, not stale. Captured before we
-  // mark ourselves in flight so a fresh index after a crash sees `false`.
-  const alreadyInFlight = indexInFlight;
-  indexInFlight = true;
+  // count ourselves in flight so a fresh index after a crash sees `false`.
+  const alreadyInFlight = indexesInFlight > 0;
+  indexesInFlight++;
   try {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -214,8 +228,7 @@ export async function indexVault(
       }
     }
   } finally {
-    // Only the outermost call clears the flag (guards nested indexVault calls).
-    if (!alreadyInFlight) indexInFlight = false;
+    indexesInFlight--;
   }
 }
 
@@ -241,7 +254,7 @@ async function indexVaultOnce(
   // needless full rebuild.
   const marker = store.getMeta('index_in_progress');
   // An own-PID marker is "alive" only if an index is actually in flight (see
-  // indexInFlight); otherwise it is the residue of a crashed run in this same
+  // indexesInFlight); otherwise it is the residue of a crashed run in this same
   // process and must be treated as interrupted. A foreign PID is resolved by
   // liveness. isRunning is never asked about our own PID because it would
   // always say yes.

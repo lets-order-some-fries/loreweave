@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { makeVault } from './helpers.js';
 
@@ -278,4 +279,95 @@ describe.skipIf(!existsSync(CLI))('the other ways out of the stdio server', () =
     expect(signal).toBeNull();
     expect(code).toBe(0);
   }, 30_000);
+});
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+describe.skipIf(!existsSync(CLI))('what a hang-up must not lose', () => {
+  it('indexes a note saved just before the client hangs up', async () => {
+    // The watcher reindexes after 400 ms of quiet. Dropping that wait on the
+    // way out lost the last edit of a session, and for good: nothing re-syncs
+    // the index at the next start, so the note stayed unsearchable.
+    const root = await makeVault({ 'note.md': '# Note\n\nSomething worth remembering.\n' });
+    const first = startServer(root);
+    await first.initialize();
+    await sleep(300); // let the vault watcher attach, as tests/watch.test.ts does
+    await writeFile(join(root, 'late.md'), '# Late\n\nThe zebrafinch observation, saved on the way out.\n');
+    // Long enough for the change to reach the watcher, short of its 400 ms quiet period.
+    await sleep(250);
+    first.child.stdin!.end();
+    expect((await first.exit(EXIT_MS + REPLY_MS)).code).toBe(0);
+
+    const second = startServer(root);
+    await second.initialize();
+    second.send({
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'lore_search', arguments: { query: 'zebrafinch' } },
+    });
+    const r = await second.reply(2);
+    second.child.stdin!.end();
+    await second.exit(EXIT_MS);
+    expect(r.result?.content?.[0]?.text, 'the note saved before the hang-up is not searchable').toContain(
+      'late.md',
+    );
+  }, 45_000);
+
+  it('lets an index still running finish before it exits', async () => {
+    // A cancelled lore_index is owed no reply, but nothing stops the index
+    // itself. Exiting under it left the index marked interrupted, and the next
+    // start rebuilt all of it before answering anything.
+    const notes: Record<string, string> = {};
+    for (let i = 0; i < 1000; i++) {
+      notes[`n/n${i}.md`] = `# Note ${i}\n\nGlacier sensor reading ${i} from the meltwater survey.\n`;
+    }
+    const root = await makeVault(notes);
+    const first = startServer(root);
+    await first.initialize();
+    first.send({
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'lore_index', arguments: { full: true } },
+    });
+    await sleep(200);
+    first.send({ method: 'notifications/cancelled', params: { requestId: 2, reason: 'stopped' } });
+    first.child.stdin!.end();
+    expect((await first.exit(EXIT_MS + REPLY_MS)).code).toBe(0);
+
+    const second = startServer(root);
+    await second.initialize();
+    second.child.stdin!.end();
+    await second.exit(EXIT_MS + REPLY_MS);
+    expect(second.stderr(), 'the next start found an interrupted index').not.toContain(
+      'did not finish',
+    );
+  }, 60_000);
+
+  // POSIX only: a Windows pipe write is synchronous, and this case has not
+  // been run there.
+  it.skipIf(process.platform === 'win32')(
+    'exits 0, not an EPIPE crash, when the client has gone with a call in flight',
+    async () => {
+      // A client that dies closes both of its ends: the server's stdin, and
+      // the pipe the server writes its replies into. The reply still owed then
+      // fails with EPIPE, which unheard was an uncaught error: exit 1 and a
+      // stack trace instead of a clean exit.
+      const notes: Record<string, string> = {};
+      for (let i = 0; i < 40; i++) notes[`notes/n${i}.md`] = `# Note ${i}\n\nGlacier sensor reading ${i}.\n`;
+      const server = startServer(await makeVault(notes));
+      await server.initialize();
+      server.send({
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'lore_index', arguments: { full: true } },
+      });
+      server.child.stdout!.destroy();
+      server.child.stdin!.end();
+      const { code, signal } = await server.exit(EXIT_MS + REPLY_MS);
+
+      expect(signal).toBeNull();
+      expect(code, `stderr:\n${server.stderr()}`).toBe(0);
+    },
+    45_000,
+  );
 });

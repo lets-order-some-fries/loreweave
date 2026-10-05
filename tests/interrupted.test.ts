@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { openStore } from '../src/store/db.js';
-import { indexVault, indexState } from '../src/index/indexer.js';
+import { indexVault, indexState, indexingInThisProcess } from '../src/index/indexer.js';
 
 /**
  * Interrupting a long index is something people do — Ctrl-C, a closed laptop,
@@ -146,5 +146,27 @@ describe('an interrupted index', () => {
     expect(report.added + report.updated + report.removed).toBe(0);
     expect(report.warnings.some((w) => w.includes('did not finish'))).toBe(false);
     store.close();
+  });
+
+  it('an index still running counts as in flight after an earlier one finishes', async () => {
+    // Indexes overlap in one process whenever the MCP server's watcher
+    // reindexes while a lore_index call runs. A single flag, cleared by
+    // whichever began first, said "nothing in flight" while the other was
+    // still writing — and the server's hang-up waits on exactly that answer.
+    const small = await makeVault();
+    const big = await mkdtemp(join(tmpdir(), 'lw-int-big-'));
+    for (let i = 0; i < 300; i++) {
+      await writeFile(join(big, `n${i}.md`), `# Note ${i}\n\nGlacier reading ${i}.\n`);
+    }
+    const a = openStore(':memory:');
+    const b = openStore(':memory:');
+    const first = indexVault(a, small);
+    const second = indexVault(b, big);
+    await first;
+    expect(indexingInThisProcess(), 'the second index is still running').toBe(true);
+    await second;
+    expect(indexingInThisProcess()).toBe(false);
+    a.close();
+    b.close();
   });
 });

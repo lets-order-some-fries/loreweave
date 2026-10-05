@@ -5,7 +5,12 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { RequestId } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { openContext, ensureIndexed, type LoreContext } from '../context.js';
-import { configIndexOptions, indexState, indexVault } from '../index/indexer.js';
+import {
+  configIndexOptions,
+  indexingInThisProcess,
+  indexState,
+  indexVault,
+} from '../index/indexer.js';
 import { isReadonlyError, readonlyError } from '../store/db.js';
 import { search } from '../retrieve/search.js';
 import {
@@ -567,6 +572,7 @@ interface StdioEvents {
   hangUp(): void;
   /** A malformed or oversized message, or stdin failing. */
   error(err: Error): void;
+  /** The SDK's stdio transport closed itself. */
   closed(): void;
 }
 
@@ -578,9 +584,10 @@ interface StdioEvents {
  * and 'error' and nothing else — in every release from 1.12.0 to 1.32.0 — so
  * the end of input reached no one.
  *
- * It keeps `owed`: the ids of requests received and not yet answered. This is
- * the one place every request enters and every reply leaves, so the SDK's own
- * methods (initialize, tools/list) count as well as the tools.
+ * It keeps `owed`: the requests received and not yet answered, by id, each with
+ * a label to name it by. This is the one place every request enters and every
+ * reply leaves, so the SDK's own methods (initialize, tools/list) count as well
+ * as the tools.
  *
  * And it reports errors and closure to loreweave directly. connect() takes over
  * the callbacks of the transport it is given — documented as "replacing any
@@ -591,7 +598,7 @@ interface StdioEvents {
  * object it is handed and this wrapper owns the stdio transport's, so neither
  * question arises.
  */
-function stdioTransport(owed: Set<RequestId>, on: StdioEvents): Transport {
+function stdioTransport(owed: Map<RequestId, string>, on: StdioEvents): Transport {
   const stdio = new StdioServerTransport();
   const transport: Transport = {
     async start() {
@@ -604,17 +611,25 @@ function stdioTransport(owed: Set<RequestId>, on: StdioEvents): Transport {
     },
     close: () => stdio.close(),
     async send(message) {
-      try {
-        await stdio.send(message);
-      } finally {
-        // A reply has an id and no method; a request has both.
-        if ('id' in message && !('method' in message)) owed.delete(message.id as RequestId);
-      }
+      // send() hands the message to stdout before it returns, in every SDK
+      // release in the range, and its promise may then wait for stdout's whole
+      // buffer to drain. So a reply is answered here, and whatever of it is
+      // still in stdout's buffer the hang-up watches on its own.
+      const sent = stdio.send(message);
+      // A reply has an id and no method; a request has both.
+      if ('id' in message && !('method' in message)) owed.delete(message.id as RequestId);
+      await sent;
     },
   };
   stdio.onmessage = (message) => {
     if ('method' in message) {
-      if ('id' in message) owed.add(message.id as RequestId);
+      if ('id' in message) {
+        const tool = (message.params as { name?: unknown } | undefined)?.name;
+        owed.set(
+          message.id as RequestId,
+          `${message.method}${typeof tool === 'string' ? ` ${tool}` : ''} #${String(message.id)}`,
+        );
+      }
       // A cancelled request is never answered, so nothing is owed for it.
       else if (message.method === 'notifications/cancelled') {
         const { requestId } = (message.params ?? {}) as { requestId?: RequestId };
@@ -627,10 +642,15 @@ function stdioTransport(owed: Set<RequestId>, on: StdioEvents): Transport {
     on.error(err);
     transport.onerror?.(err);
   };
-  stdio.onclose = () => {
-    on.closed();
-    transport.onclose?.();
-  };
+  // Not passed on to the SDK. Its close handling aborts every request handler
+  // still running and forgets the transport, so their replies could not be
+  // sent — and finishing them is what the hang-up is for. Up to 1.32.0 this
+  // transport closes itself only after an oversized message (1.30.0 on), which
+  // it reports as an error first, and the error has already ended the process.
+  // The SDK's v2 transport closes at the end of input, though, and ^1.12.0
+  // takes whatever 1.x comes next: should that arrive, it is a hang-up like any
+  // other.
+  stdio.onclose = () => on.closed();
   return transport;
 }
 
@@ -697,24 +717,62 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
   // drops its reply without a word. Answered is not yet delivered, either: pipe
   // writes are asynchronous on POSIX, and process.exit() discards whatever
   // stdout has not handed to the OS.
-  const owed = new Set<RequestId>();
+  //
+  // And the work the session set going is finished, because the index outlives
+  // the session. A reindex the watcher was waiting to run runs now, not never:
+  // nothing re-syncs the index at the next start, so an edit saved just before
+  // the hang-up would stay unsearchable. An index still running — a cancelled
+  // lore_index keeps going — is not cut off, which would leave it marked
+  // interrupted and make the next start rebuild it from scratch before
+  // answering anything. All of it shares the one budget.
+  const owed = new Map<RequestId, string>();
+  let stdoutGone = false;
   let hungUp = false;
   const hangUp = (): void => {
     if (hungUp || exiting) return;
     hungUp = true;
-    watcher.close(); // a reindex now would be work for nobody
+    let flushed = false;
+    void watcher.flush().then(
+      () => (flushed = true),
+      () => (flushed = true),
+    );
     void (async () => {
-      const delivered = () => owed.size === 0 && process.stdout.writableLength === 0;
-      if (!(await settled(delivered, HANGUP_DRAIN_MS))) {
-        const n = owed.size;
+      const done = () =>
+        (stdoutGone || (owed.size === 0 && process.stdout.writableLength === 0)) &&
+        flushed &&
+        !indexingInThisProcess();
+      if (!(await settled(done, HANGUP_DRAIN_MS))) {
+        const left: string[] = [];
+        if (!stdoutGone && owed.size > 0) {
+          const what = [...owed.values()];
+          const named = what.slice(0, 5).join(', ');
+          const more = what.length > 5 ? ` and ${what.length - 5} more` : '';
+          left.push(
+            `${what.length} request${what.length === 1 ? '' : 's'} unanswered (${named}${more})`,
+          );
+        }
+        if (!stdoutGone && process.stdout.writableLength > 0) {
+          left.push(`${process.stdout.writableLength} bytes of output unwritten`);
+        }
+        if (!flushed || indexingInThisProcess()) left.push('an index still running');
         console.error(
-          `[loreweave mcp] stdin closed; exiting after ${HANGUP_DRAIN_MS}ms with ${n} repl${n === 1 ? 'y' : 'ies'} unsent and ${process.stdout.writableLength} bytes of output unwritten`,
+          `[loreweave mcp] the client hung up; exiting after ${HANGUP_DRAIN_MS}ms with ${left.join('; ')}`,
         );
         await settled(() => process.stderr.writableLength === 0, 1_000);
       }
       exit(0);
     })();
   };
+  // A client that is gone entirely has closed our stdout too, and the next
+  // write fails with EPIPE — unheard, an uncaught error: exit 1 and a stack
+  // trace. Nothing more can be delivered then, so it is a hang-up with nothing
+  // left to deliver.
+  process.stdout.on('error', (err) => {
+    if (stdoutGone) return;
+    stdoutGone = true;
+    console.error(`[loreweave mcp] cannot write to stdout (${err.message}); treating it as a hang-up`);
+    hangUp();
+  });
 
   const transport = stdioTransport(owed, {
     hangUp,
@@ -725,7 +783,7 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
       console.error(`[loreweave mcp] transport error: ${err.message}`);
       exit(1);
     },
-    closed: () => exit(0),
+    closed: hangUp,
   });
   process.on('SIGINT', () => exit(0));
   process.on('SIGTERM', () => exit(0));

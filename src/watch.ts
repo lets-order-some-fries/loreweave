@@ -25,6 +25,14 @@ export interface WatchOptions {
 
 export interface Watcher {
   close(): void;
+  /**
+   * Stop watching, then run at once the reindex a change already asked for,
+   * and wait for any that is running. The index outlives the process and
+   * nothing re-syncs it at the next start, so a reindex dropped on the way out
+   * leaves the last edits unsearchable until something else changes. A
+   * failed reindex goes to onError, as it does while watching.
+   */
+  flush(): Promise<void>;
 }
 
 /**
@@ -110,7 +118,26 @@ export function watchVault(ctx: LoreContext, opts: WatchOptions = {}): Watcher {
   return {
     close() {
       if (timer) clearTimeout(timer);
+      timer = null;
       watcher?.close();
+    },
+    async flush() {
+      watcher?.close();
+      watcher = null;
+      // With the watcher closed, the only thing left that can schedule another
+      // reindex is a run finishing with one queued behind it — run that too.
+      for (;;) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+          burstStart = null;
+          await reindex();
+        } else if (running) {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        } else {
+          return;
+        }
+      }
     },
   };
 }

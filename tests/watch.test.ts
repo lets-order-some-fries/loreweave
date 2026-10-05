@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openStore } from '../src/store/db.js';
-import { indexVault } from '../src/index/indexer.js';
+import { indexVault, indexingInThisProcess, indexState } from '../src/index/indexer.js';
 import { watchVault, type Watcher } from '../src/watch.js';
 import { ConfigSchema } from '../src/config.js';
 import { buildGraph, type LoreGraph } from '../src/graph/build.js';
@@ -131,4 +131,44 @@ describe('watch', () => {
     await sleep(900);
     expect(reindexes).toBe(0);
   }, 15_000);
+
+  it('flush() runs the reindex a change already asked for, without waiting out the quiet period', async () => {
+    // The MCP server flushes when its client hangs up. The index outlives the
+    // process and nothing re-syncs it at the next start, so a pending reindex
+    // dropped on the way out left the last edit unsearchable for good.
+    let reindexes = 0;
+    const ctx = await ctxWithWatcher({
+      debounceMs: 60_000,
+      maxWaitMs: 60_000,
+      onReindex: () => reindexes++,
+    });
+    const { w } = open[open.length - 1]!;
+    await writeFile(join(ctx.root, 'a.md'), '# Alpha\n\nFLUSHMARKER here\n');
+    await sleep(500); // the change reaches the watcher; the quiet period is a minute
+    expect(reindexes).toBe(0);
+    await w.flush();
+    expect(reindexes).toBe(1);
+    expect(indexed(ctx, 'FLUSHMARKER')).toBe(true);
+  }, 15_000);
+
+  it('flush() waits for a reindex that is already running', async () => {
+    // A sync client landing a batch of notes: the reindex takes a while, and
+    // leaving under it leaves the index marked interrupted.
+    let reindexes = 0;
+    const ctx = await ctxWithWatcher({ debounceMs: 300, maxWaitMs: 5000, onReindex: () => reindexes++ });
+    const { w } = open[open.length - 1]!;
+    await Promise.all(
+      Array.from({ length: 400 }, (_, i) =>
+        writeFile(join(ctx.root, `bulk-${i}.md`), `# Bulk ${i}\n\nBULKMARKER ${i} landed by a sync client.\n`),
+      ),
+    );
+    const deadline = Date.now() + 10_000;
+    while (!indexingInThisProcess() && Date.now() < deadline) await sleep(5);
+    expect(indexingInThisProcess(), 'no reindex started').toBe(true);
+    await w.flush();
+    expect(indexingInThisProcess()).toBe(false);
+    expect(indexState(ctx.store)).toBe('clean');
+    expect(reindexes).toBeGreaterThan(0);
+    expect(indexed(ctx, 'BULKMARKER')).toBe(true);
+  }, 30_000);
 });
