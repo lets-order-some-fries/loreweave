@@ -319,8 +319,12 @@ describe.skipIf(!existsSync(CLI))('what a hang-up must not lose', () => {
     // A cancelled lore_index is owed no reply, but nothing stops the index
     // itself. Exiting under it left the index marked interrupted, and the next
     // start rebuilt all of it before answering anything.
+    //
+    // 400 notes: still running when stdin closes 200 ms in, and done well
+    // inside the server's 10 s hang-up budget on a slow CI runner (a Windows
+    // runner indexes about 60 notes a second, so 1000 notes overran it).
     const notes: Record<string, string> = {};
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 400; i++) {
       notes[`n/n${i}.md`] = `# Note ${i}\n\nGlacier sensor reading ${i} from the meltwater survey.\n`;
     }
     const root = await makeVault(notes);
@@ -340,9 +344,22 @@ describe.skipIf(!existsSync(CLI))('what a hang-up must not lose', () => {
     await second.initialize();
     second.child.stdin!.end();
     await second.exit(EXIT_MS + REPLY_MS);
-    expect(second.stderr(), 'the next start found an interrupted index').not.toContain(
-      'did not finish',
-    );
+
+    // The contract: the server waits for the index. Either it finished, and
+    // the next start finds nothing to repair, or the machine could not finish
+    // it inside the budget and the server waited the whole budget out before
+    // saying what it was abandoning. What must never happen is an exit under
+    // the index without that wait. (Whether the next start then rebuilds is
+    // not asserted: an index that completes during the final stderr flush
+    // clears its own marker.)
+    const abandoned = first.stderr().match(/exiting after (\d+)ms with .*an index still running/);
+    if (abandoned) {
+      expect(Number(abandoned[1]), 'the server gave the index less than its budget').toBeGreaterThanOrEqual(9_500);
+    } else {
+      expect(second.stderr(), 'the next start found an interrupted index').not.toContain(
+        'did not finish',
+      );
+    }
   }, 60_000);
 
   // POSIX only: a Windows pipe write is synchronous, and this case has not
