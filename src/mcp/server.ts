@@ -737,11 +737,24 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
       () => (flushed = true),
     );
     void (async () => {
+      const began = Date.now();
       const done = () =>
         (stdoutGone || (owed.size === 0 && process.stdout.writableLength === 0)) &&
         flushed &&
         !indexingInThisProcess();
-      if (!(await settled(done, HANGUP_DRAIN_MS))) {
+      const finished = await settled(done, HANGUP_DRAIN_MS);
+      // settled() looks between turns of the event loop, and an index's
+      // closing steps (the facts rebuild, importance) run synchronously — on
+      // a large vault for many seconds. A budget that expired inside one is
+      // noticed only when it returns, so say how long it really took.
+      const took = Date.now() - began;
+      if (finished && took > HANGUP_DRAIN_MS) {
+        console.error(
+          `[loreweave mcp] the client hung up; finishing took ${took}ms, past the ${HANGUP_DRAIN_MS}ms budget, inside a step that cannot be interrupted`,
+        );
+        await settled(() => process.stderr.writableLength === 0, 1_000);
+      }
+      if (!finished) {
         const left: string[] = [];
         if (!stdoutGone && owed.size > 0) {
           const what = [...owed.values()];
@@ -756,7 +769,7 @@ export async function startMcpServer(ctx: LoreContext): Promise<void> {
         }
         if (!flushed || indexingInThisProcess()) left.push('an index still running');
         console.error(
-          `[loreweave mcp] the client hung up; exiting after ${HANGUP_DRAIN_MS}ms with ${left.join('; ')}`,
+          `[loreweave mcp] the client hung up; exiting after ${took}ms with ${left.join('; ')}`,
         );
         await settled(() => process.stderr.writableLength === 0, 1_000);
       }
