@@ -12,7 +12,7 @@ npm run dev         # run the CLI from source
 
 Node >= 22 required. `npm run eval:gate` runs the retrieval-quality gate; run it if your change touches search, ranking, or fact resolution.
 
-On npm 12, `npm ci` skips better-sqlite3's install script, so the tests cannot open a database: run `npm approve-scripts better-sqlite3`, then `npm rebuild better-sqlite3`. The first records the approval under `allowScripts` in `package.json`.
+On npm 12, `npm ci` skips better-sqlite3's install script, so the tests cannot open a database: run `npm approve-scripts better-sqlite3`, then `npm rebuild better-sqlite3`. The first records the approval under `allowScripts` in `package.json`; leave that change out of your commit.
 
 ## Workflow
 
