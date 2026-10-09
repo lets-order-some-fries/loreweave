@@ -5,8 +5,8 @@
 ```bash
 npm ci
 npm run typecheck   # tsc --noEmit
+npm run build       # tsup; the stdio-server tests run the built CLI, and skip without it
 npm test            # vitest run
-npm run build       # tsup
 npm run dev         # run the CLI from source
 ```
 

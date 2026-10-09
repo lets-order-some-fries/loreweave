@@ -13,6 +13,14 @@
       "registryType": "npm",
       "identifier": "loreweave",
       "version": "0.39.0",
+      "runtimeHint": "npx",
+      "runtimeArguments": [
+        {
+          "type": "positional",
+          "value": "--allow-scripts=better-sqlite3",
+          "valueHint": "allow-scripts"
+        }
+      ],
       "transport": {
         "type": "stdio"
       },

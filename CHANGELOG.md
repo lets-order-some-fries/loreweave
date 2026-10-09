@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.39.0 — 2026-10-05
+## 0.39.0 — 2026-10-09
 
 Installing on current Node, an MCP server that leaves when its client does, and in-vault links
 that no longer depend on how the vault's path is spelled. **One breaking change: Node 20 is no
@@ -18,20 +18,24 @@ longer supported** — loreweave now requires Node 22 or later. Node 20 reached 
   needs no compiler. Node 23, which `engines` also admits, has none, so there npm falls back to
   compiling it from source. SQLite moves from 3.49.2 to 3.53.2, and the retrieval eval reports
   the same numbers on both.
-- **Breaking: Node 20 is no longer supported.** `engines` is now `>=22`. better-sqlite3 dropped
-  its Node 20 binaries in the release that added Node 26 (12.10.0), so no 12.x serves both. On
-  Node 20, npm now warns `EBADENGINE Unsupported engine … required: { node: '>=22' }` and, finding
-  no prebuilt better-sqlite3 for it, compiles one from source: with a working C++ toolchain the
-  install completes, and without one it fails. Node 20 is no longer tested. To stay on Node 20
-  without a compiler, pin `loreweave@0.38.0`, which still installs from a prebuilt binary there.
+- **Breaking: Node 20 is no longer supported.** loreweave requires Node 22 or later: `engines` is
+  now `>=22`. better-sqlite3 dropped its Node 20 binaries in the release that added Node 26
+  (12.10.0), so no 12.x serves both. On Node 20, npm now warns `EBADENGINE Unsupported engine …
+  required: { node: '>=22' }` and, finding no prebuilt better-sqlite3 for it, compiles one from
+  source: with a working C++ toolchain the install completes, and without one it fails. Node 20 is
+  no longer tested.
 - **With npm 12, installing needs `--allow-scripts=better-sqlite3`.** npm 12 no longer runs a
   dependency's install script unless told to, and better-sqlite3 fetches its prebuilt binary in
   one, so without the flag the install succeeds but every command that opens the index fails with
   "Could not locate the bindings file". 0.38.0 fails the same way. The README's install command
-  and MCP config now pass the flag; npm 10 and 11, which Node 22, 24 and 26 ship with, accept it
-  and need nothing. npx keeps reusing an install it made without the flag, so remove that one
-  first: `npm cache npx ls`, then `npm cache npx rm <key>`. In a project npm 12 refuses the flag;
-  there, run `npm approve-scripts better-sqlite3`, then `npm rebuild better-sqlite3`.
+  and MCP config now pass the flag, and the MCP registry entry, `server.json`, carries it as an
+  npx runtime argument: the launch it describes, `npx --allow-scripts=better-sqlite3 loreweave …`,
+  works on npm 10, 11 and 12. npm 10 and 11, which Node 22, 24 and 26 ship with, need nothing,
+  and accept the flag with `npm i -g` and npx. npx keeps reusing an install it made without the
+  flag, so remove that one first: `npm cache npx ls`, then `npm cache npx rm <key>`. In a project
+  npm 12 refuses the flag, and so does npm 11 from 11.19 on, which Node 24 and 26 ship with; npm
+  11 runs the script without it, and on npm 12 run `npm approve-scripts better-sqlite3`, then
+  `npm rebuild better-sqlite3`.
 - **The MCP server now exits when its client hangs up.** Closing the server's stdin is how an MCP
   client ends a stdio session; the spec's shutdown sequence is to close the server's input, wait
   for it to exit, and only then send SIGTERM. loreweave ignored the end of its input and ran on
@@ -43,10 +47,14 @@ longer supported** — loreweave now requires Node 22 or later. Node 20 reached 
   finishes and delivers every reply it still owes — to a client that pipes its requests in and
   closes its end, and to one that reads its output only after hanging up — and exits 0. If that
   takes more than 10 seconds, it says on stderr what it is abandoning (requests unanswered,
-  output unwritten, an index still running) and exits anyway; an index cut off that way is
-  rebuilt at the next start. When writing to stdout fails because the client has closed it
-  (EPIPE), the server takes that as a hang-up too and exits 0, where 0.38.0 crashed with exit 1
-  and a stack trace.
+  output unwritten, an index still running) and exits anyway. The budget is checked between
+  steps, and an index's closing steps cannot be interrupted — on a vault of tens of thousands of
+  notes they run for a minute — so a budget that runs out inside one is acted on when the step
+  returns, and if the work was finished by then the server says on stderr how long it took
+  instead. An index cut off that way is rebuilt at the next start. A client that sends SIGTERM,
+  as the MCP SDK's own client does two seconds after closing stdin, ends all of this at once.
+  When writing to stdout fails because the client has closed it (EPIPE), the server takes that
+  as a hang-up too and exits 0, where 0.38.0 crashed with exit 1 and a stack trace.
 - **Library: `Watcher` gains `flush()`.** It stops watching, runs at once the reindex a change
   already asked for, and waits for one that is running. The MCP server calls it on hang-up.
 - **A malformed message now ends the session on every MCP SDK in the range.** `connect()` in
