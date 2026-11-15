@@ -142,9 +142,12 @@ silently regress.
 
 ## 5. Properties no competitor number captures
 
-- **Model-free by default.** Same vault, same query, same answer — forever, with
-  no model in the loop. QMD is local but runs local *models*; Mem0 and Zep call
-  out to LLMs at write time. The guarantee here is reproducibility, not privacy.
+- **Model-free by default.** Same vault, same version, same query: same answer,
+  with no model in the loop, except where the ranking reads the clock (the
+  decaying boost of passages marked used, recency on queries about now, and an
+  importance bonus for notes modified in the last 30 days). QMD is local but runs
+  local *models*; Mem0 and Zep call out to LLMs at write time. The guarantee here
+  is reproducibility, not privacy.
 - **Markdown is the source of truth**, the index is a deletable cache, and every
   fact is a line you can read and `git diff`.
 - **Scale is published** (20 000 notes: 22.5 s index, 38 ms p50 search) and

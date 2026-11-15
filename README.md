@@ -22,20 +22,18 @@
   <a href="#research-lineage">Research</a>
 </p>
 
+Point Loreweave at a folder of markdown (Obsidian or plain) and it builds a knowledge
+graph, a bitemporal fact store, and a memory model over your notes, then hands them to
+you through a CLI and to your AI agents through MCP. Retrieval is measured on three
+public benchmarks (LongMemEval_S, BEIR/SciFact, LoCoMo), with the numbers and caveats in
+[Benchmarks](#benchmarks); the test suite (546 tests) runs in CI on Linux, macOS and
+Windows.
+
 ---
 
 <p align="center">
   <img src="docs/demo.gif" alt="loreweave demo: temporal search, timeline, as-of facts, session resume" width="720">
 </p>
-
-Most knowledge tools are **write-only**. You capture diligently, the vault grows, and
-six months later you can't find the thing you know you wrote — because retrieval is
-keyword search over prose, nothing ever resurfaces on its own, and nothing notices when
-what you wrote last year stopped being true.
-
-Loreweave is the layer that fixes that. Point it at a folder of markdown (Obsidian or
-plain) and it builds a knowledge graph, a bitemporal fact store, and a memory model over
-your notes — then hands them to you through a CLI and to your AI agents through MCP.
 
 Three guarantees, enforced by the code rather than promised:
 
@@ -43,11 +41,18 @@ Three guarantees, enforced by the code rather than promised:
   under `lore/`. The vault is the source of truth — **the index is a cache you can
   delete at any time** and rebuild identically (there's a test for that).
 - **No LLM anywhere in the core.** Indexing and retrieval use zero tokens and make zero
-  network calls. Same vault, same query, same answer — forever.
+  network calls. Same vault, same version, same query: same answer, except that the
+  ranking reads the clock in three places: the boost for passages marked used decays,
+  queries about *now* weigh dates by their age, and indexing gives notes modified in the
+  last 30 days a small importance bonus.
 - **Memory you can read.** Every fact an agent stores is a markdown line you can open,
   edit, and `git diff`.
 
 ## Quickstart
+
+Try it on a folder without installing:
+`npx --allow-scripts=better-sqlite3 loreweave --vault ~/notes search "your query"` (the
+first search indexes the folder into `.lore/`).
 
 ```bash
 npm i -g --allow-scripts=better-sqlite3 loreweave   # the flag is for npm 12: see Requirements
@@ -85,10 +90,12 @@ Contradictions **supersede** rather than overwrite, so history stays queryable.
 
 ```bash
 $ lore assert "Ledger Format" status draft --valid-from 2026-01-01
+✓ Ledger Format :: status :: draft
+  journal: lore/journal/2026-11-15.md
 $ lore assert "Ledger Format" status final --valid-from 2026-08-01
 ✓ Ledger Format :: status :: final
   superseded: "draft" (now valid until 2026-08-01)
-  journal: lore/journal/2026-08-01.md
+  journal: lore/journal/2026-11-15.md
 ```
 
 (`lore` and `loreweave` are the same binary — the global install gives you both;
@@ -102,9 +109,11 @@ is when you most need to reconstruct what a past decision was actually based on:
 ```bash
 $ lore facts --subject Vendor --as-of 2024-06-01
 Vendor :: reliability :: poor — outage postmortem  (2024-01-01 → now)
+    asserted · lore/journal/2024-08-01.md#@0
 
 $ lore facts --subject Vendor --as-known-at 2024-06-01
 Vendor :: reliability :: good  (2024-01-01 → 2024-01-01)  [superseded]
+    asserted · lore/journal/2024-01-01.md#@0
 ```
 
 Which fact wins is decided **deterministically** (newest valid-time, provenance as
@@ -127,11 +136,15 @@ LLM, no network, same answer every time.
 **2. Retrieval that follows connections, not just words.** Queries fuse BM25, dense
 similarity (when configured), and Personalized PageRank over the vault's own graph —
 wiki-links, shared entities, tags, co-occurrence. Two-hop neighbors surface even when
-they share no vocabulary with your query, and every result tells you *why*:
+they share no vocabulary with your query, and every result says how it matched:
 
 ```
-• data/glacier-dataset.md#@0  (0.0327)  ⟨via amara osei⟩
-  The Glacier Dataset holds meltwater sensor readings from 2019-2024.
+$ lore search "riverbed protocol"
+• people/amara-osei.md  [all terms]  ⟨via riverbed protocol⟩
+  Dr. Amara Osei leads the hydrology group. She maintains the [[Glacier Dataset]] and advises the [[Riverbed Protocol]] work.
+…
+• data/glacier-dataset.md  [no direct match]
+  The Glacier Dataset holds meltwater sensor readings from 2019-2024. Access requires signing the data agreement.
 ```
 
 **3. Memory with dynamics.** Every passage carries FSRS-style stability and
@@ -234,8 +247,8 @@ is a deterministic diff. Full setup in [Agent memory](#use-it-as-agent-memory-mc
 }
 ```
 
-The `--allow-scripts` argument is for npm 12; [Requirements](#requirements) explains it, and how
-to clear an install npx already made without it.
+The `--allow-scripts` argument is for npm 12; [Requirements](#requirements) explains it, and
+[docs/install.md](docs/install.md) how to clear an install npx already made without it.
 
 | Tool | What the agent gets |
 |---|---|
@@ -258,7 +271,7 @@ Facts asserted through MCP are written back to `lore/journal/YYYY-MM-DD.md` as r
 markdown, so an agent's memory is something you can open, edit, and `git diff`:
 
 ```markdown
-- [fact] Ledger Format :: status :: final {valid_from=2026-08-01, confidence=0.9, source=stated}
+- [fact] Ledger Format :: status :: final {valid_from=2026-08-01, recorded_at=2026-11-15T09:09:05.709Z, confidence=0.9, source=stated}
 ```
 
 Delete `.lore/` and reindex — every fact and edge is reconstructed from those files.
@@ -451,19 +464,11 @@ native dependency, `better-sqlite3`, installs from a prebuilt binary on macOS, L
 with Node 22, 24, 25 or 26 — no compiler needed. Node 23 has none, so there npm compiles it from
 source, which needs a C++ toolchain.
 
-npm 12 no longer runs a dependency's install script unless told to, and better-sqlite3 fetches its
-binary in one: without `--allow-scripts=better-sqlite3` the install succeeds, but every command
-that opens the index fails with "Could not locate the bindings file". npm 10 and 11, which Node
-22, 24 and 26 ship with, need nothing, and accept the flag with `npm i -g` and `npx`.
-
-- `npm i -g` and `npx` take the flag, as in [Quickstart](#quickstart) and the
-  [MCP config](#use-it-as-agent-memory-mcp).
-- npx keeps reusing an install it made without the flag, even once you add it: find that install
-  with `npm cache npx ls` and remove it with `npm cache npx rm <key>`.
-- In a project — your own, or a clone of this repository — npm 12 refuses the flag, and so does
-  npm 11 from 11.16 on, which Node 24 and 26 ship with. npm 11 runs the script without it. On
-  npm 12, approve the script instead with `npm approve-scripts better-sqlite3`, which records it
-  under `allowScripts` in package.json, then run `npm rebuild better-sqlite3`.
+With npm 12, pass `--allow-scripts=better-sqlite3` to `npm i -g` and `npx`, as above; without
+it the install succeeds but every command that opens the index fails. Inside a project, npm 12
+refuses that flag: run `npm approve-scripts better-sqlite3`, then `npm rebuild better-sqlite3`.
+npm 10 and 11 need neither. Details, including how to clear an install npx made without the
+flag: [docs/install.md](docs/install.md).
 
 ## License
 

@@ -1,3 +1,8 @@
+# Literature survey (2026-08-04)
+
+Notes compiled before the first release to choose the design. Not maintained; the
+README's Research lineage table lists what was adopted.
+
 ## AREA: Graph-based retrieval for knowledge bases (2024-2026): HippoRAG family, GraphRAG family, tree-based and relation-free successors
 
 ### HippoRAG (NeurIPS 2024) (2024-05)
