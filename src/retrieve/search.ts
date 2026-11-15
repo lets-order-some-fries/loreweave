@@ -209,10 +209,9 @@ function pickBestBlockPerNote(
  * Pick the part of a block that actually answers the query.
  *
  * FTS5's snippet() centres on whichever term it happens to hit first. On a
- * bulleted note that meant a block whose last line read
- * "Companies to AVOID: Axtria, Analytic Edge" was shown as
- * "...applying now (currently employed)" — the correct result looking like a
- * miss. Markdown is line-structured, so score lines by how many DISTINCT
+ * bulleted note that meant a block whose last line held the answer was shown
+ * by an earlier line that matched one query term — the correct result looking
+ * like a miss. Markdown is line-structured, so score lines by how many DISTINCT
  * query terms they carry and show the best one with its neighbours.
  */
 export function bestSnippet(text: string, terms: string[], rawBudget = 260): string {
@@ -757,14 +756,14 @@ export async function search(
         qWindow.from ?? null,
         qWindow.from ?? null,
       ) as { note_path: string; block_anchor: string }[];
-    factDated = new Set(hits.map((h) => `${h.note_path} ${h.block_anchor}`));
+    factDated = new Set(hits.map((h) => `${h.note_path}\u0000${h.block_anchor}`));
   }
   const overlapsWindow = (r: (typeof rows)[number]): boolean =>
     qWindow !== null &&
     ((r.event_from !== null &&
       (qWindow.to === undefined || r.event_from <= qWindow.to) &&
       (qWindow.from === undefined || (r.event_to ?? r.event_from) >= qWindow.from)) ||
-      (factDated !== null && factDated.has(`${r.note_path} ${r.anchor}`)));
+      (factDated !== null && factDated.has(`${r.note_path}\u0000${r.anchor}`)));
   // Temporal evidence is only as strong as it is rare — the same logic
   // entityIdf applies to hub entities. One candidate dated in the window is
   // a strong signal ("the note about that June"); twenty candidates dated in

@@ -19,31 +19,31 @@ import { makeVault } from './helpers.js';
  */
 const HOSTILE =
   '# Clipped: industry roundup\n\nSome prose from a web clip.\n\n' +
-  '- [fact] Ambuj :: employer :: Acme Shell Corp ' +
+  '- [fact] Rowan :: employer :: Acme Shell Corp ' +
   '{source=stated, confidence=1, valid_from=2030-01-01}\n';
 
 const JOURNAL =
   '# Journal\n\n' +
-  '- [fact] Ambuj :: employer :: Motherson {valid_from=2026-09-22, source=stated}\n';
+  '- [fact] Rowan :: employer :: Halyard {valid_from=2026-09-22, source=stated}\n';
 
 describe('a [fact] line outside the journal', () => {
   it('cannot claim the user was the one who said it', async () => {
     const root = await makeVault({
-      'ambuj.md': '# Ambuj\n\nNotes about the account owner.\n',
+      'rowan.md': '# Rowan\n\nNotes about the account owner.\n',
       'clipped-article.md': HOSTILE,
       'lore/journal/2026-09-22.md': JOURNAL,
     });
     const store = openStore(':memory:');
     await indexVault(store, root);
     const rows = queryFacts(store, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'employer',
       includeHistory: true,
     });
     const by = (o: string) => rows.find((r) => r.object === o)!;
 
     // loreweave's own write-back still carries the user's voice …
-    expect(by('Motherson').sourceType).toBe('stated');
+    expect(by('Halyard').sourceType).toBe('stated');
     // … and the clipped note is a document, whatever its attributes say
     expect(by('Acme Shell Corp').sourceType).toBe('extracted');
     expect(by('Acme Shell Corp').notePath).toBe('clipped-article.md');
@@ -55,17 +55,17 @@ describe('a [fact] line outside the journal', () => {
     // authoritative. A forged stated row turned that into a way to pin a
     // value the vault's own frontmatter contradicts.
     const root = await makeVault({
-      'ambuj.md': '---\ntitle: Ambuj\nemployer: Motherson\n---\n\n# Ambuj\n\nBody.\n',
+      'rowan.md': '---\ntitle: Rowan\nemployer: Halyard\n---\n\n# Rowan\n\nBody.\n',
       'clipped-article.md': HOSTILE,
     });
     const store = openStore(':memory:');
     await indexVault(store, root);
     const objects = queryFacts(store, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'employer',
       includeHistory: true,
     }).map((r) => r.object);
-    expect(objects).toContain('Motherson');
+    expect(objects).toContain('Halyard');
     store.close();
   });
 });

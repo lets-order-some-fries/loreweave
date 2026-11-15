@@ -2,35 +2,35 @@ import { describe, expect, it } from 'vitest';
 import { bestSnippet } from '../src/retrieve/search.js';
 import { contentTerms } from '../src/normalize.js';
 
-const BLOCK = `- **Target roles / titles:** AI Engineer, Senior AI Engineer, ML Engineer
-- **Seniority:** Mid to Senior
-- **Location:** No preference
-- **Timeline / urgency:** Actively applying now (currently employed)
-- **Compensation expectation:** TBD
-- **Companies to AVOID:** Axtria, Analytic Edge (C5i) — former employers. Do not apply.`;
+const BLOCK = `- **Target sites / buildings:** North depot, Harbor annex, Cold store
+- **Scope:** Replace and recalibrate
+- **Owner:** No assignee yet
+- **Timeline / urgency:** Ordering now (current sensors still running)
+- **Budget estimate:** TBD
+- **Vendors to EXCLUDE:** Globex, Initech — both failed the last site audit. Do not order.`;
 
 describe('bestSnippet', () => {
   it('shows the line that answers the query, not the first term hit', () => {
-    // "applying" appears in the Timeline line; the ANSWER is the last line.
-    const s = bestSnippet(BLOCK, contentTerms('which companies should I avoid applying to'));
-    expect(s).toContain('Companies to AVOID');
-    expect(s).toContain('Axtria');
+    // "ordering" appears in the Timeline line; the ANSWER is the last line.
+    const s = bestSnippet(BLOCK, contentTerms('which vendors should we exclude when ordering'));
+    expect(s).toContain('Vendors to EXCLUDE');
+    expect(s).toContain('Globex');
   });
 
   it('picks a different line for a different question in the same block', () => {
-    const s = bestSnippet(BLOCK, contentTerms('what are my target roles'));
-    expect(s).toContain('Target roles');
+    const s = bestSnippet(BLOCK, contentTerms('what are the target sites'));
+    expect(s).toContain('Target sites');
   });
 
   it('never truncates the matching line away', () => {
-    const s = bestSnippet(BLOCK, contentTerms('avoid companies'), 80);
-    expect(s).toContain('Companies to AVOID');
+    const s = bestSnippet(BLOCK, contentTerms('exclude vendors'), 80);
+    expect(s).toContain('Vendors to EXCLUDE');
   });
 
   it('falls back to the block head when nothing matches', () => {
     const s = bestSnippet(BLOCK, contentTerms('zzzqqq nothing'));
     expect(s.length).toBeGreaterThan(0);
-    expect(s).toContain('Target roles');
+    expect(s).toContain('Target sites');
   });
 
   it('finds an answer split across hard-wrapped lines', () => {

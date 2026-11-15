@@ -37,14 +37,14 @@ async function emptyCtx(): Promise<LoreContext> {
 
 describe('fact lines', () => {
   it('parse ↔ render round-trip', () => {
-    const line = '- [fact] Ambuj :: works_at :: Motherson {valid_from=2025-11-01, confidence=0.9}';
+    const line = '- [fact] Rowan :: works_at :: Halyard {valid_from=2025-11-01, confidence=0.9}';
     const parsed = parseFactLines(line);
     expect(parsed).toHaveLength(1);
     expect(parsed[0]).toMatchObject({
       kind: 'fact',
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'works_at',
-      object: 'Motherson',
+      object: 'Halyard',
     });
     const rendered = renderFactLine(parsed[0]!);
     expect(parseFactLines(rendered)[0]).toEqual(parsed[0]);
@@ -90,13 +90,13 @@ describe('assert / supersede / time-travel', () => {
   it('contradiction supersedes with typed link, never deletes', async () => {
     const ctx = await emptyCtx();
     assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Lucknow',
       validFrom: '2020-01-01',
     });
     const r2 = assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Hyderabad',
       validFrom: '2025-11-01',
@@ -106,7 +106,7 @@ describe('assert / supersede / time-travel', () => {
     expect(r2.superseded[0]!.validUntil).toBe('2025-11-01');
 
     // both rows still exist
-    const all = queryFacts(ctx.store, { subject: 'Ambuj', includeHistory: true });
+    const all = queryFacts(ctx.store, { subject: 'Rowan', includeHistory: true });
     expect(all).toHaveLength(2);
     // typed link exists
     const link = ctx.store.db
@@ -119,23 +119,23 @@ describe('assert / supersede / time-travel', () => {
   it('current query returns only the fresh fact; asOf time-travels', async () => {
     const ctx = await emptyCtx();
     assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Lucknow',
       validFrom: '2020-01-01',
     });
     assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Hyderabad',
       validFrom: '2025-11-01',
     });
-    const current = queryFacts(ctx.store, { subject: 'Ambuj', predicate: 'lives_in' });
+    const current = queryFacts(ctx.store, { subject: 'Rowan', predicate: 'lives_in' });
     expect(current).toHaveLength(1);
     expect(current[0]!.object).toBe('Hyderabad');
 
     const then = queryFacts(ctx.store, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       asOf: '2023-06-15',
     });
@@ -144,7 +144,7 @@ describe('assert / supersede / time-travel', () => {
 
     // on the transition date the new fact wins
     const transition = queryFacts(ctx.store, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       asOf: '2025-11-01',
     });
@@ -176,18 +176,18 @@ describe('assert / supersede / time-travel', () => {
   it('journal write-back → reindex reproduces identical fact state', async () => {
     const ctx = await emptyCtx();
     assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Lucknow',
       validFrom: '2020-01-01',
     });
     assertFact(ctx, {
-      subject: 'Ambuj',
+      subject: 'Rowan',
       predicate: 'lives_in',
       object: 'Hyderabad',
       validFrom: '2025-11-01',
     });
-    invalidateFact(ctx, { subject: 'Ambuj', predicate: 'lives_in', validUntil: '2026-07-01' });
+    invalidateFact(ctx, { subject: 'Rowan', predicate: 'lives_in', validUntil: '2026-07-01' });
 
     const dump = () =>
       ctx.store.db
@@ -202,8 +202,8 @@ describe('assert / supersede / time-travel', () => {
     // journal file exists in the vault
     const today = new Date().toISOString().slice(0, 10);
     const journal = await readFile(join(ctx.root, `lore/journal/${today}.md`), 'utf8');
-    expect(journal).toContain('[fact] Ambuj :: lives_in :: Hyderabad');
-    expect(journal).toContain('[invalidate] Ambuj :: lives_in');
+    expect(journal).toContain('[fact] Rowan :: lives_in :: Hyderabad');
+    expect(journal).toContain('[invalidate] Rowan :: lives_in');
 
     // full replay from files only
     await indexVault(ctx.store, ctx.root, { full: true });

@@ -188,7 +188,7 @@ export function extractEntities(note: Note, useNlp = true): EntityMention[] {
   const seen = new Map<string, EntityMention>();
   const add = (m: EntityMention) => {
     if (!acceptable(m.key)) return;
-    const dedupeKey = `${m.key} ${m.blockAnchor} ${m.source}`;
+    const dedupeKey = `${m.key}\u0000${m.blockAnchor}\u0000${m.source}`;
     const prev = seen.get(dedupeKey);
     if (!prev || prev.confidence < m.confidence) seen.set(dedupeKey, m);
   };

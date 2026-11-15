@@ -29,7 +29,7 @@ lexical overlap.
 
 | corpus | system | finds the answer | in top 5 | MRR | answer shown |
 |---|---|---|---|---|---|
-| kestrel (40 q) | hybrid | **100%** | **75%** | 0.545 | 55% |
+| kestrel (40 q) | hybrid | **100%** | **75%** | 0.544 | 58% |
 | | BM25 | 75% | 65% | 0.532 | 55% |
 | northwind (24 q) | hybrid | **96%** | **92%** | **0.690** | **83%** |
 | | BM25 | 63% | 58% | 0.521 | 54% |
@@ -43,7 +43,7 @@ which is why the README leads with the public benchmarks instead.)
 
 Multi-hop is where the graph earns its keep: **BM25 finds 0% on both prose
 corpora** — it cannot reach a note that shares no words with your query, at
-any depth — while hybrid finds 90% and 100%. Time is where the temporal
+any depth — while hybrid finds 100% on both. Time is where the temporal
 machinery earns its keep: on meridian's windowed questions hybrid ranks the
 right note **first 100% of the time vs BM25's 0%**, and on the paired
 perturbation test (same question, shifted window, different correct answer,

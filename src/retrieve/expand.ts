@@ -226,7 +226,7 @@ export function buildNoteLinkGraph(store: Store): NoteLinkGraph {
   for (const l of links) {
     const dst = resolveNoteName(candidates, l.target_norm, l.note_path, resolver);
     if (!dst || dst === l.note_path) continue;
-    const key = `${l.note_path} ${dst}`;
+    const key = `${l.note_path}\u0000${dst}`;
     if (seen.has(key)) continue;
     seen.add(key);
     (out.get(l.note_path) ?? out.set(l.note_path, []).get(l.note_path)!).push(dst);
