@@ -1,8 +1,8 @@
 <h1 align="center">Loreweave</h1>
 
 <p align="center">
-  <strong>A temporal knowledge engine for markdown vaults.</strong><br>
-  It indexes, links, remembers, forgets, and dreams — locally, over files you own.
+  <strong>A local temporal knowledge engine for markdown vaults.</strong><br>
+  Hybrid search, bitemporal facts and agent memory over MCP, with no LLM in the core.
 </p>
 
 <p align="center">
@@ -293,15 +293,23 @@ find the sessions holding the evidence. Session-level recall, all 500 questions:
 | model-free (no embeddings, no network) | 0.552 | 0.899 | 0.943 |
 | + embeddings & 8-turn chunking | **0.590** | **0.959** | **0.983** |
 
-[A third-party benchmark][lme] of the same task reports BM25 alone at **86.2%** R@5,
-BM25+vector hybrid at **95.2%**, and a vector-only system at **96.6%**. One caveat
-before the comparison: their metric scores a question 1 if *any* gold session is
-retrieved, ours scores the *fraction* of gold sessions found — ours is the stricter
-definition, so treat cross-system gaps of under a point as noise. With that stated:
-**at 95.9% loreweave is past the hybrid and just short of the vector-only system**,
-with a local model, no network, and a lexical index it can fall back to.
+The embedder (`mxbai-embed-large`) and the chunking in the second row were chosen by
+comparing configurations on 100-question samples (every fifth question) of these same
+500 questions, with 95.2% R@5 as the target, so there is no held-out split.
+
+For context only: [agentmemory's historical report][lme] lists 86.2% (BM25), 95.2%
+(BM25 + vector) and 96.6% (MemPalace, vector-only) R@5 on LongMemEval-S. Those use
+any-hit scoring (a question counts if any gold session is in the top 5), an older input
+pipeline and, for the two vector rows, the all-MiniLM-L6-v2 embedder; their author now
+says the 95.2% cannot be compared with strict recall-all. The loreweave rows above score
+the fraction of gold sessions found. The author's [current evaluation (2026-10-28)][lme-eval]
+reports that metric too: 91.7% fractional recall@5 for agentmemory's BM25 component, over
+the 470 answerable questions (the rows above also include the 30 abstention questions)
+and with a different input pipeline. No ranking against any of these figures is claimed
+here.
 
 [lme]: https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md
+[lme-eval]: https://github.com/rohitg00/agentmemory/blob/main/docs/benchmarks/2026-10-28-retrieval-evaluation.md
 
 **BEIR / SciFact** — 5 183 scientific abstracts, 300 claims, scored by nDCG@10
 (ranking quality: rewards putting relevant documents nearer the top):
@@ -313,9 +321,16 @@ with a local model, no network, and a lexical index it can fall back to.
 | loreweave + nomic-embed-text | 0.727 | 0.865 |
 | loreweave + mxbai-embed-large | **0.742** | **0.884** |
 
+SciFact abstracts have no links and almost no tags, so the graph channel, whose
+candidates enter the ranking only when links, tagged notes and facts together reach one
+per 50 notes, is gated off and these rows do not measure it; the model-free row is in
+effect loreweave's own BM25, which scores 0.6815 run alone. The gain from local
+embeddings is 0.681 → 0.742.
+
 **LoCoMo** — 10 long conversations, 1 982 evidence-labelled questions, turn-level
 recall. No comparable third-party *retrieval* number exists (published LoCoMo results
-are LLM QA accuracy), so these are offered as a target rather than a comparison:
+are LLM QA accuracy), so these are offered as a target rather than a comparison.
+The turns have no links, tags or facts, so the graph channel is gated off here too:
 
 | | R@1 | R@5 | R@10 | R@20 |
 |---|---|---|---|---|
