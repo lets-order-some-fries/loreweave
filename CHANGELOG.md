@@ -215,11 +215,13 @@ that were not true.
   language written after the opening fence — so a note beginning `---js` ran
   arbitrary code the moment it was indexed. Vault notes are untrusted: shared
   vaults, synced folders, notes written by other agents. Dropping one markdown
-  file into a watched folder was remote code execution. Every code-executing
+  file into a watched folder was arbitrary code execution. Every code-executing
   engine is now inert; such a note indexes as an ordinary note with a warning,
   its code is not indexed as prose, and YAML/JSON frontmatter are unchanged.
   If you run any earlier version against a vault you do not fully control,
-  update.
+  update. Advisory:
+  [GHSA-xqgm-3q4r-8j6f](https://github.com/lets-order-some-fries/loreweave/security/advisories/GHSA-xqgm-3q4r-8j6f)
+  (high, CVSS 7.8).
 - **`read_note` returns notes, and nothing else.** Path containment was
   checked; file type was not. A vault that symlinks in a folder — an
   attachments directory, a code repo, an ordinary Obsidian setup — exposed
