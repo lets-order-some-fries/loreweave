@@ -234,11 +234,11 @@ export function buildGraph(
     .prepare(`SELECT id, note_path, anchor FROM blocks`)
     .all() as { id: number; note_path: string; anchor: string }[];
   const anchorMap = new Map<string, number>();
-  for (const b of blockByNoteAnchor) anchorMap.set(`${b.note_path} ${b.anchor}`, b.id);
+  for (const b of blockByNoteAnchor) anchorMap.set(`${b.note_path}\u0000${b.anchor}`, b.id);
   for (const l of links) {
     const eIdx = entityKeyIndex.get(l.target_norm);
     if (eIdx === undefined) continue; // broken link
-    const bId = anchorMap.get(`${l.note_path} ${l.block_anchor}`);
+    const bId = anchorMap.get(`${l.note_path}\u0000${l.block_anchor}`);
     if (bId === undefined) continue;
     const bIdx = blockIndex.get(bId);
     if (bIdx === undefined) continue;

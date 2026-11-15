@@ -756,14 +756,14 @@ export async function search(
         qWindow.from ?? null,
         qWindow.from ?? null,
       ) as { note_path: string; block_anchor: string }[];
-    factDated = new Set(hits.map((h) => `${h.note_path} ${h.block_anchor}`));
+    factDated = new Set(hits.map((h) => `${h.note_path}\u0000${h.block_anchor}`));
   }
   const overlapsWindow = (r: (typeof rows)[number]): boolean =>
     qWindow !== null &&
     ((r.event_from !== null &&
       (qWindow.to === undefined || r.event_from <= qWindow.to) &&
       (qWindow.from === undefined || (r.event_to ?? r.event_from) >= qWindow.from)) ||
-      (factDated !== null && factDated.has(`${r.note_path} ${r.anchor}`)));
+      (factDated !== null && factDated.has(`${r.note_path}\u0000${r.anchor}`)));
   // Temporal evidence is only as strong as it is rare — the same logic
   // entityIdf applies to hub entities. One candidate dated in the window is
   // a strong signal ("the note about that June"); twenty candidates dated in
