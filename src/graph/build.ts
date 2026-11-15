@@ -256,7 +256,7 @@ export function buildGraph(
   //  1. Declared: the note's own frontmatter `aliases:` list (the Obsidian
   //     convention), connecting the title's entity to each alias's entity.
   //  2. Acronym: a multi-word entity whose initials spell another entity key
-  //     ("motherson technology services" ↔ "mts"). Initials shorter than 3
+  //     ("halyard survey systems" ↔ "hss"). Initials shorter than 3
   //     letters are ignored — two-letter collisions are noise, not identity.
   const noteMeta = db
     .prepare(`SELECT title, frontmatter FROM notes`)

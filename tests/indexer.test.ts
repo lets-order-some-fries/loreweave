@@ -57,8 +57,8 @@ describe('indexVault', () => {
     const facts = store.db.prepare(`SELECT * FROM facts ORDER BY id`).all() as any[];
     expect(facts.length).toBe(2);
     const work = facts.find((f) => f.predicate === 'works at');
-    expect(work.subject).toBe('ambuj');
-    expect(work.object).toBe('Motherson');
+    expect(work.subject).toBe('rowan');
+    expect(work.object).toBe('Halyard');
     expect(work.valid_from).toBe('2025-11-01');
     expect(work.source_type).toBe('stated');
     store.close();

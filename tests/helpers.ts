@@ -73,7 +73,7 @@ Buy oat milk and lentils. Completely unrelated content.
 `,
   'lore/journal/2026-08-01.md': `# Journal
 
-- [fact] Ambuj :: works_at :: Motherson {valid_from=2025-11-01, recorded_at=2026-08-01T10:00:00.000Z}
+- [fact] Rowan :: works_at :: Halyard {valid_from=2025-11-01, recorded_at=2026-08-01T10:00:00.000Z}
 - [fact] Riverbed Protocol :: status :: blocked {valid_from=2026-07-20, recorded_at=2026-08-01T10:00:00.000Z}
 `,
 };

@@ -324,9 +324,9 @@ export function rebuildFactsFromNotes(store: Store, mode: ExtractionMode = 'expl
         // `lore facts` print "asserted", told the agent over MCP "stated: user
         // said it", and — because extractStructuredFacts refuses to touch a
         // slot a stated row occupies — pinned the forged value against the
-        // vault's own frontmatter. Measured on a vault whose ambuj.md declared
-        // `employer: Motherson`, the only employer fact in the store came from
-        // the clipped note.
+        // vault's own frontmatter. Measured on a vault whose person note
+        // declared an `employer:` in its frontmatter, the only employer fact in
+        // the store came from the clipped note.
         //
         // Reading it as a default rather than as a claim costs the documented
         // journal round-trip nothing: assertFact writes the attribute and the

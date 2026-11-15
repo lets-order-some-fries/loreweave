@@ -140,7 +140,7 @@ describe('mcp server', () => {
       await client.callTool({
         name: 'lore_assert_fact',
         arguments: {
-          subject: 'Ambuj',
+          subject: 'Rowan',
           predicate: 'lives_in',
           object: 'Lucknow',
           validFrom: '2020-01-01',
@@ -151,7 +151,7 @@ describe('mcp server', () => {
       await client.callTool({
         name: 'lore_assert_fact',
         arguments: {
-          subject: 'Ambuj',
+          subject: 'Rowan',
           predicate: 'lives_in',
           object: 'Hyderabad',
           validFrom: '2025-11-01',
@@ -163,7 +163,7 @@ describe('mcp server', () => {
     const current = parseText(
       await client.callTool({
         name: 'lore_query_facts',
-        arguments: { subject: 'Ambuj', predicate: 'lives_in' },
+        arguments: { subject: 'Rowan', predicate: 'lives_in' },
       }),
     );
     // { facts, truncated? }: a bare array could not say it was a sample.
@@ -174,7 +174,7 @@ describe('mcp server', () => {
     const past = parseText(
       await client.callTool({
         name: 'lore_query_facts',
-        arguments: { subject: 'Ambuj', predicate: 'lives_in', asOf: '2022-05-05' },
+        arguments: { subject: 'Rowan', predicate: 'lives_in', asOf: '2022-05-05' },
       }),
     );
     expect(past.facts[0].object).toBe('Lucknow');

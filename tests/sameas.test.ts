@@ -21,10 +21,10 @@ const VAULT = {
     '# Dredge note\n\n[[Robert Aldana]] signed off the dredge calibration for the season.\n',
   'log/standup.md':
     '# Standup\n\nBob mentioned the kelp sensors are drifting again.\n',
-  'orgs/motherson-technology-services.md':
-    '---\ntitle: Motherson Technology Services\n---\n\n# Motherson Technology Services\n\nMotherson Technology Services maintains the fleet telemetry stack.\n',
+  'orgs/halyard-survey-systems.md':
+    '---\ntitle: Halyard Survey Systems\n---\n\n# Halyard Survey Systems\n\nHalyard Survey Systems maintains the fleet telemetry stack.\n',
   'log/vendor-call.md':
-    '# Vendor call\n\nCall with MTS about the telemetry contract renewal went fine.\n',
+    '# Vendor call\n\nCall with HSS about the telemetry contract renewal went fine.\n',
 };
 
 async function ctxFor(): Promise<LoreContext> {
@@ -66,9 +66,9 @@ describe('same-as edges', () => {
   it('an acronym connects to the entity whose initials it spells', async () => {
     const ctx = await ctxFor();
     const g = ctx.graph();
-    const mtsIdx = g.entityKeyIndex.get('mts');
-    expect(mtsIdx).toBeDefined();
-    expect(neighborsOf(g, 'motherson technology services').has(mtsIdx!)).toBe(true);
+    const hssIdx = g.entityKeyIndex.get('hss');
+    expect(hssIdx).toBeDefined();
+    expect(neighborsOf(g, 'halyard survey systems').has(hssIdx!)).toBe(true);
     ctx.close();
   });
 

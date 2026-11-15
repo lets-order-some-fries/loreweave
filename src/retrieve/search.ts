@@ -209,10 +209,9 @@ function pickBestBlockPerNote(
  * Pick the part of a block that actually answers the query.
  *
  * FTS5's snippet() centres on whichever term it happens to hit first. On a
- * bulleted note that meant a block whose last line read
- * "Companies to AVOID: Axtria, Analytic Edge" was shown as
- * "...applying now (currently employed)" — the correct result looking like a
- * miss. Markdown is line-structured, so score lines by how many DISTINCT
+ * bulleted note that meant a block whose last line held the answer was shown
+ * by an earlier line that matched one query term — the correct result looking
+ * like a miss. Markdown is line-structured, so score lines by how many DISTINCT
  * query terms they carry and show the best one with its neighbours.
  */
 export function bestSnippet(text: string, terms: string[], rawBudget = 260): string {

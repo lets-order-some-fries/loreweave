@@ -635,7 +635,7 @@ was healthy.
   a person named Tom at full same-as weight — deep-propagating, and
   indistinguishable downstream from a stated fact. Initials now skip
   stopwords, and the target must actually look like an acronym in the vault
-  (`MTS` still merges with Motherson Technology Services).
+  (`HSS` still merges with Halyard Survey Systems).
 - **`aliases: Bobby` (scalar YAML) made no alias at all.** The graph layer
   coerced the scalar form; the extractor only read arrays — so the entity
   never existed and the edge the graph was written to build silently never
@@ -812,12 +812,12 @@ The graph now knows what the fact store knows.
 
 ## 0.20.1 — 2026-08-12
 
-Dogfood pass on a real vault (42 notes of career records, tables, leads).
+Dogfood pass on a real 42-note personal vault (tables, lists, records).
 
 - **Timeline mentions show the line naming the subject** — a table block's
   first line is "| Skill | Proficiency |", unreadable as a history entry;
   the same lesson `bestSnippet` taught search now applies to `timeline`.
-- Verified on real data: "companies to avoid" search hits the exact passage
+- Verified on real data: a search for a phrase from a list note hits the exact passage
   at rank 1; dream's duplicate/link/orphan findings are sensible; resume
   delta correct. Diagnosed and closed the kestrel multihop tail: ranks 11-24
   are one-hop walls in front of two-hop answers whose discriminating word
@@ -897,7 +897,7 @@ reach, not three.
 
 - **Alias and acronym identity edges in the entity graph.** A person is "Bob"
   in standups, "Robert Aldana" on their hub page; a company is both
-  "Motherson Technology Services" and "MTS". Those arrived as disconnected
+  "Halyard Survey Systems" and "HSS". Those arrived as disconnected
   entity nodes, and activation from one never reached content filed under the
   others — HippoRAG's ablation prices exactly this edge class at 3.5 R@5
   points, on a corpus with better name hygiene than any vault. Two
